@@ -1,0 +1,290 @@
+import 'package:flutter/material.dart';
+
+import '../models/interest.dart';
+import '../models/user_session.dart';
+
+class DailyFocusScreen extends StatefulWidget {
+  const DailyFocusScreen({
+    super.key,
+    required this.session,
+    required this.configuredInterests,
+    required this.onLogout,
+    this.onRefineGoals,
+  });
+
+  final UserSession session;
+  final List<SelectedInterest> configuredInterests;
+  final VoidCallback onLogout;
+  final VoidCallback? onRefineGoals;
+
+  @override
+  State<DailyFocusScreen> createState() => _DailyFocusScreenState();
+}
+
+class _DailyFocusScreenState extends State<DailyFocusScreen> {
+  final Set<String> _completed = {};
+  late List<_ActivityItem> _activities;
+
+  @override
+  void initState() {
+    super.initState();
+    _activities = _buildActivities(widget.configuredInterests);
+  }
+
+  @override
+  void didUpdateWidget(covariant DailyFocusScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.configuredInterests != widget.configuredInterests) {
+      _activities = _buildActivities(widget.configuredInterests);
+      _completed.clear();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final completion = _activities.isEmpty
+        ? 0.0
+        : _completed.length / _activities.length;
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("petAI"),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout_rounded),
+            tooltip: "Log out",
+            onPressed: widget.onLogout,
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              child: _buildHeroCard(context, completion),
+            ),
+            Expanded(
+              child: _activities.isEmpty
+                  ? const Center(
+                      child: Text(
+                        "No activities yet. Add an interest to begin.",
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                      itemBuilder: (context, index) {
+                        final activity = _activities[index];
+                        final isDone = _completed.contains(activity.id);
+                        return _ActivityTile(
+                          activity: activity,
+                          isDone: isDone,
+                          onToggle: () {
+                            setState(() {
+                              if (isDone) {
+                                _completed.remove(activity.id);
+                              } else {
+                                _completed.add(activity.id);
+                              }
+                            });
+                          },
+                        );
+                      },
+                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      itemCount: _activities.length,
+                    ),
+            ),
+            if (widget.onRefineGoals != null)
+              SafeArea(
+                top: false,
+                minimum: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.tune_rounded),
+                    label: const Text("Adjust interests & goals"),
+                    onPressed: widget.onRefineGoals,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeroCard(BuildContext context, double completion) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: LinearGradient(
+          colors: [
+            Theme.of(context).colorScheme.primary.withValues(alpha: 0.9),
+            Theme.of(context).colorScheme.secondary,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "Hi, ${widget.session.displayName}",
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            "Here are your suggested micro-actions for today.",
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.85),
+              fontSize: 15,
+            ),
+          ),
+          const SizedBox(height: 16),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              minHeight: 8,
+              value: completion,
+              backgroundColor: Colors.white.withValues(alpha: 0.3),
+              valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            "${(_completed.length).toString().padLeft(1)} of ${_activities.length} done",
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.85)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<_ActivityItem> _buildActivities(List<SelectedInterest> interests) {
+    final activities = <_ActivityItem>[];
+    for (final interest in interests) {
+      final blueprint = interest.blueprint;
+      final picks = blueprint.suggestedActivities.take(3);
+      for (final activity in picks) {
+        activities.add(
+          _ActivityItem(
+            id: "${blueprint.id}-${activity.hashCode}",
+            label: activity,
+            interestName: blueprint.name,
+            color: blueprint.accentColor,
+            isGoal: false,
+          ),
+        );
+      }
+      activities.add(
+        _ActivityItem(
+          id: "${blueprint.id}-goal",
+          label: interest.goal,
+          interestName: blueprint.name,
+          color: blueprint.accentColor,
+          isGoal: true,
+        ),
+      );
+    }
+    return activities;
+  }
+}
+
+class _ActivityItem {
+  const _ActivityItem({
+    required this.id,
+    required this.label,
+    required this.interestName,
+    required this.color,
+    required this.isGoal,
+  });
+
+  final String id;
+  final String label;
+  final String interestName;
+  final Color color;
+  final bool isGoal;
+}
+
+class _ActivityTile extends StatelessWidget {
+  const _ActivityTile({
+    required this.activity,
+    required this.isDone,
+    required this.onToggle,
+  });
+
+  final _ActivityItem activity;
+  final bool isDone;
+  final VoidCallback onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onToggle,
+      borderRadius: BorderRadius.circular(24),
+      child: Ink(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: isDone ? activity.color : Colors.grey.shade200,
+            width: isDone ? 1.8 : 1,
+          ),
+          color: Colors.white,
+        ),
+        child: Row(
+          children: [
+            Container(
+              height: 44,
+              width: 44,
+              decoration: BoxDecoration(
+                color: activity.color.withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(
+                activity.isGoal ? Icons.flag_rounded : Icons.bolt_rounded,
+                color: activity.color,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    activity.interestName,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey.shade600,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    activity.label,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Checkbox(
+              value: isDone,
+              onChanged: (_) => onToggle(),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
