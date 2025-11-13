@@ -2,6 +2,8 @@ from flask import Blueprint, jsonify, request
 from flask_login import login_user
 from sqlalchemy.exc import IntegrityError
 
+from services.user.user_service import UserService
+from dao.userDAO import UserDAO
 try:
     from ..models.user.user import User, db
 except ImportError:
@@ -34,19 +36,18 @@ def register():
     if not username or not email or not password:
         return jsonify({"error": "username, email, and password are required"}), 400
 
-    existing_user = User.query.filter(
-        (User.username == username) | (User.email == email)
-    ).first()
-    if existing_user:
+    
+    is_existing_user = UserDAO.existing_user(username, email)
+    
+    
+    if is_existing_user:
         return (
             jsonify({"error": "User with provided username or email already exists"}),
             409,
         )
 
-    user = User(username=username, email=email, full_name=full_name)
-    user.set_password(password)
+    user, pet = UserService.init_user(username, email, full_name, password)
 
-    db.session.add(user)
     try:
         db.session.commit()
     except IntegrityError:
@@ -54,7 +55,11 @@ def register():
         return jsonify({"error": "Failed to create user"}), 500
 
     login_user(user)
-    return jsonify({"message": "Account created", "user": _user_payload(user)}), 201
+    return jsonify({
+        "message": "Account created",
+        "user": _user_payload(user),
+        "pet":pet
+        }), 201
 
 
 @auth_bp.route("/login", methods=["POST"])

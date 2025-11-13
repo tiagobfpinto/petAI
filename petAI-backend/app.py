@@ -1,21 +1,21 @@
+from pathlib import Path
+import sys
+
 from flask import Flask
 from flask_cors import CORS
 from flask_login import LoginManager
 from flask_migrate import Migrate
 
-from models import bcrypt, db
+BASE_DIR = Path(__file__).resolve().parent
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
 
-# Conditional imports to support both package and direct execution
-if __package__:
-    from .config import Config
-    from .models.interests import Interest  # noqa: F401 - ensures model registration
-    from .models.user.user import User
-    from .routes.auth import auth_bp
-else:
-    from config import Config
-    from models.interests import Interest  # noqa: F401
-    from models.user.user import User
-    from routes.auth import auth_bp
+from models import bcrypt, db
+from config import Config
+from models.interests import Interest  # noqa: F401  Ensures Alembic autoload
+from models.pet.pet import Pet  # noqa: F401
+from models.user.user import User
+from routes.auth import auth_bp
 
 
 def create_app():
