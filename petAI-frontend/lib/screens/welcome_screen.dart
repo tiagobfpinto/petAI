@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../models/user_session.dart';
+import '../models/session_bootstrap.dart';
 import '../services/api_service.dart';
 
 enum AuthMode { login, register }
@@ -17,7 +17,7 @@ class WelcomeScreen extends StatefulWidget {
   });
 
   final ApiService apiService;
-  final void Function(UserSession session, bool isNewUser) onAuthenticated;
+  final void Function(SessionBootstrap bootstrap) onAuthenticated;
 
   @override
   State<WelcomeScreen> createState() => _WelcomeScreenState();
@@ -384,7 +384,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     final password = _passwordCtrl.text.trim();
     final name = _nameCtrl.text.trim().isEmpty ? null : _nameCtrl.text.trim();
 
-    ApiResponse<UserSession> response;
+    ApiResponse<SessionBootstrap> response;
     if (_mode == AuthMode.login) {
       response = await widget.apiService.login(
         email: email,
@@ -404,9 +404,9 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     setState(() => _isLoading = false);
 
     if (response.isSuccess && response.data != null) {
-      widget.onAuthenticated(response.data!, _mode == AuthMode.register);
+      widget.onAuthenticated(response.data!);
     } else {
-      _showSnack(response.error ?? "Something went wrong — try again.");
+      _showSnack(response.error ?? "Something went wrong, try again.");
     }
   }
 

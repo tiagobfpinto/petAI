@@ -285,3 +285,109 @@ const List<Color> customInterestPalette = [
   Color(0xFFFF7043),
   Color(0xFF5C6BC0),
 ];
+
+final Map<String, InterestBlueprint> _catalogById = {
+  for (final blueprint in interestCatalog) blueprint.id.toLowerCase(): blueprint,
+};
+
+final Map<String, String> _aliasIndex = _buildAliasIndex();
+final Map<String, InterestBlueprint> _customBlueprintCache = {};
+
+Map<String, String> _buildAliasIndex() {
+  final aliases = <String, String>{};
+  for (final blueprint in interestCatalog) {
+    aliases[blueprint.name.toLowerCase()] = blueprint.id.toLowerCase();
+  }
+  const manual = <String, String>{
+    "running": "running",
+    "cardio": "running",
+    "study": "study",
+    "learn": "study",
+    "work on a project": "project",
+    "project": "project",
+    "skincare": "skincare",
+    "skin care": "skincare",
+    "eat healthy": "eat-healthy",
+    "nutrition": "eat-healthy",
+    "wake up early": "wake-early",
+    "morning routine": "wake-early",
+    "make my bed": "tidy-bed",
+    "do your bed": "tidy-bed",
+    "tidy": "tidy-bed",
+  };
+  aliases.addAll(manual);
+  return aliases.map((key, value) => MapEntry(key.toLowerCase(), value));
+}
+
+InterestBlueprint resolveInterestBlueprint(String rawName) {
+  final normalized = rawName.trim().toLowerCase();
+  final blueprintId = _aliasIndex[normalized];
+  if (blueprintId != null) {
+    final blueprint = _catalogById[blueprintId];
+    if (blueprint != null) {
+      return blueprint;
+    }
+  }
+  return _buildCustomBlueprint(rawName);
+}
+
+InterestBlueprint _buildCustomBlueprint(String rawName) {
+  final normalized = rawName.trim().isEmpty ? "Custom interest" : rawName.trim();
+  final cacheKey = normalized.toLowerCase();
+  return _customBlueprintCache.putIfAbsent(cacheKey, () {
+    final color = _colorForName(cacheKey);
+    return InterestBlueprint(
+      id: "custom-${_slugify(cacheKey)}",
+      name: normalized,
+      description: "Your personalized track in PetAI.",
+      accentColor: color,
+      icon: Icons.auto_awesome_rounded,
+      suggestedActivities: [
+        "Brainstorm a tiny win",
+        "Ask PetAI for inspiration",
+        "Reflect for 2 minutes",
+      ],
+      goalPresets: _genericPresets(normalized),
+    );
+  });
+}
+
+Map<MotivationLevel, GoalPreset> _genericPresets(String name) {
+  return {
+    MotivationLevel.never: GoalPreset(
+      title: "Ease into $name",
+      description: "Start tiny so you can celebrate day one.",
+      suggestion: "Spend 10 minutes exploring $name twice this week.",
+    ),
+    MotivationLevel.sometimes: GoalPreset(
+      title: "Design a cadence",
+      description: "Schedule it so momentum compounds.",
+      suggestion: "Block three 20-minute sessions for $name and track one insight.",
+    ),
+    MotivationLevel.usually: GoalPreset(
+      title: "Sharpen execution",
+      description: "Add feedback loops to stay focused.",
+      suggestion: "Ship two tangible outcomes for $name and journal learnings.",
+    ),
+    MotivationLevel.always: GoalPreset(
+      title: "Optimize flow",
+      description: "Refine the routine that already works.",
+      suggestion: "Maintain four sessions for $name and review metrics weekly.",
+    ),
+  };
+}
+
+String _slugify(String input) {
+  final sanitized = input.toLowerCase().replaceAll(RegExp(r"[^a-z0-9]+"), "-");
+  return sanitized.replaceAll(RegExp(r"^-+|-+\$"), "");
+}
+
+Color _colorForName(String name) {
+  final hash = name.codeUnits.fold<int>(0, (sum, code) => sum + code);
+  final index = hash.abs() % customInterestPalette.length;
+  return customInterestPalette[index];
+}
+
+bool isKnownInterestName(String rawName) {
+  return _aliasIndex.containsKey(rawName.trim().toLowerCase());
+}
