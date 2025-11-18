@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 
-import 'data/interest_catalog.dart';
-import 'models/interest.dart';
+import 'models/pet_state.dart';
+import 'models/user_interest.dart';
 import 'models/user_session.dart';
-import 'screens/daily_focus_screen.dart';
-import 'screens/goal_setup_screen.dart';
 import 'screens/interest_selection_screen.dart';
+import 'screens/pet_home_screen.dart';
 import 'screens/welcome_screen.dart';
 import 'services/api_service.dart';
 import 'theme/app_theme.dart';
@@ -23,10 +22,14 @@ class PetAiApp extends StatefulWidget {
 
 class _PetAiAppState extends State<PetAiApp> {
   final ApiService _apiService = ApiService();
+  final GlobalKey<ScaffoldMessengerState> _messengerKey =
+      GlobalKey<ScaffoldMessengerState>();
+
   UserSession? _session;
-  bool _isFresh = false;
-  List<InterestBlueprint> _pendingSelection = [];
-  List<SelectedInterest> _configured = [];
+  PetState? _pet;
+  List<UserInterest> _interests = [];
+  bool _needsInterestSetup = false;
+  bool _isSyncing = false;
 
   @override
   Widget build(BuildContext context) {
@@ -34,6 +37,7 @@ class _PetAiAppState extends State<PetAiApp> {
       title: "petAI",
       debugShowCheckedModeBanner: false,
       theme: AppTheme.build(),
+      scaffoldMessengerKey: _messengerKey,
       home: _buildFlow(),
     );
   }
@@ -42,76 +46,99 @@ class _PetAiAppState extends State<PetAiApp> {
     if (_session == null) {
       return WelcomeScreen(
         apiService: _apiService,
-        onAuthenticated: (session, isNewUser) {
+        onAuthenticated: (bootstrap) {
           setState(() {
-            _session = session;
-            _isFresh = isNewUser;
-            _pendingSelection = [];
-            _configured = [];
+            _session = bootstrap.user;
+            _pet = bootstrap.pet;
+            _needsInterestSetup = bootstrap.needInterestsSetup;
+            _interests = [];
           });
+          _bootstrapSync();
         },
       );
     }
 
-    if (_isFresh) {
-      if (_pendingSelection.isEmpty) {
-        return InterestSelectionScreen(
-          catalog: interestCatalog,
-          onContinue: (selection) {
-            if (selection.isEmpty) return;
-            setState(() => _pendingSelection = selection);
-          },
-          onLogout: _resetAll,
-        );
-      }
-      return GoalSetupScreen(
-        interests: _pendingSelection,
-        onBack: () => setState(() => _pendingSelection = []),
-        onComplete: (configured) {
+    if (_needsInterestSetup || _interests.isEmpty) {
+      return InterestSelectionScreen(
+        apiService: _apiService,
+        existingInterests: _interests,
+        onSaved: (interests) {
           setState(() {
-            _configured = configured;
-            _isFresh = false;
-            _pendingSelection = [];
+            _interests = interests;
+            _needsInterestSetup = interests.isEmpty;
           });
         },
+        onLogout: _handleLogout,
       );
     }
 
-    final interests = _configured.isNotEmpty
-        ? _configured
-        : _fallbackSelections();
+    if (_pet == null) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
 
-    return DailyFocusScreen(
+    return PetHomeScreen(
+      apiService: _apiService,
       session: _session!,
-      configuredInterests: interests,
-      onLogout: _resetAll,
-      onRefineGoals: () {
-        setState(() {
-          _isFresh = true;
-          _pendingSelection = interests.map((item) => item.blueprint).toList();
-          _configured = [];
-        });
-      },
+      pet: _pet!,
+      interests: _interests,
+      isSyncing: _isSyncing,
+      onLogout: _handleLogout,
+      onPetChanged: (pet) => setState(() => _pet = pet),
+      onRefreshInterests: _loadInterests,
+      onEditInterests: () => setState(() => _needsInterestSetup = true),
+      onError: _showError,
     );
   }
 
-  List<SelectedInterest> _fallbackSelections() {
-    return interestCatalog.take(3).map((blueprint) {
-      final preset = blueprint.presetFor(MotivationLevel.usually);
-      return SelectedInterest(
-        blueprint: blueprint,
-        level: MotivationLevel.usually,
-        goal: preset.suggestion,
-      );
-    }).toList();
+  Future<void> _bootstrapSync() async {
+    setState(() => _isSyncing = true);
+    await Future.wait([_loadInterests(showErrors: false), _refreshPet()]);
+    if (mounted) {
+      setState(() => _isSyncing = false);
+    }
   }
 
-  void _resetAll() {
+  Future<void> _loadInterests({bool showErrors = true}) async {
+    final response = await _apiService.fetchUserInterests();
+    if (!mounted) return;
+    if (response.isSuccess && response.data != null) {
+      setState(() {
+        _interests = response.data!;
+        _needsInterestSetup = _interests.isEmpty;
+      });
+    } else if (showErrors) {
+      _showError(response.error ?? "Failed to load interests");
+    }
+  }
+
+  Future<void> _refreshPet({bool showErrors = false}) async {
+    final response = await _apiService.fetchPet();
+    if (!mounted) return;
+    if (response.isSuccess && response.data != null) {
+      setState(() => _pet = response.data);
+    } else if (showErrors) {
+      _showError(response.error ?? "Failed to load pet");
+    }
+  }
+
+  Future<void> _handleLogout() async {
+    await _apiService.logout();
+    if (!mounted) return;
     setState(() {
       _session = null;
-      _isFresh = false;
-      _pendingSelection = [];
-      _configured = [];
+      _pet = null;
+      _interests = [];
+      _needsInterestSetup = false;
+      _isSyncing = false;
     });
+  }
+
+  void _showError(String message) {
+    final messenger = _messengerKey.currentState;
+    if (messenger == null) return;
+    messenger.clearSnackBars();
+    messenger.showSnackBar(SnackBar(content: Text(message)));
   }
 }

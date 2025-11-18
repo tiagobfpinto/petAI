@@ -28,6 +28,19 @@ extension MotivationLevelMetadata on MotivationLevel {
         return "It's a habit already";
     }
   }
+
+  String get key {
+    switch (this) {
+      case MotivationLevel.never:
+        return "never";
+      case MotivationLevel.sometimes:
+        return "sometimes";
+      case MotivationLevel.usually:
+        return "usually";
+      case MotivationLevel.always:
+        return "always";
+    }
+  }
 }
 
 class GoalPreset {
@@ -65,26 +78,17 @@ class InterestBlueprint {
       goalPresets[level] ?? goalPresets.values.first;
 }
 
-class SelectedInterest {
-  const SelectedInterest({
-    required this.blueprint,
-    required this.level,
-    required this.goal,
-  });
-
-  final InterestBlueprint blueprint;
-  final MotivationLevel level;
-  final String goal;
-
-  SelectedInterest copyWith({
-    InterestBlueprint? blueprint,
-    MotivationLevel? level,
-    String? goal,
-  }) {
-    return SelectedInterest(
-      blueprint: blueprint ?? this.blueprint,
-      level: level ?? this.level,
-      goal: goal ?? this.goal,
-    );
+MotivationLevel motivationLevelFromKey(String? value) {
+  final normalized = (value ?? "").toLowerCase().trim();
+  switch (normalized) {
+    case "never":
+      return MotivationLevel.never;
+    case "usually":
+      return MotivationLevel.usually;
+    case "always":
+      return MotivationLevel.always;
+    case "sometimes":
+    default:
+      return MotivationLevel.sometimes;
   }
 }
