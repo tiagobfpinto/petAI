@@ -5,6 +5,7 @@ class UserSession {
     required this.email,
     this.fullName,
     this.plan,
+    
   });
 
   final int id;
@@ -30,4 +31,18 @@ class UserSession {
       plan: json["plan"] as String?,
     );
   }
+    
+  factory UserSession.guest() {
+    return const UserSession(
+      id: -1,
+      username: "Guest",
+      email: "guest@local",
+      fullName: "Guest User",
+      plan: null,
+    );
+    
+  }
+    
+
+
 }

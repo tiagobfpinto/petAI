@@ -88,3 +88,39 @@ class SelectedInterest {
     );
   }
 }
+
+// --- Guest serialization helpers (FORA da classe) ---
+
+extension SelectedInterestGuestJson on SelectedInterest {
+  Map<String, dynamic> toGuestJson() {
+    return {
+      "blueprintId": blueprint.id,
+      "levelIndex": level.index,
+      "goal": goal,
+    };
+  }
+}
+
+SelectedInterest selectedInterestFromGuestJson(
+  Map<String, dynamic> json,
+  List<InterestBlueprint> catalog,
+) {
+  final blueprintId = json["blueprintId"] as String;
+  final levelIndex = json["levelIndex"] as int;
+  final goal = json["goal"] as String;
+
+  final blueprint = catalog.firstWhere(
+    (b) => b.id == blueprintId,
+    orElse: () {
+      throw Exception("Unknown blueprint id: $blueprintId");
+    },
+  );
+
+  final level = MotivationLevel.values[levelIndex];
+
+  return SelectedInterest(
+    blueprint: blueprint,
+    level: level,
+    goal: goal,
+  );
+}
