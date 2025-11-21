@@ -14,10 +14,13 @@ class WelcomeScreen extends StatefulWidget {
     super.key,
     required this.apiService,
     required this.onAuthenticated,
+    this.hideGuestOption = false, // 👈 ADICIONAR ISTO
   });
 
   final ApiService apiService;
   final void Function(UserSession session, bool isNewUser) onAuthenticated;
+  final bool hideGuestOption; // 👈 NOVO
+
 
   @override
   State<WelcomeScreen> createState() => _WelcomeScreenState();
@@ -357,24 +360,22 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                       ),
                     ),
 
-                    // 👇 AQUI — botão "Continue without saving"
-                    const SizedBox(height: 16),
-                    Center(
-                      child: TextButton(
-                        onPressed: () {
-                          widget.onAuthenticated(
-                            UserSession.guest(),
-                            true,
-                          );
-                        },
-                        child: const Text(
-                          "Continue without saving",
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
+                            const SizedBox(height: 16),
+
+        // Só mostra guest se estiver em Sign up E não vier do "continue for 4.99"
+                          if (_mode == AuthMode.register && !widget.hideGuestOption)
+                            Center(
+                              child: TextButton(
+                                onPressed: _isLoading ? null : _continueWithoutSaving,
+                                child: const Text(
+                                  "Continue without saving",
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+
 
             if (_mode == AuthMode.login) ...[
               const SizedBox(height: 16),
@@ -429,6 +430,13 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     } else {
       _showSnack(response.error ?? "Something went wrong — try again.");
     }
+  }
+
+    void _continueWithoutSaving() {
+    widget.onAuthenticated(
+      UserSession.guest(),
+      true,
+    );
   }
 
   void _showSnack(String message) {

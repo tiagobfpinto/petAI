@@ -10,14 +10,17 @@ class DailyFocusScreen extends StatefulWidget {
     required this.configuredInterests,
     required this.onLogout,
     this.onRefineGoals,
-    this.onRequireAccount, // 👈 novo parâmetro opcional
+    this.onRequireAccount,
+    this.trialDaysLeft,
   });
 
   final UserSession session;
   final List<SelectedInterest> configuredInterests;
   final VoidCallback onLogout;
   final VoidCallback? onRefineGoals;
-  final VoidCallback? onRequireAccount; // 👈 novo campo
+
+  final VoidCallback? onRequireAccount;
+  final int? trialDaysLeft;
 
   @override
   State<DailyFocusScreen> createState() => _DailyFocusScreenState();
@@ -44,9 +47,8 @@ class _DailyFocusScreenState extends State<DailyFocusScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final completion = _activities.isEmpty
-        ? 0.0
-        : _completed.length / _activities.length;
+    final completion =
+        _activities.isEmpty ? 0.0 : _completed.length / _activities.length;
 
     return Scaffold(
       appBar: AppBar(
@@ -62,28 +64,14 @@ class _DailyFocusScreenState extends State<DailyFocusScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // 👇 Banner só para guest (id == -1) e quando há callback
             if (widget.session.id == -1 && widget.onRequireAccount != null)
               Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                child: Card(
-                  child: ListTile(
-                    leading: const Icon(Icons.info_outline_rounded),
-                    title: const Text("You’re in guest mode"),
-                    subtitle: const Text(
-                      "Create an account to save your progress and sync across devices.",
-                    ),
-                    trailing: TextButton(
-                      onPressed: widget.onRequireAccount,
-                      child: const Text("Create account"),
-                    ),
-                  ),
-                ),
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                child: _buildGuestBanner(context),
               ),
-
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               child: _buildHeroCard(context, completion),
             ),
             Expanded(
@@ -112,14 +100,16 @@ class _DailyFocusScreenState extends State<DailyFocusScreen> {
                           },
                         );
                       },
-                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      separatorBuilder: (_, __) =>
+                          const SizedBox(height: 12),
                       itemCount: _activities.length,
                     ),
             ),
             if (widget.onRefineGoals != null)
               SafeArea(
                 top: false,
-                minimum: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                minimum:
+                    const EdgeInsets.fromLTRB(24, 0, 24, 24),
                 child: SizedBox(
                   width: double.infinity,
                   child: OutlinedButton.icon(
@@ -135,6 +125,78 @@ class _DailyFocusScreenState extends State<DailyFocusScreen> {
     );
   }
 
+  Widget _buildGuestBanner(BuildContext context) {
+    final daysLeft = widget.trialDaysLeft;
+
+    String title = "You're in guest mode";
+    String subtitle;
+
+    if (daysLeft == null) {
+      subtitle =
+          "Your progress is stored on this device. Create an account later to keep your pet and habits backed up.";
+    } else if (daysLeft > 1) {
+      subtitle =
+          "Your free trial ends in $daysLeft days. Create an account and continue for €4.99/month.";
+    } else if (daysLeft == 1) {
+      subtitle =
+          "Your free trial ends tomorrow. Create an account and continue for €4.99/month.";
+    } else {
+      // Por segurança, caso ainda haja guest com trial expirado
+      subtitle =
+          "Your free trial has ended. Create an account and subscribe to keep using the app.";
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.amber.shade50,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.amber.shade200),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.info_outline_rounded,
+            size: 20,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey.shade800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          TextButton(
+            onPressed: widget.onRequireAccount,
+            child: const Text(
+              "Continue for €4.99",
+              style: TextStyle(fontSize: 13),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildHeroCard(BuildContext context, double completion) {
     return Container(
       padding: const EdgeInsets.all(24),
@@ -142,7 +204,10 @@ class _DailyFocusScreenState extends State<DailyFocusScreen> {
         borderRadius: BorderRadius.circular(28),
         gradient: LinearGradient(
           colors: [
-            Theme.of(context).colorScheme.primary.withValues(alpha: 0.9),
+            Theme.of(context)
+                .colorScheme
+                .primary
+                .withValues(alpha: 0.9),
             Theme.of(context).colorScheme.secondary,
           ],
           begin: Alignment.topLeft,
@@ -150,7 +215,8 @@ class _DailyFocusScreenState extends State<DailyFocusScreen> {
         ),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
         children: [
           Text(
             "Hi, ${widget.session.displayName}",
@@ -164,31 +230,42 @@ class _DailyFocusScreenState extends State<DailyFocusScreen> {
           Text(
             "Here are your suggested micro-actions for today.",
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.85),
+              color:
+                  Colors.white.withValues(alpha: 0.85),
               fontSize: 15,
             ),
           ),
           const SizedBox(height: 16),
           ClipRRect(
-            borderRadius: BorderRadius.circular(999),
+            borderRadius:
+                BorderRadius.circular(999),
             child: LinearProgressIndicator(
               minHeight: 8,
               value: completion,
-              backgroundColor: Colors.white.withValues(alpha: 0.3),
-              valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+              backgroundColor:
+                  Colors.white.withValues(alpha: 0.3),
+              valueColor:
+                  const AlwaysStoppedAnimation<Color>(
+                Colors.white,
+              ),
             ),
           ),
           const SizedBox(height: 8),
           Text(
             "${(_completed.length).toString().padLeft(1)} of ${_activities.length} done",
-            style: TextStyle(color: Colors.white.withValues(alpha: 0.85)),
+            style: TextStyle(
+              color:
+                  Colors.white.withValues(alpha: 0.85),
+            ),
           ),
         ],
       ),
     );
   }
 
-  List<_ActivityItem> _buildActivities(List<SelectedInterest> interests) {
+  List<_ActivityItem> _buildActivities(
+    List<SelectedInterest> interests,
+  ) {
     final activities = <_ActivityItem>[];
     for (final interest in interests) {
       final blueprint = interest.blueprint;
@@ -255,7 +332,8 @@ class _ActivityTile extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(24),
           border: Border.all(
-            color: isDone ? activity.color : Colors.grey.shade200,
+            color:
+                isDone ? activity.color : Colors.grey.shade200,
             width: isDone ? 1.8 : 1,
           ),
           color: Colors.white,
@@ -266,18 +344,23 @@ class _ActivityTile extends StatelessWidget {
               height: 44,
               width: 44,
               decoration: BoxDecoration(
-                color: activity.color.withValues(alpha: 0.16),
-                borderRadius: BorderRadius.circular(16),
+                color: activity.color
+                    .withValues(alpha: 0.16),
+                borderRadius:
+                    BorderRadius.circular(16),
               ),
               child: Icon(
-                activity.isGoal ? Icons.flag_rounded : Icons.bolt_rounded,
+                activity.isGoal
+                    ? Icons.flag_rounded
+                    : Icons.bolt_rounded,
                 color: activity.color,
               ),
             ),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
                 children: [
                   Text(
                     activity.interestName,
