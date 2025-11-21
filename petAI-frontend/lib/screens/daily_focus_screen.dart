@@ -10,12 +10,14 @@ class DailyFocusScreen extends StatefulWidget {
     required this.configuredInterests,
     required this.onLogout,
     this.onRefineGoals,
+    this.onRequireAccount, // 👈 novo parâmetro opcional
   });
 
   final UserSession session;
   final List<SelectedInterest> configuredInterests;
   final VoidCallback onLogout;
   final VoidCallback? onRefineGoals;
+  final VoidCallback? onRequireAccount; // 👈 novo campo
 
   @override
   State<DailyFocusScreen> createState() => _DailyFocusScreenState();
@@ -45,6 +47,7 @@ class _DailyFocusScreenState extends State<DailyFocusScreen> {
     final completion = _activities.isEmpty
         ? 0.0
         : _completed.length / _activities.length;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text("petAI"),
@@ -59,6 +62,26 @@ class _DailyFocusScreenState extends State<DailyFocusScreen> {
       body: SafeArea(
         child: Column(
           children: [
+            // 👇 Banner só para guest (id == -1) e quando há callback
+            if (widget.session.id == -1 && widget.onRequireAccount != null)
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                child: Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.info_outline_rounded),
+                    title: const Text("You’re in guest mode"),
+                    subtitle: const Text(
+                      "Create an account to save your progress and sync across devices.",
+                    ),
+                    trailing: TextButton(
+                      onPressed: widget.onRequireAccount,
+                      child: const Text("Create account"),
+                    ),
+                  ),
+                ),
+              ),
+
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               child: _buildHeroCard(context, completion),

@@ -9,6 +9,8 @@ import 'screens/interest_selection_screen.dart';
 import 'screens/welcome_screen.dart';
 import 'services/api_service.dart';
 import 'theme/app_theme.dart';
+import 'services/guest_storage.dart';
+
 
 void main() {
   runApp(const PetAiApp());
@@ -25,8 +27,13 @@ class _PetAiAppState extends State<PetAiApp> {
   final ApiService _apiService = ApiService();
   UserSession? _session;
   bool _isFresh = false;
+  bool _isUpgradingFromGuest = false;
+
+  DateTime? _guestTrialStart; // 👈 novo
+
   List<InterestBlueprint> _pendingSelection = [];
   List<SelectedInterest> _configured = [];
+
 
   @override
   Widget build(BuildContext context) {
@@ -40,16 +47,32 @@ class _PetAiAppState extends State<PetAiApp> {
 
   Widget _buildFlow() {
     if (_session == null) {
+
       return WelcomeScreen(
         apiService: _apiService,
-        onAuthenticated: (session, isNewUser) {
-          setState(() {
-            _session = session;
+
+              onAuthenticated: (session, isNewUser) async {
+        // se for conta real (não guest) -> limpar guest local
+        if (session.id != -1) {
+          await GuestStorage.clear();
+          _guestTrialStart = null;
+        }
+
+        setState(() {
+          _session = session;
+
+          if (_isUpgradingFromGuest) {
+            _isFresh = false;
+          } else {
             _isFresh = isNewUser;
             _pendingSelection = [];
             _configured = [];
-          });
-        },
+          }
+
+          _isUpgradingFromGuest = false;
+        });
+      },
+        
       );
     }
 
@@ -64,22 +87,31 @@ class _PetAiAppState extends State<PetAiApp> {
           onLogout: _resetAll,
         );
       }
-      return GoalSetupScreen(
+            return GoalSetupScreen(
         interests: _pendingSelection,
         onBack: () => setState(() => _pendingSelection = []),
-        onComplete: (configured) {
+        onComplete: (configured) async {
           setState(() {
             _configured = configured;
             _isFresh = false;
             _pendingSelection = [];
+            _guestTrialStart ??= DateTime.now();
           });
+
+          // guardar perfil guest localmente (se for guest)
+          if (_session != null && _session!.id == -1) {
+            await GuestStorage.saveGuestProfile(
+              configured,
+              trialStartOverride: _guestTrialStart,
+            );
+          }
         },
       );
+
     }
 
-    final interests = _configured.isNotEmpty
-        ? _configured
-        : _fallbackSelections();
+    final interests =
+        _configured.isNotEmpty ? _configured : _fallbackSelections();
 
     return DailyFocusScreen(
       session: _session!,
@@ -88,8 +120,20 @@ class _PetAiAppState extends State<PetAiApp> {
       onRefineGoals: () {
         setState(() {
           _isFresh = true;
-          _pendingSelection = interests.map((item) => item.blueprint).toList();
+          _pendingSelection =
+              interests.map((item) => item.blueprint).toList();
           _configured = [];
+        });
+      },
+      onRequireAccount: () {
+        // 👇 Estamos em guest e queremos criar conta "a sério"
+        // Mantemos os interesses/goals atuais em _configured
+        // e marcamos que é upgrade
+        setState(() {
+          _session = null;          // volta ao Welcome
+          _isFresh = false;         // não voltar ao onboarding depois
+          _pendingSelection = [];
+          _isUpgradingFromGuest = true;
         });
       },
     );
@@ -106,12 +150,36 @@ class _PetAiAppState extends State<PetAiApp> {
     }).toList();
   }
 
-  void _resetAll() {
+      void _resetAll() {
+      setState(() {
+        _session = null;
+        _isFresh = false;
+        _isUpgradingFromGuest = false;
+        _pendingSelection = [];
+        _configured = [];
+        _guestTrialStart = null;
+      });
+      GuestStorage.clear();
+    }
+
+
+    @override
+    void initState() {
+      super.initState();
+      _restoreGuestIfAny();
+    }
+
+    Future<void> _restoreGuestIfAny() async {
+  final profile = await GuestStorage.loadGuestProfile();
+  if (profile == null) return;
+
     setState(() {
-      _session = null;
-      _isFresh = false;
+      _session = UserSession.guest();
+      _configured = profile.configuredInterests;
       _pendingSelection = [];
-      _configured = [];
+      _isFresh = false; // já fez onboarding
+      _guestTrialStart = profile.trialStart;
     });
   }
+
 }

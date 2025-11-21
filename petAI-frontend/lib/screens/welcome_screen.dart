@@ -334,27 +334,48 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               ),
             ),
             const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                icon: _isLoading
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation(Colors.white),
-                        ),
-                      )
-                    : Icon(
-                        _mode == AuthMode.login
-                            ? Icons.login_rounded
-                            : Icons.arrow_forward_rounded,
+            
+                SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                    icon: _isLoading
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation(Colors.white),
+                                ),
+                              )
+                            : Icon(
+                                _mode == AuthMode.login
+                                    ? Icons.login_rounded
+                                    : Icons.arrow_forward_rounded,
+                              ),
+                        label: Text(_mode.label),
+                        onPressed: _isLoading ? null : _handleSubmit,
                       ),
-                label: Text(_mode.label),
-                onPressed: _isLoading ? null : _handleSubmit,
-              ),
-            ),
+                    ),
+
+                    // 👇 AQUI — botão "Continue without saving"
+                    const SizedBox(height: 16),
+                    Center(
+                      child: TextButton(
+                        onPressed: () {
+                          widget.onAuthenticated(
+                            UserSession.guest(),
+                            true,
+                          );
+                        },
+                        child: const Text(
+                          "Continue without saving",
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+
             if (_mode == AuthMode.login) ...[
               const SizedBox(height: 16),
               OutlinedButton.icon(
