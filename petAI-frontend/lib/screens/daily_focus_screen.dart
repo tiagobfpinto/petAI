@@ -31,31 +31,56 @@ class _DailyFocusScreenState extends State<DailyFocusScreen> {
   final Set<String> _completed = {};
   late List<_ActivityItem> _activities;
 
+  int _streak = 0; // 👈 novo
+
+      Future<void> _loadGuestDailyStateIfNeeded() async {
+    if (widget.session.id != -1) return;
+
+    final completed = await GuestStorage.loadGuestDailyCompletion();
+    final streak = await GuestStorage.loadGuestStreak();
+
+    if (!mounted) return;
+    setState(() {
+      _completed
+        ..clear()
+        ..addAll(completed);
+      _streak = streak;
+    });
+  }
+
+
   @override
-void initState() {
+  void initState() {
   super.initState();
   _activities = _buildActivities(widget.configuredInterests);
-
+   _loadGuestDailyStateIfNeeded(); // 👈 aqui
   // Se for guest, tentamos restaurar as completions de hoje
   if (widget.session.id == -1) {
     _restoreGuestDailyCompletion();
   }
 }
 
-    Future<void> _handleToggle(_ActivityItem activity, bool isDone) async {
-      setState(() {
-        if (isDone) {
-          _completed.remove(activity.id);
-        } else {
-          _completed.add(activity.id);
-        }
-      });
-
-      // Se for guest, guardar completions no storage
-      if (widget.session.id == -1) {
-        await GuestStorage.saveGuestDailyCompletion(_completed);
+      Future<void> _handleToggle(_ActivityItem activity, bool isDone) async {
+    setState(() {
+      if (isDone) {
+        _completed.remove(activity.id);
+      } else {
+        _completed.add(activity.id);
       }
+    });
+
+    // Se for guest, guardar completions no storage e atualizar streak
+    if (widget.session.id == -1) {
+      await GuestStorage.saveGuestDailyCompletion(_completed);
+      final streak = await GuestStorage.loadGuestStreak();
+
+      if (!mounted) return;
+      setState(() {
+        _streak = streak;
+      });
     }
+  }
+
 
   @override
   void didUpdateWidget(covariant DailyFocusScreen oldWidget) {
@@ -66,220 +91,262 @@ void initState() {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final completion =
-        _activities.isEmpty ? 0.0 : _completed.length / _activities.length;
+      @override
+    Widget build(BuildContext context) {
+      final completion =
+          _activities.isEmpty ? 0.0 : _completed.length / _activities.length;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("petAI"),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout_rounded),
-            tooltip: "Log out",
-            onPressed: widget.onLogout,
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            if (widget.session.id == -1 && widget.onRequireAccount != null)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-                child: _buildGuestBanner(context),
-              ),
-            Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              child: _buildHeroCard(context, completion),
-            ),
-            Expanded(
-              child: _activities.isEmpty
-                  ? const Center(
-                      child: Text(
-                        "No activities yet. Add an interest to begin.",
-                      ),
-                    )
-                  : ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-                      itemBuilder: (context, index) {
-                        final activity = _activities[index];
-                        final isDone = _completed.contains(activity.id);
-                        return _ActivityTile(
-                          activity: activity,
-                          isDone: isDone,
+      final isGuest = widget.session.id == -1;
+      final daysLeft = widget.trialDaysLeft;
 
-                        onToggle: () {
-                        _handleToggle(activity, isDone);
-                        },
-
-
-                        );
-                      },
-                      separatorBuilder: (_, __) =>
-                          const SizedBox(height: 12),
-                      itemCount: _activities.length,
+      return Scaffold(
+        appBar: AppBar(
+          title: Row(
+            children: [
+              const Text("petAI"),
+              if (isGuest && daysLeft != null) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade50,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: Colors.orange.shade200),
+                  ),
+                  child: Text(
+                    "Trial: $daysLeft day${daysLeft == 1 ? "" : "s"} left",
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.orange.shade900,
                     ),
-            ),
-            if (widget.onRefineGoals != null)
-              SafeArea(
-                top: false,
-                minimum:
-                    const EdgeInsets.fromLTRB(24, 0, 24, 24),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    icon: const Icon(Icons.tune_rounded),
-                    label: const Text("Adjust interests & goals"),
-                    onPressed: widget.onRefineGoals,
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildGuestBanner(BuildContext context) {
-    final daysLeft = widget.trialDaysLeft;
-
-    String title = "You're in guest mode";
-    String subtitle;
-
-    if (daysLeft == null) {
-      subtitle =
-          "Your progress is stored on this device. Create an account later to keep your pet and habits backed up.";
-    } else if (daysLeft > 1) {
-      subtitle =
-          "Your free trial ends in $daysLeft days. Create an account and continue for €4.99/month.";
-    } else if (daysLeft == 1) {
-      subtitle =
-          "Your free trial ends tomorrow. Create an account and continue for €4.99/month.";
-    } else {
-      // Por segurança, caso ainda haja guest com trial expirado
-      subtitle =
-          "Your free trial has ended. Create an account and subscribe to keep using the app.";
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.amber.shade50,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.amber.shade200),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(
-            Icons.info_outline_rounded,
-            size: 20,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey.shade800,
                   ),
                 ),
               ],
-            ),
+            ],
           ),
-          const SizedBox(width: 8),
-          TextButton(
-            onPressed: widget.onRequireAccount,
-            child: const Text(
-              "Continue for €4.99",
-              style: TextStyle(fontSize: 13),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.logout_rounded),
+              tooltip: "Log out",
+              onPressed: widget.onLogout,
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHeroCard(BuildContext context, double completion) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        gradient: LinearGradient(
-          colors: [
-            Theme.of(context)
-                .colorScheme
-                .primary
-                .withValues(alpha: 0.9),
-            Theme.of(context).colorScheme.secondary,
           ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
         ),
-      ),
-      child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
-        children: [
-          Text(
-            "Hi, ${widget.session.displayName}",
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
-            ),
+        body: SafeArea(
+          child: Column(
+            children: [
+              if (widget.session.id == -1 && widget.onRequireAccount != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                  child: _buildGuestBanner(context),
+                ),
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                child: _buildHeroCard(context, completion),
+              ),
+              Expanded(
+                child: _activities.isEmpty
+                    ? const Center(
+                        child: Text(
+                          "No activities yet. Add an interest to begin.",
+                        ),
+                      )
+                    : ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                        itemBuilder: (context, index) {
+                          final activity = _activities[index];
+                          final isDone = _completed.contains(activity.id);
+                          return _ActivityTile(
+                            activity: activity,
+                            isDone: isDone,
+                            onToggle: () {
+                              _handleToggle(activity, isDone);
+                            },
+                          );
+                        },
+                        separatorBuilder: (_, __) =>
+                            const SizedBox(height: 12),
+                        itemCount: _activities.length,
+                      ),
+              ),
+              if (widget.onRefineGoals != null)
+                SafeArea(
+                  top: false,
+                  minimum: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.tune_rounded),
+                      label: const Text("Adjust interests & goals"),
+                      onPressed: widget.onRefineGoals,
+                    ),
+                  ),
+                ),
+            ],
           ),
-          const SizedBox(height: 6),
-          Text(
-            "Here are your suggested micro-actions for today.",
-            style: TextStyle(
-              color:
-                  Colors.white.withValues(alpha: 0.85),
-              fontSize: 15,
+        ),
+      );
+    }
+
+
+      Widget _buildGuestBanner(BuildContext context) {
+      final daysLeft = widget.trialDaysLeft;
+
+      String title;
+      String subtitle;
+
+      if (daysLeft == null) {
+        title = "You're in guest mode";
+        subtitle =
+            "Your progress is stored on this device. Create an account later to keep your pet and habits backed up.";
+      } else if (daysLeft > 1) {
+        title = "Trial: $daysLeft days left";
+        subtitle =
+            "You're in guest mode. Create an account and continue for €4.99/month before your trial ends.";
+      } else if (daysLeft == 1) {
+        title = "Trial: 1 day left";
+        subtitle =
+            "Your trial ends tomorrow. Create an account and continue for €4.99/month.";
+      } else {
+        title = "Trial ended";
+        subtitle =
+            "Your free trial has ended. Create an account and subscribe to keep using the app.";
+      }
+
+      return Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.amber.shade50,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.amber.shade200),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(
+              Icons.info_outline_rounded,
+              size: 20,
             ),
-          ),
-          const SizedBox(height: 16),
-          ClipRRect(
-            borderRadius:
-                BorderRadius.circular(999),
-            child: LinearProgressIndicator(
-              minHeight: 8,
-              value: completion,
-              backgroundColor:
-                  Colors.white.withValues(alpha: 0.3),
-              valueColor:
-                  const AlwaysStoppedAnimation<Color>(
-                Colors.white,
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey.shade800,
+                    ),
+                  ),
+                ],
               ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            "${(_completed.length).toString().padLeft(1)} of ${_activities.length} done",
-            style: TextStyle(
-              color:
-                  Colors.white.withValues(alpha: 0.85),
+            const SizedBox(width: 8),
+            TextButton(
+              onPressed: widget.onRequireAccount,
+              child: const Text(
+                "Continue for €4.99",
+                style: TextStyle(fontSize: 13),
+              ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
+          ],
+        ),
+      );
+    }
+
+
+          Widget _buildHeroCard(BuildContext context, double completion) {
+          return Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(28),
+              gradient: LinearGradient(
+                colors: [
+                  Theme.of(context)
+                      .colorScheme
+                      .primary
+                      .withValues(alpha: 0.9),
+                  Theme.of(context).colorScheme.secondary,
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Hi, ${widget.session.displayName}",
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  "Here are your suggested micro-actions for today.",
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.85),
+                    fontSize: 15,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: LinearProgressIndicator(
+                    minHeight: 8,
+                    value: completion,
+                    backgroundColor:
+                        Colors.white.withValues(alpha: 0.3),
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      Colors.white,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  "${_completed.length} of ${_activities.length} done",
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.85),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                if (widget.session.id == -1 && _streak > 0)
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.local_fire_department_rounded,
+                        size: 18,
+                        color: Colors.white,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        "Streak: $_streak day${_streak == 1 ? "" : "s"}",
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.9),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          );
+        }
+
 
   List<_ActivityItem> _buildActivities(
     List<SelectedInterest> interests,
