@@ -86,28 +86,68 @@ class GuestStorage {
     );
   }
 
-  /// Guarda as activities completadas HOJE para o guest.
-  /// Não mexe em trialStart nem configuredInterests.
-  static Future<void> saveGuestDailyCompletion(
-    Set<String> completedIds,
-  ) async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_guestProfileKey);
-    if (raw == null) {
-      // ainda não há perfil guest, não vale a pena guardar só completions
-      return;
+        /// Guarda as activities completadas HOJE para o guest.
+      /// Atualiza também o streak de dias seguidos em que o guest completou algo.
+      static Future<void> saveGuestDailyCompletion(
+        Set<String> completedIds,
+      ) async {
+        final prefs = await SharedPreferences.getInstance();
+        final raw = prefs.getString(_guestProfileKey);
+        if (raw == null) {
+          // ainda não há perfil guest, não vale a pena guardar só completions
+          return;
+        }
+
+        final data = jsonDecode(raw) as Map<String, dynamic>;
+
+        final now = DateTime.now();
+        final todayStr = now.toIso8601String().split('T').first;
+
+        final previousDateStr = data['lastActivityDate'] as String?;
+        int streak = (data['streak'] as int?) ?? 0;
+
+        if (completedIds.isNotEmpty) {
+          if (previousDateStr == null) {
+            // primeira vez que completa algo
+            streak = 1;
+          } else {
+            final prevDate = DateTime.parse(previousDateStr);
+            final prev = DateTime(prevDate.year, prevDate.month, prevDate.day);
+            final today = DateTime(now.year, now.month, now.day);
+            final diffDays = today.difference(prev).inDays;
+
+            if (diffDays == 0) {
+              // já contou streak hoje → mantém
+            } else if (diffDays == 1) {
+              // dia seguinte → streak++
+              streak += 1;
+            } else {
+              // quebrou streak → volta a 1
+              streak = 1;
+            }
+          }
+
+          // só atualizamos lastActivityDate quando há pelo menos uma completion hoje
+          data['lastActivityDate'] = todayStr;
+        }
+
+        data['streak'] = streak;
+        data['completedToday'] = completedIds.toList();
+
+        await prefs.setString(_guestProfileKey, jsonEncode(data));
+      }
+
+            /// Lê o streak atual do guest (dias seguidos com pelo menos uma activity completada).
+      static Future<int> loadGuestStreak() async {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_guestProfileKey);
+      if (raw == null) return 0;
+
+      final data = jsonDecode(raw) as Map<String, dynamic>;
+      return (data['streak'] as int?) ?? 0;
     }
 
-    final data = jsonDecode(raw) as Map<String, dynamic>;
 
-    // Guardamos só a data (yyyy-mm-dd) para saber se é outro dia
-    final todayStr = DateTime.now().toIso8601String().split('T').first;
-
-    data['lastActivityDate'] = todayStr;
-    data['completedToday'] = completedIds.toList();
-
-    await prefs.setString(_guestProfileKey, jsonEncode(data));
-  }
 
   /// Carrega as completions de HOJE para o guest.
   /// Se for outro dia, devolve set vazio (reset diário natural).

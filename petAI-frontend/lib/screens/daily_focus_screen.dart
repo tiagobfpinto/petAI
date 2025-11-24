@@ -31,31 +31,56 @@ class _DailyFocusScreenState extends State<DailyFocusScreen> {
   final Set<String> _completed = {};
   late List<_ActivityItem> _activities;
 
+  int _streak = 0; // 👈 novo
+
+      Future<void> _loadGuestDailyStateIfNeeded() async {
+    if (widget.session.id != -1) return;
+
+    final completed = await GuestStorage.loadGuestDailyCompletion();
+    final streak = await GuestStorage.loadGuestStreak();
+
+    if (!mounted) return;
+    setState(() {
+      _completed
+        ..clear()
+        ..addAll(completed);
+      _streak = streak;
+    });
+  }
+
+
   @override
-void initState() {
+  void initState() {
   super.initState();
   _activities = _buildActivities(widget.configuredInterests);
-
+   _loadGuestDailyStateIfNeeded(); // 👈 aqui
   // Se for guest, tentamos restaurar as completions de hoje
   if (widget.session.id == -1) {
     _restoreGuestDailyCompletion();
   }
 }
 
-    Future<void> _handleToggle(_ActivityItem activity, bool isDone) async {
-      setState(() {
-        if (isDone) {
-          _completed.remove(activity.id);
-        } else {
-          _completed.add(activity.id);
-        }
-      });
-
-      // Se for guest, guardar completions no storage
-      if (widget.session.id == -1) {
-        await GuestStorage.saveGuestDailyCompletion(_completed);
+      Future<void> _handleToggle(_ActivityItem activity, bool isDone) async {
+    setState(() {
+      if (isDone) {
+        _completed.remove(activity.id);
+      } else {
+        _completed.add(activity.id);
       }
+    });
+
+    // Se for guest, guardar completions no storage e atualizar streak
+    if (widget.session.id == -1) {
+      await GuestStorage.saveGuestDailyCompletion(_completed);
+      final streak = await GuestStorage.loadGuestStreak();
+
+      if (!mounted) return;
+      setState(() {
+        _streak = streak;
+      });
     }
+  }
+
 
   @override
   void didUpdateWidget(covariant DailyFocusScreen oldWidget) {
@@ -242,71 +267,86 @@ void initState() {
     }
 
 
-  Widget _buildHeroCard(BuildContext context, double completion) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        gradient: LinearGradient(
-          colors: [
-            Theme.of(context)
-                .colorScheme
-                .primary
-                .withValues(alpha: 0.9),
-            Theme.of(context).colorScheme.secondary,
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
-        children: [
-          Text(
-            "Hi, ${widget.session.displayName}",
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            "Here are your suggested micro-actions for today.",
-            style: TextStyle(
-              color:
-                  Colors.white.withValues(alpha: 0.85),
-              fontSize: 15,
-            ),
-          ),
-          const SizedBox(height: 16),
-          ClipRRect(
-            borderRadius:
-                BorderRadius.circular(999),
-            child: LinearProgressIndicator(
-              minHeight: 8,
-              value: completion,
-              backgroundColor:
-                  Colors.white.withValues(alpha: 0.3),
-              valueColor:
-                  const AlwaysStoppedAnimation<Color>(
-                Colors.white,
+          Widget _buildHeroCard(BuildContext context, double completion) {
+          return Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(28),
+              gradient: LinearGradient(
+                colors: [
+                  Theme.of(context)
+                      .colorScheme
+                      .primary
+                      .withValues(alpha: 0.9),
+                  Theme.of(context).colorScheme.secondary,
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            "${(_completed.length).toString().padLeft(1)} of ${_activities.length} done",
-            style: TextStyle(
-              color:
-                  Colors.white.withValues(alpha: 0.85),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Hi, ${widget.session.displayName}",
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  "Here are your suggested micro-actions for today.",
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.85),
+                    fontSize: 15,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: LinearProgressIndicator(
+                    minHeight: 8,
+                    value: completion,
+                    backgroundColor:
+                        Colors.white.withValues(alpha: 0.3),
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      Colors.white,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  "${_completed.length} of ${_activities.length} done",
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.85),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                if (widget.session.id == -1 && _streak > 0)
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.local_fire_department_rounded,
+                        size: 18,
+                        color: Colors.white,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        "Streak: $_streak day${_streak == 1 ? "" : "s"}",
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.9),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
             ),
-          ),
-        ],
-      ),
-    );
-  }
+          );
+        }
+
 
   List<_ActivityItem> _buildActivities(
     List<SelectedInterest> interests,
