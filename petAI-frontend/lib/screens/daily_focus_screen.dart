@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/interest.dart';
 import '../models/user_session.dart';
+import '../services/guest_storage.dart';
 
 class DailyFocusScreen extends StatefulWidget {
   const DailyFocusScreen({
@@ -31,10 +32,30 @@ class _DailyFocusScreenState extends State<DailyFocusScreen> {
   late List<_ActivityItem> _activities;
 
   @override
-  void initState() {
-    super.initState();
-    _activities = _buildActivities(widget.configuredInterests);
+void initState() {
+  super.initState();
+  _activities = _buildActivities(widget.configuredInterests);
+
+  // Se for guest, tentamos restaurar as completions de hoje
+  if (widget.session.id == -1) {
+    _restoreGuestDailyCompletion();
   }
+}
+
+    Future<void> _handleToggle(_ActivityItem activity, bool isDone) async {
+      setState(() {
+        if (isDone) {
+          _completed.remove(activity.id);
+        } else {
+          _completed.add(activity.id);
+        }
+      });
+
+      // Se for guest, guardar completions no storage
+      if (widget.session.id == -1) {
+        await GuestStorage.saveGuestDailyCompletion(_completed);
+      }
+    }
 
   @override
   void didUpdateWidget(covariant DailyFocusScreen oldWidget) {
@@ -89,15 +110,12 @@ class _DailyFocusScreenState extends State<DailyFocusScreen> {
                         return _ActivityTile(
                           activity: activity,
                           isDone: isDone,
-                          onToggle: () {
-                            setState(() {
-                              if (isDone) {
-                                _completed.remove(activity.id);
-                              } else {
-                                _completed.add(activity.id);
-                              }
-                            });
-                          },
+
+                        onToggle: () {
+                        _handleToggle(activity, isDone);
+                        },
+
+
                         );
                       },
                       separatorBuilder: (_, __) =>
@@ -293,6 +311,21 @@ class _DailyFocusScreenState extends State<DailyFocusScreen> {
     }
     return activities;
   }
+      Future<void> _restoreGuestDailyCompletion() async {
+      final completedIds = await GuestStorage.loadGuestDailyCompletion();
+      if (!mounted) return;
+
+      // Garantir que só marcamos IDs que ainda existem na lista de activities
+      final valid = completedIds
+          .where((id) => _activities.any((a) => a.id == id))
+          .toSet();
+
+      setState(() {
+        _completed
+          ..clear()
+          ..addAll(valid);
+      });
+    }
 }
 
 class _ActivityItem {
