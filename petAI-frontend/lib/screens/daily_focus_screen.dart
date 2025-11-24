@@ -66,154 +66,181 @@ void initState() {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final completion =
-        _activities.isEmpty ? 0.0 : _completed.length / _activities.length;
+      @override
+    Widget build(BuildContext context) {
+      final completion =
+          _activities.isEmpty ? 0.0 : _completed.length / _activities.length;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("petAI"),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout_rounded),
-            tooltip: "Log out",
-            onPressed: widget.onLogout,
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            if (widget.session.id == -1 && widget.onRequireAccount != null)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-                child: _buildGuestBanner(context),
-              ),
-            Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              child: _buildHeroCard(context, completion),
-            ),
-            Expanded(
-              child: _activities.isEmpty
-                  ? const Center(
-                      child: Text(
-                        "No activities yet. Add an interest to begin.",
-                      ),
-                    )
-                  : ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-                      itemBuilder: (context, index) {
-                        final activity = _activities[index];
-                        final isDone = _completed.contains(activity.id);
-                        return _ActivityTile(
-                          activity: activity,
-                          isDone: isDone,
+      final isGuest = widget.session.id == -1;
+      final daysLeft = widget.trialDaysLeft;
 
-                        onToggle: () {
-                        _handleToggle(activity, isDone);
-                        },
-
-
-                        );
-                      },
-                      separatorBuilder: (_, __) =>
-                          const SizedBox(height: 12),
-                      itemCount: _activities.length,
+      return Scaffold(
+        appBar: AppBar(
+          title: Row(
+            children: [
+              const Text("petAI"),
+              if (isGuest && daysLeft != null) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade50,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: Colors.orange.shade200),
+                  ),
+                  child: Text(
+                    "Trial: $daysLeft day${daysLeft == 1 ? "" : "s"} left",
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.orange.shade900,
                     ),
-            ),
-            if (widget.onRefineGoals != null)
-              SafeArea(
-                top: false,
-                minimum:
-                    const EdgeInsets.fromLTRB(24, 0, 24, 24),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    icon: const Icon(Icons.tune_rounded),
-                    label: const Text("Adjust interests & goals"),
-                    onPressed: widget.onRefineGoals,
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildGuestBanner(BuildContext context) {
-    final daysLeft = widget.trialDaysLeft;
-
-    String title = "You're in guest mode";
-    String subtitle;
-
-    if (daysLeft == null) {
-      subtitle =
-          "Your progress is stored on this device. Create an account later to keep your pet and habits backed up.";
-    } else if (daysLeft > 1) {
-      subtitle =
-          "Your free trial ends in $daysLeft days. Create an account and continue for €4.99/month.";
-    } else if (daysLeft == 1) {
-      subtitle =
-          "Your free trial ends tomorrow. Create an account and continue for €4.99/month.";
-    } else {
-      // Por segurança, caso ainda haja guest com trial expirado
-      subtitle =
-          "Your free trial has ended. Create an account and subscribe to keep using the app.";
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.amber.shade50,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.amber.shade200),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(
-            Icons.info_outline_rounded,
-            size: 20,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey.shade800,
                   ),
                 ),
               ],
-            ),
+            ],
           ),
-          const SizedBox(width: 8),
-          TextButton(
-            onPressed: widget.onRequireAccount,
-            child: const Text(
-              "Continue for €4.99",
-              style: TextStyle(fontSize: 13),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.logout_rounded),
+              tooltip: "Log out",
+              onPressed: widget.onLogout,
             ),
+          ],
+        ),
+        body: SafeArea(
+          child: Column(
+            children: [
+              if (widget.session.id == -1 && widget.onRequireAccount != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                  child: _buildGuestBanner(context),
+                ),
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                child: _buildHeroCard(context, completion),
+              ),
+              Expanded(
+                child: _activities.isEmpty
+                    ? const Center(
+                        child: Text(
+                          "No activities yet. Add an interest to begin.",
+                        ),
+                      )
+                    : ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                        itemBuilder: (context, index) {
+                          final activity = _activities[index];
+                          final isDone = _completed.contains(activity.id);
+                          return _ActivityTile(
+                            activity: activity,
+                            isDone: isDone,
+                            onToggle: () {
+                              _handleToggle(activity, isDone);
+                            },
+                          );
+                        },
+                        separatorBuilder: (_, __) =>
+                            const SizedBox(height: 12),
+                        itemCount: _activities.length,
+                      ),
+              ),
+              if (widget.onRefineGoals != null)
+                SafeArea(
+                  top: false,
+                  minimum: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.tune_rounded),
+                      label: const Text("Adjust interests & goals"),
+                      onPressed: widget.onRefineGoals,
+                    ),
+                  ),
+                ),
+            ],
           ),
-        ],
-      ),
-    );
-  }
+        ),
+      );
+    }
+
+
+      Widget _buildGuestBanner(BuildContext context) {
+      final daysLeft = widget.trialDaysLeft;
+
+      String title;
+      String subtitle;
+
+      if (daysLeft == null) {
+        title = "You're in guest mode";
+        subtitle =
+            "Your progress is stored on this device. Create an account later to keep your pet and habits backed up.";
+      } else if (daysLeft > 1) {
+        title = "Trial: $daysLeft days left";
+        subtitle =
+            "You're in guest mode. Create an account and continue for €4.99/month before your trial ends.";
+      } else if (daysLeft == 1) {
+        title = "Trial: 1 day left";
+        subtitle =
+            "Your trial ends tomorrow. Create an account and continue for €4.99/month.";
+      } else {
+        title = "Trial ended";
+        subtitle =
+            "Your free trial has ended. Create an account and subscribe to keep using the app.";
+      }
+
+      return Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.amber.shade50,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.amber.shade200),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(
+              Icons.info_outline_rounded,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey.shade800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            TextButton(
+              onPressed: widget.onRequireAccount,
+              child: const Text(
+                "Continue for €4.99",
+                style: TextStyle(fontSize: 13),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
 
   Widget _buildHeroCard(BuildContext context, double completion) {
     return Container(
