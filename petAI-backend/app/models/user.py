@@ -22,10 +22,16 @@ class User(db.Model):
     __tablename__ = "users"
 
     id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(50), unique=True, nullable=False)
-    email = db.Column(db.String(120), unique=True, nullable=False, index=True)
-    password_hash = db.Column(db.String(255), nullable=False)
+
+    # IMPORTANT: guests don't have username/email/password, so nullable=True MUST be allowed
+    username = db.Column(db.String(50), unique=True, nullable=True)
+    email = db.Column(db.String(120), unique=True, nullable=True, index=True)
+    password_hash = db.Column(db.String(255), nullable=True)
+
     full_name = db.Column(db.String(120))
+
+    is_guest = db.Column(db.Boolean, default=True, nullable=False)
+
     created_at = db.Column(db.DateTime(timezone=True), default=_utcnow, nullable=False)
     plan = db.Column(PgEnum(PlanType, name="plan_type_enum"), default=PlanType.FREE, nullable=False)
 
@@ -36,6 +42,7 @@ class User(db.Model):
 
     def set_password(self, password: str) -> None:
         self.password_hash = bcrypt.generate_password_hash(password).decode("utf-8")
+        self.is_guest = False  # When setting password, user is no longer a guest
 
     def check_password(self, password: str) -> bool:
         return bcrypt.check_password_hash(self.password_hash, password)
@@ -51,4 +58,5 @@ class User(db.Model):
             "full_name": self.full_name,
             "plan": self.plan.value if self.plan else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
+            "is_guest": self.is_guest,
         }

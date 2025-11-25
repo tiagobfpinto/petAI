@@ -73,3 +73,42 @@ def logout():
         AuthTokenService.revoke_token(token_value)
         db.session.commit()
     return success_response("Logged out", {})
+
+
+#default access, every user is once a guest
+@auth_bp.route("/create/guest", methods=["POST"])
+def guest_access():
+
+    try:
+        # cria user guest
+        user = UserService.create_guest_user()
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        return error_response(f"Failed to create guest user: {exc}", 500)
+
+    # emitir token
+    token_value = AuthTokenService.issue_token(user.id)
+    db.session.commit()
+
+    # payload final
+    data = UserService.get_user_payload(user)
+    data["token"] = token_value
+
+    return success_response("Guest session created", data, 201)
+
+
+@auth_bp.route("/me", methods=["GET"])
+@token_required
+def me():
+    # O decorator @token_required já valida o token
+    # e já mete o user autenticado em request.current_user
+
+    user = getattr(request, "current_user", None)
+
+    if not user:
+        return error_response("Invalid token", 401)
+
+    data = UserService.get_user_payload(user)
+
+    return success_response("Authenticated", data)
