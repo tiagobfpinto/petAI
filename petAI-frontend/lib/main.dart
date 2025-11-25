@@ -118,6 +118,7 @@ class _PetAiAppState extends State<PetAiApp> {
 
     return DailyFocusScreen(
       session: _session!,
+      apiService: _apiService,
       configuredInterests: interests,
       onLogout: _resetAll,
       onRefineGoals: () {

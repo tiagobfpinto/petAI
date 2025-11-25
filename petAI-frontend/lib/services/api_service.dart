@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../models/pet.dart';
 import '../models/user_session.dart';
 
 class ApiResponse<T> {
@@ -43,6 +44,46 @@ class ApiService {
       }
       return ApiResponse.failure(
         payload["error"] as String? ?? "Failed to login",
+      );
+    } catch (err) {
+      return ApiResponse.failure("Network error: $err");
+    }
+  }
+
+  Future<ApiResponse<PetState>> fetchPet() async {
+    try {
+      final response = await _client.get(_uri("/pets/me"), headers: _headers);
+      final payload = _decode(response.body);
+      if (response.statusCode == 200 && payload.isNotEmpty) {
+        final data = payload["pet"] ?? payload;
+        return ApiResponse.success(
+          PetState.fromJson(Map<String, dynamic>.from(data as Map)),
+        );
+      }
+      return ApiResponse.failure(
+        payload["error"] as String? ?? "Failed to fetch pet",
+      );
+    } catch (err) {
+      return ApiResponse.failure("Network error: $err");
+    }
+  }
+
+  Future<ApiResponse<PetState>> addPetXp(int amount) async {
+    try {
+      final response = await _client.post(
+        _uri("/pets/xp"),
+        headers: _headers,
+        body: jsonEncode({"xp": amount}),
+      );
+      final payload = _decode(response.body);
+      if (response.statusCode == 200 && payload.isNotEmpty) {
+        final data = payload["pet"] ?? payload;
+        return ApiResponse.success(
+          PetState.fromJson(Map<String, dynamic>.from(data as Map)),
+        );
+      }
+      return ApiResponse.failure(
+        payload["error"] as String? ?? "Failed to update pet XP",
       );
     } catch (err) {
       return ApiResponse.failure("Network error: $err");
