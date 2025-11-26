@@ -12,12 +12,14 @@ class InterestSelectionScreen extends StatefulWidget {
     required this.existingInterests,
     required this.onSaved,
     required this.onLogout,
+    required this.onManageAccount,
   });
 
   final ApiService apiService;
   final List<UserInterest> existingInterests;
   final ValueChanged<List<UserInterest>> onSaved;
   final VoidCallback onLogout;
+  final VoidCallback onManageAccount;
 
   @override
   State<InterestSelectionScreen> createState() =>
@@ -59,6 +61,11 @@ class _InterestSelectionScreenState extends State<InterestSelectionScreen> {
             tooltip: "Refresh library",
             onPressed: _loadingDefaults ? null : _loadDefaults,
             icon: const Icon(Icons.refresh_rounded),
+          ),
+          IconButton(
+            tooltip: "Account",
+            onPressed: widget.onManageAccount,
+            icon: const Icon(Icons.person_rounded),
           ),
           IconButton(
             tooltip: "Log out",

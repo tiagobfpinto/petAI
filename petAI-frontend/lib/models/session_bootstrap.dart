@@ -6,9 +6,11 @@ class SessionBootstrap {
     required this.user,
     required this.pet,
     required this.needInterestsSetup,
+    this.token,
   });
 
   final UserSession user;
   final PetState pet;
   final bool needInterestsSetup;
+  final String? token;
 }

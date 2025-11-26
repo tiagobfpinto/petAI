@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from flask import Blueprint, request
 
-from ..auth import get_current_user_id, token_required
+from ..auth import active_user_required, get_current_user_id, token_required
 from ..models import db
 from ..routes import error_response, success_response
 from ..services.activity_service import ActivityService
@@ -20,6 +20,7 @@ def _resolve_user_id() -> int | None:
 
 @activity_bp.route("/complete", methods=["POST"])
 @token_required
+@active_user_required
 def complete_activity():
     payload = request.get_json(silent=True) or {}
     interest_name = (payload.get("interest") or "").strip()

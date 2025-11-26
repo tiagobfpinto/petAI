@@ -8,33 +8,64 @@ import '../models/pet_state.dart';
 import '../models/session_bootstrap.dart';
 import '../models/user_interest.dart';
 import '../models/user_session.dart';
+import 'token_storage.dart';
 
 class ApiResponse<T> {
-  ApiResponse.success([this.data])
-      : error = null,
+  ApiResponse.success(
+    this.data, {
+    this.statusCode = 200,
+  })  : error = null,
         isSuccess = true;
 
-  ApiResponse.failure(this.error)
-      : data = null,
+  ApiResponse.failure(
+    this.error, {
+    this.statusCode,
+  })  : data = null,
         isSuccess = false;
 
   final T? data;
   final String? error;
   final bool isSuccess;
+  final int? statusCode;
 }
 
 class ApiService {
-  ApiService({http.Client? client, String? baseUrl})
-      : _client = client ?? http.Client(),
+  ApiService({
+    http.Client? client,
+    String? baseUrl,
+    TokenStorage? tokenStorage,
+  })  : _client = client ?? http.Client(),
         _baseUrl = baseUrl ??
             const String.fromEnvironment(
               "PETAI_API",
               defaultValue: "http://127.0.0.1:5000",
-            );
+            ),
+        _tokenStorage = tokenStorage ?? const TokenStorage();
 
   final http.Client _client;
   final String _baseUrl;
+  final TokenStorage _tokenStorage;
   String? _token;
+
+  Future<String?> hydrateToken() async {
+    _token = await _tokenStorage.readToken();
+    return _token;
+  }
+
+  Future<void> clearToken() {
+    return _persistToken(null);
+  }
+
+  Future<void> syncToken(String? token) async {
+    if (token == null || token.isEmpty) return;
+    await _persistToken(token);
+  }
+
+  Future<void> _ensureTokenLoaded() async {
+    if (_token == null || _token!.isEmpty) {
+      _token = await _tokenStorage.readToken();
+    }
+  }
 
   Future<ApiResponse<SessionBootstrap>> login({
     required String email,
@@ -46,45 +77,98 @@ class ApiService {
         headers: _headers,
         body: jsonEncode({"email": email, "password": password}),
       );
-      final payload = _decode(response.body);
-      final data = _data(payload);
-      _token = data["token"] as String?;
-      if (response.statusCode == 200 && data.isNotEmpty) {
-        return ApiResponse.success(_parseBootstrap(data));
-      }
-      return ApiResponse.failure(
-        payload["error"] as String? ?? "Failed to log in",
+      return _parseSessionResponse(
+        response,
+        defaultError: "Failed to log in",
       );
     } catch (err) {
       return ApiResponse.failure("Network error: $err");
     }
   }
 
-  Future<ApiResponse<SessionBootstrap>> register({
+  /// Converts the current guest user into a real account.
+  Future<ApiResponse<SessionBootstrap>> convertGuest({
     required String username,
     required String email,
     required String password,
-    String? fullName,
   }) async {
+    await _ensureTokenLoaded();
+    if (_token == null || _token!.isEmpty) {
+      return ApiResponse.failure(
+        "No active session. Please restart to refresh your guest profile.",
+      );
+    }
+    final authHeader = _headers["Authorization"];
+    // ignore: avoid_print
+    print(
+      "[convertGuest] Authorization: $authHeader | token=$_token",
+    );
     try {
       final response = await _client.post(
-        _uri("/auth/register"),
+        _uri("/auth/convert"),
         headers: _headers,
         body: jsonEncode({
           "username": username,
           "email": email,
           "password": password,
-          "full_name": fullName,
         }),
+      );
+      return _parseSessionResponse(
+        response,
+        defaultError: "Failed to convert guest",
+      );
+    } catch (err) {
+      return ApiResponse.failure("Network error: $err");
+    }
+  }
+
+  /// Alias kept for compatibility. Registers now behave like a guest conversion.
+  Future<ApiResponse<SessionBootstrap>> register({
+    required String username,
+    required String email,
+    required String password,
+    String? fullName,
+  }) {
+    return convertGuest(username: username, email: email, password: password);
+  }
+
+  Future<ApiResponse<SessionBootstrap>> currentUser() async {
+    await _ensureTokenLoaded();
+    try {
+      final response = await _client.get(
+        _uri("/auth/me"),
+        headers: _headers,
       );
       final payload = _decode(response.body);
       final data = _data(payload);
-      _token = data["token"] as String?;
-      if (response.statusCode == 201 && data.isNotEmpty) {
-        return ApiResponse.success(_parseBootstrap(data));
+      if (response.statusCode == 200 && data.isNotEmpty) {
+        final token = data["token"] as String?;
+        if (token != null && token.isNotEmpty) {
+          await _persistToken(token);
+        }
+        return ApiResponse.success(
+          _parseBootstrap(data, token: token),
+          statusCode: response.statusCode,
+        );
       }
       return ApiResponse.failure(
-        payload["error"] as String? ?? "Failed to create account",
+        payload["error"] as String? ?? "Failed to load session",
+        statusCode: response.statusCode,
+      );
+    } catch (err) {
+      return ApiResponse.failure("Network error: $err");
+    }
+  }
+
+  Future<ApiResponse<SessionBootstrap>> createGuest() async {
+    try {
+      final response = await _client.post(
+        _uri("/auth/create/guest"),
+        headers: _headers,
+      );
+      return _parseSessionResponse(
+        response,
+        defaultError: "Failed to create guest",
       );
     } catch (err) {
       return ApiResponse.failure("Network error: $err");
@@ -97,16 +181,16 @@ class ApiService {
         _uri("/auth/logout"),
         headers: _headers,
       );
-      if (response.statusCode == 401) {
-        _token = null;
+      if (response.statusCode == 401 || response.statusCode == 200) {
+        await _persistToken(null);
       }
       if (response.statusCode == 200) {
-        _token = null;
-        return ApiResponse.success();
+        return ApiResponse.success(null, statusCode: response.statusCode);
       }
       final payload = _decode(response.body);
       return ApiResponse.failure(
         payload["error"] as String? ?? "Failed to logout",
+        statusCode: response.statusCode,
       );
     } catch (err) {
       return ApiResponse.failure("Network error: $err");
@@ -125,10 +209,11 @@ class ApiService {
         final list = (data["interests"] as List<dynamic>? ?? [])
             .map((item) => item.toString())
             .toList();
-        return ApiResponse.success(list);
+        return ApiResponse.success(list, statusCode: response.statusCode);
       }
       return ApiResponse.failure(
         payload["error"] as String? ?? "Failed to load interests",
+        statusCode: response.statusCode,
       );
     } catch (err) {
       return ApiResponse.failure("Network error: $err");
@@ -148,10 +233,11 @@ class ApiService {
             .whereType<Map<String, dynamic>>()
             .map(UserInterest.fromJson)
             .toList();
-        return ApiResponse.success(entries);
+        return ApiResponse.success(entries, statusCode: response.statusCode);
       }
       return ApiResponse.failure(
         payload["error"] as String? ?? "Failed to load user interests",
+        statusCode: response.statusCode,
       );
     } catch (err) {
       return ApiResponse.failure("Network error: $err");
@@ -174,10 +260,11 @@ class ApiService {
             .whereType<Map<String, dynamic>>()
             .map(UserInterest.fromJson)
             .toList();
-        return ApiResponse.success(items);
+        return ApiResponse.success(items, statusCode: response.statusCode);
       }
       return ApiResponse.failure(
         payload["error"] as String? ?? "Failed to save interests",
+        statusCode: response.statusCode,
       );
     } catch (err) {
       return ApiResponse.failure("Network error: $err");
@@ -195,10 +282,12 @@ class ApiService {
       if (response.statusCode == 200 && data["pet"] is Map<String, dynamic>) {
         return ApiResponse.success(
           PetState.fromJson(data["pet"] as Map<String, dynamic>),
+          statusCode: response.statusCode,
         );
       }
       return ApiResponse.failure(
         payload["error"] as String? ?? "Failed to load pet",
+        statusCode: response.statusCode,
       );
     } catch (err) {
       return ApiResponse.failure("Network error: $err");
@@ -220,10 +309,12 @@ class ApiService {
           data["pet"] is Map<String, dynamic>) {
         return ApiResponse.success(
           ActivityCompletionResult.fromJson(data),
+          statusCode: response.statusCode,
         );
       }
       return ApiResponse.failure(
         payload["error"] as String? ?? "Failed to complete activity",
+        statusCode: response.statusCode,
       );
     } catch (err) {
       return ApiResponse.failure("Network error: $err");
@@ -243,23 +334,66 @@ class ApiService {
             .whereType<Map<String, dynamic>>()
             .map(ActivityLogEntry.fromJson)
             .toList();
-        return ApiResponse.success(items);
+        return ApiResponse.success(items, statusCode: response.statusCode);
       }
       return ApiResponse.failure(
         payload["error"] as String? ?? "Failed to load activities",
+        statusCode: response.statusCode,
       );
     } catch (err) {
       return ApiResponse.failure("Network error: $err");
     }
   }
 
-  SessionBootstrap _parseBootstrap(Map<String, dynamic> data) {
+  Future<ApiResponse<SessionBootstrap>> _parseSessionResponse(
+    http.Response response, {
+    required String defaultError,
+  }) async {
+    final payload = _decode(response.body);
+    final data = _data(payload);
+    final token = data["token"] as String?;
+
+    if ((response.statusCode == 200 || response.statusCode == 201) &&
+        data.isNotEmpty) {
+      if (token != null && token.isNotEmpty) {
+        await _persistToken(token);
+      }
+      return ApiResponse.success(
+        _parseBootstrap(data, token: token),
+        statusCode: response.statusCode,
+      );
+    }
+
+    return ApiResponse.failure(
+      payload["error"] as String? ?? defaultError,
+      statusCode: response.statusCode,
+    );
+  }
+
+  Future<void> _persistToken(String? token) async {
+    _token = token;
+    if (token == null || token.isEmpty) {
+      await _tokenStorage.deleteToken();
+    } else {
+      await _tokenStorage.writeToken(token);
+    }
+  }
+
+  SessionBootstrap _parseBootstrap(
+    Map<String, dynamic> data, {
+    String? token,
+  }) {
     final userJson = data["user"] as Map<String, dynamic>? ?? {};
+    final trial = data["trial_days_left"];
+    if (trial != null) {
+      userJson["trial_days_left"] = trial;
+    }
     final petJson = data["pet"] as Map<String, dynamic>? ?? {};
     return SessionBootstrap(
       user: UserSession.fromJson(userJson),
       pet: PetState.fromJson(petJson),
       needInterestsSetup: data["need_interests_setup"] as bool? ?? false,
+      token: token ?? data["token"] as String?,
     );
   }
 
