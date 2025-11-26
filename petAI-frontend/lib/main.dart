@@ -100,7 +100,10 @@ class _PetAiAppState extends State<PetAiApp> {
       interests: _interests,
       isSyncing: _isSyncing,
       onLogout: _handleLogout,
-      onManageAccount: _openAccountManager,
+      onManageAccount: () => _openAccountManager(
+        initialMode:
+            (_session?.isGuest ?? true) ? AuthMode.convert : AuthMode.login,
+      ),
       onPetChanged: (pet) => setState(() => _pet = pet),
       onRefreshInterests: _loadInterests,
       onEditInterests: () => setState(() => _needsInterestSetup = true),

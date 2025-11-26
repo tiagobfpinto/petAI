@@ -313,7 +313,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        "Guest session detected. Create an account to keep this pet on all devices.",
+                        "Create an account to keep your pet on all devices.",
                         style: TextStyle(color: Colors.grey.shade800),
                       ),
                     ),
