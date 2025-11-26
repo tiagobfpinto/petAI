@@ -3,10 +3,14 @@ import 'package:flutter/material.dart';
 import '../models/session_bootstrap.dart';
 import '../services/api_service.dart';
 
-enum AuthMode { login, register }
+enum AuthMode { login, convert }
 
 extension AuthModeLabel on AuthMode {
   String get label => this == AuthMode.login ? "Log in" : "Create account";
+
+  String get subtitle => this == AuthMode.login
+      ? "Access an existing account"
+      : "Upgrade this guest to keep progress";
 }
 
 class WelcomeScreen extends StatefulWidget {
@@ -14,10 +18,14 @@ class WelcomeScreen extends StatefulWidget {
     super.key,
     required this.apiService,
     required this.onAuthenticated,
+    this.isGuestSession = true,
+    this.initialMode = AuthMode.login,
   });
 
   final ApiService apiService;
   final void Function(SessionBootstrap bootstrap) onAuthenticated;
+  final bool isGuestSession;
+  final AuthMode initialMode;
 
   @override
   State<WelcomeScreen> createState() => _WelcomeScreenState();
@@ -27,17 +35,23 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
-  final _nameCtrl = TextEditingController();
+  final _usernameCtrl = TextEditingController();
 
-  AuthMode _mode = AuthMode.login;
+  late AuthMode _mode;
   bool _obscure = true;
   bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _mode = widget.initialMode;
+  }
 
   @override
   void dispose() {
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
-    _nameCtrl.dispose();
+    _usernameCtrl.dispose();
     super.dispose();
   }
 
@@ -229,6 +243,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
 
   Widget _buildFormCard(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isLogin = _mode == AuthMode.login;
 
     return Card(
       child: Padding(
@@ -237,16 +252,16 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              _mode == AuthMode.login ? "Welcome back" : "Create your account",
+              isLogin ? "Welcome back" : "Create your account",
               style: Theme.of(
                 context,
               ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 6),
             Text(
-              _mode == AuthMode.login
-                  ? "Log in to jump straight into your suggested activities."
-                  : "Sign up, pick interests, and we will help you set goals.",
+              isLogin
+                  ? "Log in to sync your pet, goals, and streaks."
+                  : "Convert this guest profile to keep progress on reinstall.",
               style: TextStyle(color: Colors.grey.shade600),
             ),
             const SizedBox(height: 24),
@@ -266,8 +281,8 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                   icon: Icon(Icons.login_rounded),
                 ),
                 ButtonSegment(
-                  value: AuthMode.register,
-                  label: Text("Sign up"),
+                  value: AuthMode.convert,
+                  label: Text("Create account"),
                   icon: Icon(Icons.person_add_alt_1_rounded),
                 ),
               ],
@@ -278,18 +293,55 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                 });
               },
             ),
+            const SizedBox(height: 12),
+            if (widget.isGuestSession)
+              Container(
+                width: double.infinity,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.blueGrey.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.key_rounded,
+                      color: colorScheme.primary,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        "Guest session detected. Create an account to keep this pet on all devices.",
+                        style: TextStyle(color: Colors.grey.shade800),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             const SizedBox(height: 24),
             Form(
               key: _formKey,
               child: Column(
                 children: [
-                  if (_mode == AuthMode.register) ...[
+                  if (_mode == AuthMode.convert) ...[
                     TextFormField(
-                      controller: _nameCtrl,
+                      controller: _usernameCtrl,
                       decoration: const InputDecoration(
-                        labelText: "Name (optional)",
-                        hintText: "How should PetAI call you?",
+                        labelText: "Username",
+                        hintText: "Choose your public handle",
                       ),
+                      validator: (value) {
+                        if (_mode != AuthMode.convert) return null;
+                        if (value == null || value.trim().isEmpty) {
+                          return "Username is required";
+                        }
+                        if (value.trim().length < 3) {
+                          return "Use at least 3 characters";
+                        }
+                        return null;
+                      },
                     ),
                     const SizedBox(height: 16),
                   ],
@@ -359,10 +411,10 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               const SizedBox(height: 16),
               OutlinedButton.icon(
                 icon: const Icon(Icons.explore_rounded),
-                label: const Text("Forgot your goals? Recreate them"),
+                label: const Text("Stay as guest for now"),
                 onPressed: () {
                   setState(() {
-                    _mode = AuthMode.register;
+                    _mode = AuthMode.convert;
                   });
                 },
               ),
@@ -382,7 +434,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     setState(() => _isLoading = true);
     final email = _emailCtrl.text.trim();
     final password = _passwordCtrl.text.trim();
-    final name = _nameCtrl.text.trim().isEmpty ? null : _nameCtrl.text.trim();
+    final username = _usernameCtrl.text.trim();
 
     ApiResponse<SessionBootstrap> response;
     if (_mode == AuthMode.login) {
@@ -391,12 +443,17 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
         password: password,
       );
     } else {
-      final username = _deriveUsername(email, name);
-      response = await widget.apiService.register(
-        username: username,
+      if (!widget.isGuestSession) {
+        setState(() => _isLoading = false);
+        _showSnack("You already have an account. Log out to convert a guest.");
+        return;
+      }
+      final resolvedUsername =
+          username.isEmpty ? _deriveUsername(email) : username;
+      response = await widget.apiService.convertGuest(
+        username: resolvedUsername,
         email: email,
         password: password,
-        fullName: name,
       );
     }
 
@@ -416,8 +473,8 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
-  String _deriveUsername(String email, String? fullName) {
-    String sanitized = (fullName ?? email.split("@").first).toLowerCase();
+  String _deriveUsername(String email) {
+    String sanitized = email.split("@").first.toLowerCase();
     sanitized = sanitized
         .replaceAll(RegExp(r"[^a-z0-9]+"), "_")
         .replaceAll(RegExp(r"_+"), "_");

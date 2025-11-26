@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../models/activity_completion.dart';
 import '../models/activity_log.dart';
 import '../models/interest.dart';
 import '../models/pet_state.dart';
@@ -18,6 +17,7 @@ class PetHomeScreen extends StatefulWidget {
     required this.pet,
     required this.interests,
     required this.onLogout,
+    required this.onManageAccount,
     required this.onPetChanged,
     required this.onRefreshInterests,
     required this.onEditInterests,
@@ -32,6 +32,7 @@ class PetHomeScreen extends StatefulWidget {
   final bool isSyncing;
 
   final VoidCallback onLogout;
+  final VoidCallback onManageAccount;
   final ValueChanged<PetState> onPetChanged;
   final Future<void> Function() onRefreshInterests;
   final VoidCallback onEditInterests;
@@ -81,6 +82,11 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
             icon: const Icon(Icons.tune_rounded),
           ),
           IconButton(
+            tooltip: "Account",
+            onPressed: widget.onManageAccount,
+            icon: const Icon(Icons.person_rounded),
+          ),
+          IconButton(
             tooltip: "Log out",
             onPressed: widget.onLogout,
             icon: const Icon(Icons.logout_rounded),
@@ -100,6 +106,10 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
             children: [
+              if (widget.session.isGuest) ...[
+                _buildGuestBanner(context),
+                const SizedBox(height: 16),
+              ],
               _buildPetHeader(context),
               const SizedBox(height: 24),
               _buildInterestsSection(),
@@ -472,6 +482,63 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
             fontWeight: FontWeight.w700,
           ),
     );
+  }
+
+  Widget _buildGuestBanner(BuildContext context) {
+    final daysLeft = _trialDaysLeft(widget.session);
+    final bannerText =
+        daysLeft != null ? "$daysLeft day${daysLeft == 1 ? "" : "s"} left" : "Free trial active";
+    return Card(
+      color: Colors.amber.shade50,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.lock_open_rounded, color: Colors.amber.shade700),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "Guest mode",
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    bannerText,
+                    style: TextStyle(color: Colors.grey.shade800),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            FilledButton(
+              onPressed: widget.onManageAccount,
+              child: const Text("Create account"),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  int? _trialDaysLeft(UserSession session) {
+    final fromBackend = session.trialDaysLeft;
+    if (fromBackend != null) {
+      return fromBackend;
+    }
+    const trialLengthDays = 3;
+    final createdAt = session.createdAt;
+    if (createdAt == null) return null;
+    final elapsed = DateTime.now().difference(createdAt).inDays;
+    final remaining = trialLengthDays - elapsed;
+    return remaining < 0 ? 0 : remaining;
   }
 
   UserInterest _fallbackInterest(int id) {
