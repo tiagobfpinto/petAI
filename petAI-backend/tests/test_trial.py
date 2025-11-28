@@ -94,3 +94,11 @@ def test_token_blocked_when_trial_expired(app):
         user_obj = UserDAO.get_by_id(user.id)
         assert user_obj is not None
         assert user_obj.is_active is False
+
+
+def test_streak_multiplier_scaling(ctx):
+    assert UserService.streak_multiplier(0) == 1.0
+    assert UserService.streak_multiplier(1) == 1.0
+    assert UserService.streak_multiplier(5) == 1.44  # (5-1)/9 = 0.44
+    assert UserService.streak_multiplier(10) == 2.0
+    assert UserService.streak_multiplier(25) == 2.0  # capped

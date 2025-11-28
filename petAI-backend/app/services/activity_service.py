@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from ..config import INTEREST_LEVEL_XP
 from ..dao.activityDAO import ActivityDAO
@@ -9,6 +9,7 @@ from ..dao.userDAO import UserDAO
 from ..models import db
 from ..models.activity import ActivityLog
 from ..services.pet_service import PetService
+from ..services.user_service import UserService
 
 
 class ActivityService:
@@ -25,9 +26,31 @@ class ActivityService:
         if ActivityDAO.has_completed_interest_today(user_id, interest.id):
             raise ValueError("You already completed this interest today")
 
-        xp_amount = INTEREST_LEVEL_XP.get(interest.level, 0)
-        if xp_amount <= 0:
+        base_xp = INTEREST_LEVEL_XP.get(interest.level, 0)
+        if base_xp <= 0:
             raise ValueError("Configured XP for interest level is invalid")
+
+        now = datetime.now(timezone.utc)
+        today = now.date()
+        last_activity_date = user.last_activity_at.date() if user.last_activity_at else None
+
+        streak = user.streak_current or 0
+        if last_activity_date is None:
+            streak = 1
+        else:
+            delta_days = (today - last_activity_date).days
+            if delta_days == 0:
+                streak = max(streak, 1)
+            elif delta_days == 1:
+                streak = streak + 1
+            else:
+                streak = 1
+        user.streak_current = streak
+        user.streak_best = max(user.streak_best or 0, streak)
+        user.last_activity_at = now
+
+        xp_multiplier = UserService.streak_multiplier(streak)
+        xp_amount = int(round(base_xp * xp_multiplier))
 
         activity = ActivityDAO.log(user_id=user_id, interest_id=interest.id, xp_earned=xp_amount)
 
@@ -42,6 +65,9 @@ class ActivityService:
             "xp_awarded": xp_amount,
             "evolved": evolution_result["evolved"],
             "interest_id": interest.id,
+            "streak_current": user.streak_current,
+            "streak_best": user.streak_best,
+            "xp_multiplier": xp_multiplier,
         }
 
     @staticmethod

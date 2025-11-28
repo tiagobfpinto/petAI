@@ -4,10 +4,13 @@ import 'package:http/http.dart' as http;
 
 import '../models/activity_completion.dart';
 import '../models/activity_log.dart';
+import '../models/friend_profile.dart';
 import '../models/pet_state.dart';
+import '../models/progression_snapshot.dart';
 import '../models/session_bootstrap.dart';
 import '../models/user_interest.dart';
 import '../models/user_session.dart';
+import '../models/shop.dart';
 import 'token_storage.dart';
 
 class ApiResponse<T> {
@@ -338,6 +341,149 @@ class ApiService {
       }
       return ApiResponse.failure(
         payload["error"] as String? ?? "Failed to load activities",
+        statusCode: response.statusCode,
+      );
+    } catch (err) {
+      return ApiResponse.failure("Network error: $err");
+    }
+  }
+
+  Future<ApiResponse<ShopState>> fetchShop() async {
+    try {
+      final response = await _client.get(
+        _uri("/hub/shop"),
+        headers: _headers,
+      );
+      final payload = _decode(response.body);
+      final data = _data(payload);
+      if (response.statusCode == 200) {
+        return ApiResponse.success(
+          ShopState.fromJson(data),
+          statusCode: response.statusCode,
+        );
+      }
+      return ApiResponse.failure(
+        payload["error"] as String? ?? "Failed to load shop",
+        statusCode: response.statusCode,
+      );
+    } catch (err) {
+      return ApiResponse.failure("Network error: $err");
+    }
+  }
+
+  Future<ApiResponse<ShopState>> purchaseItem(String itemId) async {
+    try {
+      final response = await _client.post(
+        _uri("/hub/shop/purchase"),
+        headers: _headers,
+        body: jsonEncode({"item_id": itemId}),
+      );
+      final payload = _decode(response.body);
+      final data = _data(payload);
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        return ApiResponse.success(
+          ShopState.fromJson(data),
+          statusCode: response.statusCode,
+        );
+      }
+      return ApiResponse.failure(
+        payload["error"] as String? ?? "Purchase failed",
+        statusCode: response.statusCode,
+      );
+    } catch (err) {
+      return ApiResponse.failure("Network error: $err");
+    }
+  }
+
+  Future<ApiResponse<FriendsOverview>> fetchFriends() async {
+    try {
+      final response = await _client.get(
+        _uri("/friends"),
+        headers: _headers,
+      );
+      final payload = _decode(response.body);
+      final data = _data(payload);
+      if (response.statusCode == 200) {
+        return ApiResponse.success(
+          FriendsOverview.fromJson(data),
+          statusCode: response.statusCode,
+        );
+      }
+      return ApiResponse.failure(
+        payload["error"] as String? ?? "Failed to load friends",
+        statusCode: response.statusCode,
+      );
+    } catch (err) {
+      return ApiResponse.failure("Network error: $err");
+    }
+  }
+
+  Future<ApiResponse<FriendRequestEntry>> sendFriendRequest(String username) async {
+    try {
+      final response = await _client.post(
+        _uri("/friends/request"),
+        headers: _headers,
+        body: jsonEncode({"username": username}),
+      );
+      final payload = _decode(response.body);
+      final data = _data(payload);
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        final requestJson = data["request"] as Map<String, dynamic>? ?? {};
+        return ApiResponse.success(
+          FriendRequestEntry.fromJson(requestJson, direction: RequestDirection.outgoing),
+          statusCode: response.statusCode,
+        );
+      }
+      return ApiResponse.failure(
+        payload["error"] as String? ?? "Failed to send request",
+        statusCode: response.statusCode,
+      );
+    } catch (err) {
+      return ApiResponse.failure("Network error: $err");
+    }
+  }
+
+  Future<ApiResponse<FriendRequestEntry>> acceptFriendRequest(int requestId) async {
+    try {
+      final response = await _client.post(
+        _uri("/friends/accept"),
+        headers: _headers,
+        body: jsonEncode({"request_id": requestId}),
+      );
+      final payload = _decode(response.body);
+      final data = _data(payload);
+      if (response.statusCode == 200) {
+        final requestJson = data["request"] as Map<String, dynamic>? ?? {};
+        return ApiResponse.success(
+          FriendRequestEntry.fromJson(requestJson, direction: RequestDirection.incoming),
+          statusCode: response.statusCode,
+        );
+      }
+      return ApiResponse.failure(
+        payload["error"] as String? ?? "Failed to accept request",
+        statusCode: response.statusCode,
+      );
+    } catch (err) {
+      return ApiResponse.failure("Network error: $err");
+    }
+  }
+
+  Future<ApiResponse<ProgressionSnapshot>> fetchProgression() async {
+    try {
+      final response = await _client.get(
+        _uri("/hub/progression"),
+        headers: _headers,
+      );
+      final payload = _decode(response.body);
+      final data = _data(payload);
+      if (response.statusCode == 200) {
+        return ApiResponse.success(
+          ProgressionSnapshot.fromJson(data),
+          statusCode: response.statusCode,
+        );
+      }
+      return ApiResponse.failure(
+        payload["error"] as String? ?? "Failed to load progression",
         statusCode: response.statusCode,
       );
     } catch (err) {

@@ -56,6 +56,9 @@ def complete_activity():
             "xp_awarded": result["xp_awarded"],
             "interest_id": result.get("interest_id"),
             "activity": activity,
+            "streak_current": result.get("streak_current"),
+            "streak_best": result.get("streak_best"),
+            "xp_multiplier": result.get("xp_multiplier"),
         },
         201,
     )
