@@ -6,6 +6,8 @@ from .config import Config
 from .models import bcrypt, db
 from .routes.activity_routes import activity_bp
 from .routes.auth_routes import auth_bp
+from .routes.hub_routes import hub_bp
+from .routes.friend_routes import friends_bp
 from .routes.pet_routes import pet_bp
 from .routes.user_routes import interests_bp, user_bp
 
@@ -35,6 +37,8 @@ def create_app(config_class: type[Config] = Config) -> Flask:
     app.register_blueprint(interests_bp)
     app.register_blueprint(pet_bp)
     app.register_blueprint(activity_bp)
+    app.register_blueprint(friends_bp)
+    app.register_blueprint(hub_bp)
 
     @app.after_request
     def apply_cors(response):

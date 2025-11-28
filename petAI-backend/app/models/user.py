@@ -32,6 +32,9 @@ class User(db.Model):
 
     is_guest = db.Column(db.Boolean, default=True, nullable=False)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
+    streak_current = db.Column(db.Integer, default=0, nullable=False)
+    streak_best = db.Column(db.Integer, default=0, nullable=False)
+    last_activity_at = db.Column(db.DateTime(timezone=True))
 
     created_at = db.Column(db.DateTime(timezone=True), default=_utcnow, nullable=False)
     plan = db.Column(PgEnum(PlanType, name="plan_type_enum"), default=PlanType.FREE, nullable=False)
@@ -61,4 +64,7 @@ class User(db.Model):
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "is_guest": self.is_guest,
             "is_active": self.is_active,
+            "streak_current": self.streak_current,
+            "streak_best": self.streak_best,
+            "last_activity_at": self.last_activity_at.isoformat() if self.last_activity_at else None,
         }
