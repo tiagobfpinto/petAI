@@ -50,13 +50,16 @@ class UserService:
     def get_user_payload(user: User) -> dict:
         pet = user.pet or PetService.create_pet(user.id)
         trial_left = UserService._trial_days_left(user)
+        streak_multiplier = UserService.streak_multiplier(user.streak_current or 0)
         payload = {
             "user": user.to_dict(),
             "pet": pet.to_dict(),
             "need_interests_setup": user.needs_interest_setup(),
             "trial_days_left": trial_left,
+            "streak_multiplier": streak_multiplier,
         }
         payload["user"]["trial_days_left"] = trial_left
+        payload["user"]["streak_multiplier"] = streak_multiplier
         return payload
 
     @staticmethod
@@ -108,3 +111,12 @@ class UserService:
             return
         user.is_active = False
         db.session.commit()
+
+    @staticmethod
+    def streak_multiplier(streak: int, cap: int = 10) -> float:
+        """Compute XP multiplier from streak (1x to 2x at cap)."""
+        streak = max(0, min(streak, cap))
+        if streak <= 1:
+            return 1.0
+        # scale linearly so streak=cap yields 2.0
+        return round(1.0 + (streak - 1) / (cap - 1), 2)

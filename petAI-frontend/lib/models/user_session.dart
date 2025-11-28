@@ -8,6 +8,10 @@ class UserSession {
     this.fullName,
     this.plan,
     this.trialDaysLeft,
+    this.streakCurrent,
+    this.streakBest,
+    this.streakMultiplier,
+    this.lastActivityAt,
   });
 
   final int id;
@@ -18,6 +22,10 @@ class UserSession {
   final bool isGuest;
   final DateTime? createdAt;
   final int? trialDaysLeft;
+  final int? streakCurrent;
+  final int? streakBest;
+  final double? streakMultiplier;
+  final DateTime? lastActivityAt;
 
   String get displayName {
     final candidate = (fullName ?? username).trim();
@@ -40,6 +48,10 @@ class UserSession {
       fullName: json["full_name"] as String?,
       plan: json["plan"] as String?,
       trialDaysLeft: json["trial_days_left"] as int?,
+      streakCurrent: json["streak_current"] as int?,
+      streakBest: json["streak_best"] as int?,
+      streakMultiplier: (json["streak_multiplier"] as num?)?.toDouble(),
+      lastActivityAt: _parseDate(json["last_activity_at"] as String?),
     );
   }
 

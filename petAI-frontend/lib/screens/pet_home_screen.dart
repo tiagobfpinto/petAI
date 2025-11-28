@@ -8,6 +8,9 @@ import '../models/user_session.dart';
 import '../services/api_service.dart';
 import '../widgets/pet_sprite.dart';
 import '../widgets/xp_progress_bar.dart';
+import 'friends_screen.dart';
+import 'progression_screen.dart';
+import 'shop_screen.dart';
 
 class PetHomeScreen extends StatefulWidget {
   const PetHomeScreen({
@@ -50,12 +53,18 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
   bool _loadingActivities = true;
   Set<int> _completedToday = {};
   final Map<int, int> _celebrations = {};
+  int? _streakCurrent;
+  int? _streakBest;
+  double? _xpMultiplier;
 
   @override
   void initState() {
     super.initState();
     _pet = widget.pet;
     _interests = widget.interests;
+    _streakCurrent = widget.session.streakCurrent;
+    _streakBest = widget.session.streakBest;
+    _xpMultiplier = widget.session.streakMultiplier;
     _loadActivities();
   }
 
@@ -68,56 +77,140 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
     if (oldWidget.interests != widget.interests) {
       _interests = widget.interests;
     }
+    if (oldWidget.session != widget.session) {
+      _streakCurrent = widget.session.streakCurrent;
+      _streakBest = widget.session.streakBest;
+      _xpMultiplier = widget.session.streakMultiplier;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text("Hi, ${widget.session.displayName}"),
-        actions: [
-          IconButton(
-            tooltip: "Adjust interests",
-            onPressed: widget.onEditInterests,
-            icon: const Icon(Icons.tune_rounded),
-          ),
-          IconButton(
-            tooltip: "Account",
-            onPressed: widget.onManageAccount,
-            icon: const Icon(Icons.person_rounded),
-          ),
-          IconButton(
-            tooltip: "Log out",
-            onPressed: widget.onLogout,
-            icon: const Icon(Icons.logout_rounded),
-          ),
-        ],
-        bottom: widget.isSyncing
-            ? const PreferredSize(
-                preferredSize: Size.fromHeight(4),
-                child: LinearProgressIndicator(minHeight: 2),
-              )
-            : null,
-      ),
-      body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: _refreshAll,
-          child: ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+    return DefaultTabController(
+      length: 4,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text("Hi, ${widget.session.displayName}"),
+          actions: [
+            IconButton(
+              tooltip: "Adjust interests",
+              onPressed: widget.onEditInterests,
+              icon: const Icon(Icons.tune_rounded),
+            ),
+            IconButton(
+              tooltip: "Account",
+              onPressed: widget.onManageAccount,
+              icon: const Icon(Icons.person_rounded),
+            ),
+            IconButton(
+              tooltip: "Log out",
+              onPressed: widget.onLogout,
+              icon: const Icon(Icons.logout_rounded),
+            ),
+          ],
+          bottom: widget.isSyncing
+              ? const PreferredSize(
+                  preferredSize: Size.fromHeight(4),
+                  child: LinearProgressIndicator(minHeight: 2),
+                )
+              : null,
+        ),
+        body: SafeArea(
+          child: TabBarView(
+            physics: const BouncingScrollPhysics(),
             children: [
-              if (widget.session.isGuest) ...[
-                _buildGuestBanner(context),
-                const SizedBox(height: 16),
-              ],
-              _buildPetHeader(context),
-              const SizedBox(height: 24),
-              _buildInterestsSection(),
-              const SizedBox(height: 24),
-              _buildActivityLog(),
+              _buildHomeTab(context),
+              ShopScreen(
+                apiService: widget.apiService,
+                onError: widget.onError,
+              ),
+              FriendsScreen(
+                apiService: widget.apiService,
+                onError: widget.onError,
+              ),
+              ProgressionScreen(
+                apiService: widget.apiService,
+                onError: widget.onError,
+              ),
             ],
           ),
         ),
+        bottomNavigationBar: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            child: _buildNavBar(context),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavBar(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: TabBar(
+        isScrollable: false,
+        labelPadding: const EdgeInsets.symmetric(horizontal: 6),
+        indicatorSize: TabBarIndicatorSize.tab,
+        indicator: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              theme.colorScheme.primary,
+              theme.colorScheme.secondary,
+            ],
+          ),
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: theme.colorScheme.primary.withValues(alpha: 0.25),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        labelColor: Colors.white,
+        unselectedLabelColor: Colors.grey.shade700,
+        tabs: const [
+          Tab(icon: Icon(Icons.pets_rounded), text: "Home"),
+          Tab(icon: Icon(Icons.store_mall_directory_rounded), text: "Shop"),
+          Tab(icon: Icon(Icons.people_alt_rounded), text: "Friends"),
+          Tab(icon: Icon(Icons.auto_graph_rounded), text: "Progression"),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHomeTab(BuildContext context) {
+    return RefreshIndicator(
+      onRefresh: _refreshAll,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+        children: [
+          if (widget.session.isGuest) ...[
+            _buildGuestBanner(context),
+            const SizedBox(height: 16),
+          ],
+          _buildStreakCard(context),
+          const SizedBox(height: 16),
+          _buildPetHeader(context),
+          const SizedBox(height: 24),
+          _buildInterestsSection(),
+          const SizedBox(height: 24),
+          _buildActivityLog(),
+        ],
       ),
     );
   }
@@ -461,6 +554,11 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
     if (response.isSuccess && response.data != null) {
       final completion = response.data!;
       widget.onPetChanged(completion.pet);
+      setState(() {
+        _streakCurrent = completion.streakCurrent ?? _streakCurrent;
+        _streakBest = completion.streakBest ?? _streakBest;
+        _xpMultiplier = completion.xpMultiplier ?? _xpMultiplier;
+      });
       _startCelebration(completion.interestId, completion.xpAwarded);
       _loadActivities();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -471,8 +569,37 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
         ),
       );
     } else {
-      widget.onError(response.error ?? "Failed to log activity");
+      if (response.statusCode == 403) {
+        _showUpgradeDialog();
+      } else {
+        widget.onError(response.error ?? "Failed to log activity");
+      }
     }
+  }
+
+  void _showUpgradeDialog() {
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Trial ended"),
+        content: const Text(
+          "Your free trial streak has ended. Create an account to keep earning XP and evolve your pet.",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text("Later"),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              widget.onManageAccount();
+            },
+            child: const Text("Upgrade"),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _sectionTitle(String text) {
@@ -539,6 +666,94 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
     final elapsed = DateTime.now().difference(createdAt).inDays;
     final remaining = trialLengthDays - elapsed;
     return remaining < 0 ? 0 : remaining;
+  }
+
+  Widget _buildStreakCard(BuildContext context) {
+    final theme = Theme.of(context);
+    final streak = _streakCurrent ?? widget.session.streakCurrent ?? 0;
+    final best = _streakBest ?? widget.session.streakBest ?? streak;
+    final multiplier = _xpMultiplier ?? widget.session.streakMultiplier ?? 1.0;
+    final capped = streak.clamp(0, 10);
+    final progress = (capped / 10).clamp(0.0, 1.0);
+    final daysLabel = "$streak day${streak == 1 ? "" : "s"} streak";
+    final bestLabel = "Best: $best";
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            theme.colorScheme.primary.withValues(alpha: 0.12),
+            theme.colorScheme.secondary.withValues(alpha: 0.08),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: theme.colorScheme.primary.withValues(alpha: 0.18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withValues(alpha: 0.16),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.local_fire_department_rounded, color: theme.colorScheme.primary),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    daysLabel,
+                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  Text(
+                    "XP multiplier ${multiplier.toStringAsFixed(2)}x",
+                    style: TextStyle(color: Colors.grey.shade700),
+                  ),
+                ],
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.deepPurple.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  bestLabel,
+                  style: TextStyle(
+                    color: Colors.deepPurple.shade700,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 10,
+              backgroundColor: Colors.grey.shade200,
+              valueColor: AlwaysStoppedAnimation(theme.colorScheme.primary),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            "Reach 10 days for a 2x XP boost. Don't break the chain!",
+            style: TextStyle(color: Colors.grey.shade700),
+          ),
+        ],
+      ),
+    );
   }
 
   UserInterest _fallbackInterest(int id) {
