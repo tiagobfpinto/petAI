@@ -6,12 +6,18 @@ class ActivityCompletionResult {
     required this.xpAwarded,
     required this.evolved,
     this.interestId,
+    this.streakCurrent,
+    this.streakBest,
+    this.xpMultiplier,
   });
 
   final PetState pet;
   final int xpAwarded;
   final bool evolved;
   final int? interestId;
+  final int? streakCurrent;
+  final int? streakBest;
+  final double? xpMultiplier;
 
   factory ActivityCompletionResult.fromJson(Map<String, dynamic> json) {
     final petJson = json["pet"] as Map<String, dynamic>? ?? {};
@@ -20,6 +26,9 @@ class ActivityCompletionResult {
       xpAwarded: json["xp_awarded"] as int? ?? 0,
       evolved: json["evolved"] as bool? ?? false,
       interestId: json["interest_id"] as int?,
+      streakCurrent: json["streak_current"] as int?,
+      streakBest: json["streak_best"] as int?,
+      xpMultiplier: (json["xp_multiplier"] as num?)?.toDouble(),
     );
   }
 }
