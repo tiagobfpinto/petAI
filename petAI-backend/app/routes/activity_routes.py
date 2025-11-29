@@ -54,6 +54,7 @@ def complete_activity():
             "evolved": result["evolved"],
             "pet": pet,
             "xp_awarded": result["xp_awarded"],
+            "coins_awarded": result.get("coins_awarded"),
             "interest_id": result.get("interest_id"),
             "activity": activity,
             "streak_current": result.get("streak_current"),

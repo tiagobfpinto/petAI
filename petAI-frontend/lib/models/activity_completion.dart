@@ -9,6 +9,7 @@ class ActivityCompletionResult {
     this.streakCurrent,
     this.streakBest,
     this.xpMultiplier,
+    this.coinsAwarded,
   });
 
   final PetState pet;
@@ -18,6 +19,7 @@ class ActivityCompletionResult {
   final int? streakCurrent;
   final int? streakBest;
   final double? xpMultiplier;
+  final int? coinsAwarded;
 
   factory ActivityCompletionResult.fromJson(Map<String, dynamic> json) {
     final petJson = json["pet"] as Map<String, dynamic>? ?? {};
@@ -29,6 +31,7 @@ class ActivityCompletionResult {
       streakCurrent: json["streak_current"] as int?,
       streakBest: json["streak_best"] as int?,
       xpMultiplier: (json["xp_multiplier"] as num?)?.toDouble(),
+      coinsAwarded: json["coins_awarded"] as int?,
     );
   }
 }
