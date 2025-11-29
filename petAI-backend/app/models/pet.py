@@ -21,6 +21,7 @@ class Pet(db.Model):
     next_evolution_xp = db.Column(db.Integer, default=100, nullable=False)
     pet_type = db.Column(db.String(50), default="sprout", nullable=False)
     current_sprite = db.Column(db.String(255))
+    coins = db.Column(db.Integer, default=0, nullable=False)
 
     created_at = db.Column(db.DateTime(timezone=True), default=_utcnow, nullable=False)
     updated_at = db.Column(db.DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False)
@@ -29,6 +30,7 @@ class Pet(db.Model):
 
     __table_args__ = (
         db.CheckConstraint("xp >= 0", name="ck_pet_xp_non_negative"),
+        db.CheckConstraint("coins >= 0", name="ck_pet_coins_non_negative"),
     )
 
     def to_dict(self) -> dict:
@@ -41,6 +43,7 @@ class Pet(db.Model):
             "next_evolution_xp": self.next_evolution_xp,
             "pet_type": self.pet_type,
             "current_sprite": self.current_sprite,
+            "coins": self.coins,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

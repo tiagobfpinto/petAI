@@ -86,12 +86,40 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return DefaultTabController(
       length: 4,
       child: Scaffold(
         appBar: AppBar(
           title: Text("Hi, ${widget.session.displayName}"),
           actions: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.monetization_on_outlined,
+                      color: theme.colorScheme.primary,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      "${_pet.coins}",
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
             IconButton(
               tooltip: "Adjust interests",
               onPressed: widget.onEditInterests,
@@ -123,6 +151,12 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
               ShopScreen(
                 apiService: widget.apiService,
                 onError: widget.onError,
+                onBalanceChanged: (balance) {
+                  setState(() {
+                    _pet = _pet.copyWith(coins: balance);
+                  });
+                  widget.onPetChanged(_pet);
+                },
               ),
               FriendsScreen(
                 apiService: widget.apiService,
@@ -257,6 +291,32 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
             progress: _pet.progressToNext,
             xp: _pet.xp,
             nextXp: _pet.nextEvolutionXp,
+          ),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.monetization_on_outlined,
+                  color: Colors.white,
+                  size: 18,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  "${_pet.coins} coins",
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 12),
           Text(
@@ -555,16 +615,19 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
       final completion = response.data!;
       widget.onPetChanged(completion.pet);
       setState(() {
+        _pet = completion.pet;
         _streakCurrent = completion.streakCurrent ?? _streakCurrent;
         _streakBest = completion.streakBest ?? _streakBest;
         _xpMultiplier = completion.xpMultiplier ?? _xpMultiplier;
       });
       _startCelebration(completion.interestId, completion.xpAwarded);
       _loadActivities();
+      final coins = completion.coinsAwarded ?? 0;
+      final coinsText = coins > 0 ? " and +$coins coins" : "";
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            "Great job! ${interest.name} earned +${completion.xpAwarded} XP.",
+            "Great job! ${interest.name} earned +${completion.xpAwarded} XP$coinsText.",
           ),
         ),
       );

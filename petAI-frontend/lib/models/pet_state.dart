@@ -9,6 +9,7 @@ class PetState {
     required this.stage,
     required this.nextEvolutionXp,
     required this.petType,
+    required this.coins,
     this.currentSprite,
   });
 
@@ -19,6 +20,7 @@ class PetState {
   final String stage;
   final int nextEvolutionXp;
   final String petType;
+  final int coins;
   final String? currentSprite;
 
   factory PetState.fromJson(Map<String, dynamic> json) {
@@ -30,6 +32,7 @@ class PetState {
       stage: json["stage"] as String? ?? "egg",
       nextEvolutionXp: json["next_evolution_xp"] as int? ?? 100,
       petType: json["pet_type"] as String? ?? "sprout",
+      coins: json["coins"] as int? ?? 0,
       currentSprite: json["current_sprite"] as String?,
     );
   }
@@ -42,6 +45,7 @@ class PetState {
     String? stage,
     int? nextEvolutionXp,
     String? petType,
+    int? coins,
     String? currentSprite,
   }) {
     return PetState(
@@ -52,6 +56,7 @@ class PetState {
       stage: stage ?? this.stage,
       nextEvolutionXp: nextEvolutionXp ?? this.nextEvolutionXp,
       petType: petType ?? this.petType,
+      coins: coins ?? this.coins,
       currentSprite: currentSprite ?? this.currentSprite,
     );
   }

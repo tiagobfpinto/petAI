@@ -56,6 +56,8 @@ class ActivityService:
 
         pet = PetService.get_pet_by_user(user_id) or PetService.create_pet(user_id)
         evolution_result = PetService.add_xp(pet, xp_amount)
+        coins_awarded = max(1, xp_amount // 10)
+        PetService.add_coins(evolution_result["pet"], coins_awarded)
 
         db.session.flush()
 
@@ -63,6 +65,7 @@ class ActivityService:
             "activity": activity,
             "pet": evolution_result["pet"],
             "xp_awarded": xp_amount,
+            "coins_awarded": coins_awarded,
             "evolved": evolution_result["evolved"],
             "interest_id": interest.id,
             "streak_current": user.streak_current,
