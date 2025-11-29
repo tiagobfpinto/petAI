@@ -71,7 +71,6 @@ class HubService:
         },
     ]
 
-    _user_wallets: defaultdict[int, int] = defaultdict(lambda: 320)
     _user_owned_items: defaultdict[int, set[str]] = defaultdict(set)
 
     @classmethod
@@ -83,17 +82,16 @@ class HubService:
         pet = cls._ensure_pet(user_id)
         # Give a small baseline that scales with level so the shop never feels empty.
         baseline = 260 + max(0, pet.level - 1) * 10
-        current = cls._user_wallets[user_id]
-        if baseline > current:
-            cls._user_wallets[user_id] = baseline
         owned = cls._user_owned_items[user_id]
+        if (pet.coins or 0) <= 0 and not owned:
+            PetService.add_coins(pet, baseline)
         items = []
         for entry in cls._SHOP_ITEMS:
             item = dict(entry)
             item["owned"] = entry["id"] in owned
             items.append(item)
         return {
-            "balance": cls._user_wallets[user_id],
+            "balance": pet.coins or 0,
             "items": items,
         }
 
@@ -109,11 +107,11 @@ class HubService:
         if state["balance"] < item["price"]:
             raise ValueError("Not enough coins for this item")
 
-        cls._user_wallets[user_id] = state["balance"] - item["price"]
+        pet = cls._ensure_pet(user_id)
+        PetService.spend_coins(pet, item["price"])
         owned.add(item_id)
 
         # Tiny XP boost to keep purchases meaningful.
-        pet = cls._ensure_pet(user_id)
         PetService.add_xp(pet, 5)
 
         return cls.shop_state(user_id)
