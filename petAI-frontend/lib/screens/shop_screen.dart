@@ -8,10 +8,12 @@ class ShopScreen extends StatefulWidget {
     super.key,
     required this.apiService,
     required this.onError,
+    this.onBalanceChanged,
   });
 
   final ApiService apiService;
   final void Function(String message) onError;
+  final void Function(int balance)? onBalanceChanged;
 
   @override
   State<ShopScreen> createState() => _ShopScreenState();
@@ -37,6 +39,7 @@ class _ShopScreenState extends State<ShopScreen> {
         _state = response.data;
         _loading = false;
       });
+      widget.onBalanceChanged?.call(response.data!.balance);
     } else {
       setState(() => _loading = false);
       widget.onError(response.error ?? "Failed to load shop");
@@ -51,6 +54,7 @@ class _ShopScreenState extends State<ShopScreen> {
     setState(() => _buyingId = null);
     if (response.isSuccess && response.data != null) {
       setState(() => _state = response.data);
+      widget.onBalanceChanged?.call(response.data!.balance);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Purchased ${item.name}!")),
       );

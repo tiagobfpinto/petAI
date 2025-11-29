@@ -31,6 +31,24 @@ class PetService:
         return pet_state
 
     @staticmethod
+    def add_coins(pet: Pet, amount: int) -> Pet:
+        if amount == 0:
+            return pet
+        pet.coins = max(0, (pet.coins or 0) + amount)
+        PetDAO.save(pet)
+        return pet
+
+    @staticmethod
+    def spend_coins(pet: Pet, amount: int) -> Pet:
+        if amount <= 0:
+            return pet
+        if (pet.coins or 0) < amount:
+            raise ValueError("Not enough coins")
+        pet.coins = max(0, (pet.coins or 0) - amount)
+        PetDAO.save(pet)
+        return pet
+
+    @staticmethod
     def evolve_if_needed(pet: Pet) -> dict:
         sorted_levels = sorted(PET_EVOLUTIONS.items(), key=lambda item: item[0])
         evolved = False
