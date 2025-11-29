@@ -116,7 +116,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     ];
 
     return Container(
-      padding: const EdgeInsets.all(28),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -126,13 +126,13 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(32),
+        borderRadius: BorderRadius.circular(24),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.18),
               borderRadius: BorderRadius.circular(999),
@@ -142,48 +142,50 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               style: TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.w600,
-                letterSpacing: 0.6,
+                letterSpacing: 0.4,
               ),
-            ),
-          ),
-          const SizedBox(height: 24),
-          Text(
-            "Coach yourself with\nAI-crafted routines.",
-            style: textTheme.headlineLarge?.copyWith(
-              color: Colors.white,
-              height: 1.1,
             ),
           ),
           const SizedBox(height: 16),
           Text(
+            "Coach yourself with\nAI-crafted routines.",
+            style: textTheme.headlineSmall?.copyWith(
+              fontSize: 26,
+              color: Colors.white,
+              height: 1.1,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
             "Log habits, pick interests, and let PetAI surface the next micro-action.",
-            style: textTheme.titleMedium?.copyWith(
+            style: textTheme.titleSmall?.copyWith(
               color: Colors.white.withValues(alpha: 0.85),
             ),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 18),
           Column(
             children: featurePoints
                 .map(
                   (tuple) => Padding(
-                    padding: const EdgeInsets.only(bottom: 18),
+                    padding: const EdgeInsets.only(bottom: 14),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Container(
-                          height: 32,
-                          width: 32,
+                          height: 28,
+                          width: 28,
                           decoration: BoxDecoration(
                             color: Colors.white.withValues(alpha: 0.18),
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(9),
                           ),
                           child: const Icon(
                             Icons.auto_awesome,
-                            size: 18,
+                            size: 16,
                             color: Colors.white,
                           ),
                         ),
-                        const SizedBox(width: 16),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -193,13 +195,15 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.w600,
+                                  fontSize: 13,
                                 ),
                               ),
-                              const SizedBox(height: 4),
+                              const SizedBox(height: 2),
                               Text(
                                 tuple.$2,
                                 style: TextStyle(
                                   color: Colors.white.withValues(alpha: 0.8),
+                                  fontSize: 12,
                                 ),
                               ),
                             ],
@@ -211,25 +215,27 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                 )
                 .toList(),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           Container(
-            padding: const EdgeInsets.all(18),
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(18),
             ),
             child: Row(
               children: [
                 Icon(
                   Icons.auto_graph_rounded,
                   color: Colors.white.withValues(alpha: 0.8),
+                  size: 18,
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     "Pick interests first, goals next. PetAI then suggests daily actions you can check off.",
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.85),
+                      fontSize: 12,
                     ),
                   ),
                 ),
