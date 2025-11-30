@@ -26,3 +26,25 @@ void addTestCoins(int coins) {
   if (!kDebugMode) return;
   _manualBonus += coins.clamp(0, coins);
 }
+
+/// Tries to spend from the debug coin pool (manual bonus, then the seeded offset).
+/// Returns true if the spend was covered locally.
+bool spendTestCoins(int coins) {
+  if (!kDebugMode || coins <= 0) return false;
+  var remaining = coins;
+
+  if (_manualBonus >= remaining) {
+    _manualBonus -= remaining;
+    return true;
+  }
+
+  remaining -= _manualBonus;
+  _manualBonus = 0;
+
+  if (_offset >= remaining) {
+    _offset -= remaining;
+    return true;
+  }
+
+  return false;
+}
