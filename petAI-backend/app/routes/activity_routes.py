@@ -24,6 +24,15 @@ def _resolve_user_id() -> int | None:
 def complete_activity():
     payload = request.get_json(silent=True) or {}
     interest_name = (payload.get("interest") or "").strip()
+    amount_raw = payload.get("amount")
+    amount: float | None = None
+    if amount_raw is not None:
+        try:
+            amount = float(amount_raw)
+        except (TypeError, ValueError):
+            return error_response("amount must be a number", 400)
+        if amount <= 0:
+            return error_response("amount must be greater than zero", 400)
     user_id = _resolve_user_id()
 
     if not user_id:
@@ -33,7 +42,7 @@ def complete_activity():
         return error_response("interest is required", 400)
 
     try:
-        result = ActivityService.complete_activity(user_id, interest_name)
+        result = ActivityService.complete_activity(user_id, interest_name, amount=amount)
         db.session.commit()
     except LookupError as exc:
         db.session.rollback()
@@ -42,8 +51,10 @@ def complete_activity():
         db.session.rollback()
         return error_response(str(exc), 400)
 
-    pet = result["pet"].to_dict()
+    pet_obj = result["pet"]
+    pet = result.get("pet_dict") or (pet_obj.to_dict() if hasattr(pet_obj, "to_dict") else {})
     activity = result["activity"].to_dict()
+    goal_rewards = result.get("goal_rewards") or {}
 
     return success_response(
         "Activity completed",
@@ -54,11 +65,15 @@ def complete_activity():
             "evolved": result["evolved"],
             "pet": pet,
             "xp_awarded": result["xp_awarded"],
+            "base_xp": result.get("base_xp"),
+            "bonus_xp": result.get("bonus_xp"),
             "interest_id": result.get("interest_id"),
             "activity": activity,
             "streak_current": result.get("streak_current"),
             "streak_best": result.get("streak_best"),
             "xp_multiplier": result.get("xp_multiplier"),
+            "goal_rewards": goal_rewards,
+            "goal_suggestions": goal_rewards.get("suggestions"),
         },
         201,
     )

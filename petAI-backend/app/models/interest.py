@@ -17,6 +17,10 @@ class Interest(db.Model):
     name = db.Column(db.String(120), nullable=False)
     level = db.Column(db.String(32), nullable=False)
     goal = db.Column(db.String(255))
+    monthly_goal = db.Column(db.Float)  # numeric target (ex: km)
+    month_progress = db.Column(db.Float, default=0)
+    target_unit = db.Column(db.String(32), default="units")
+    last_suggestions_generated_at = db.Column(db.DateTime(timezone=True))
     created_at = db.Column(db.DateTime(timezone=True), default=_utcnow, nullable=False)
     updated_at = db.Column(db.DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False)
 
@@ -33,6 +37,12 @@ class Interest(db.Model):
             "name": self.name,
             "level": self.level,
             "goal": self.goal,
+            "monthly_goal": self.monthly_goal,
+            "month_progress": self.month_progress,
+            "target_unit": self.target_unit,
+            "last_suggestions_generated_at": self.last_suggestions_generated_at.isoformat()
+            if self.last_suggestions_generated_at
+            else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

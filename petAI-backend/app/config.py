@@ -61,3 +61,18 @@ INTEREST_LEVEL_XP = {
     "usually": 10,
     "always": 5,
 }
+
+# Baseline monthly goals suggested per experience level (km, hours, etc.).
+DEFAULT_MONTHLY_GOALS = {
+    "never": 30,
+    "sometimes": 50,
+    "usually": 80,
+    "always": 100,
+}
+
+# Extra XP rewards when a suggested goal is completed.
+GOAL_COMPLETION_XP = {
+    "daily": 20,
+    "weekly": 60,
+    "monthly": 200,
+}

@@ -8,13 +8,14 @@ from ..dao.interestDAO import InterestDAO
 from ..dao.userDAO import UserDAO
 from ..models import db
 from ..models.activity import ActivityLog
+from ..services.goal_service import GoalService
 from ..services.pet_service import PetService
 from ..services.user_service import UserService
 
 
 class ActivityService:
     @staticmethod
-    def complete_activity(user_id: int, interest_name: str) -> dict:
+    def complete_activity(user_id: int, interest_name: str, amount: float | None = None) -> dict:
         user = UserDAO.get_by_id(user_id)
         if not user:
             raise LookupError("User not found")
@@ -52,22 +53,45 @@ class ActivityService:
         xp_multiplier = UserService.streak_multiplier(streak)
         xp_amount = int(round(base_xp * xp_multiplier))
 
-        activity = ActivityDAO.log(user_id=user_id, interest_id=interest.id, xp_earned=xp_amount)
+        activity = ActivityDAO.log(user_id=user_id, interest_id=interest.id, xp_earned=xp_amount, amount=amount)
 
         pet = PetService.get_pet_by_user(user_id) or PetService.create_pet(user_id)
         evolution_result = PetService.add_xp(pet, xp_amount)
 
+        goal_rewards = GoalService.apply_goal_rewards(
+            user_id=user_id,
+            interest=interest,
+            pet=pet,
+            amount=amount,
+            now=now,
+        )
+
         db.session.flush()
+
+        pet_after_obj = evolution_result["pet"]
+        pet_after_dict = None
+        goal_pet = goal_rewards.get("pet")
+        if hasattr(goal_pet, "to_dict"):
+            pet_after_obj = goal_pet
+            pet_after_dict = goal_pet.to_dict()
+            goal_rewards["pet"] = pet_after_dict
+
+        bonus_xp = goal_rewards.get("bonus_xp", 0)
+        evolved = evolution_result["evolved"] or goal_rewards.get("evolved", False)
 
         return {
             "activity": activity,
-            "pet": evolution_result["pet"],
-            "xp_awarded": xp_amount,
-            "evolved": evolution_result["evolved"],
+            "pet": pet_after_obj,
+            "pet_dict": pet_after_dict,
+            "xp_awarded": xp_amount + bonus_xp,
+            "base_xp": xp_amount,
+            "bonus_xp": bonus_xp,
+            "evolved": evolved,
             "interest_id": interest.id,
             "streak_current": user.streak_current,
             "streak_best": user.streak_best,
             "xp_multiplier": xp_multiplier,
+            "goal_rewards": goal_rewards,
         }
 
     @staticmethod

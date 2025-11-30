@@ -17,6 +17,7 @@ class ActivityLog(db.Model):
     interest_id = db.Column(db.Integer, db.ForeignKey("interests.id", ondelete="CASCADE"), nullable=False)
     timestamp = db.Column(db.DateTime(timezone=True), default=_utcnow, nullable=False)
     xp_earned = db.Column(db.Integer, nullable=False)
+    amount = db.Column(db.Float)  # optional numeric amount (e.g., km)
 
     user = db.relationship("User", back_populates="activities")
     interest = db.relationship("Interest")
@@ -28,4 +29,5 @@ class ActivityLog(db.Model):
             "interest_id": self.interest_id,
             "timestamp": self.timestamp.isoformat() if self.timestamp else None,
             "xp_earned": self.xp_earned,
+            "amount": self.amount,
         }

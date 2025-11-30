@@ -3,3 +3,9 @@ venv/
 __pycache__/
 *.pyc
 .DS_Store
+# React / build outputs
+petAI-frontend/build/
+petAI-frontend/.parcel-cache/
+*.dill
+.cache/
+dist/

@@ -8,8 +8,23 @@ from ..models.interest import Interest
 
 class InterestDAO:
     @staticmethod
-    def create(user_id: int, name: str, level: str, goal: str | None) -> Interest:
-        interest = Interest(user_id=user_id, name=name, level=level, goal=goal)
+    def create(
+        user_id: int,
+        name: str,
+        level: str,
+        goal: str | None,
+        monthly_goal: float | None = None,
+        target_unit: str | None = None,
+    ) -> Interest:
+        interest = Interest(
+            user_id=user_id,
+            name=name,
+            level=level,
+            goal=goal,
+            monthly_goal=monthly_goal,
+            month_progress=0,
+            target_unit=target_unit or "units",
+        )
         db.session.add(interest)
         return interest
 
