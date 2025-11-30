@@ -156,6 +156,7 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
               ShopScreen(
                 apiService: widget.apiService,
                 onError: widget.onError,
+                petCoins: _pet.coins,
                 onBalanceChanged: (balance) {
                   setState(() {
                     _pet = _pet.copyWith(coins: balance);
