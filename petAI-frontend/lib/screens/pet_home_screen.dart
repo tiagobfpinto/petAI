@@ -8,6 +8,7 @@ import '../models/user_session.dart';
 import '../services/api_service.dart';
 import '../widgets/pet_sprite.dart';
 import '../widgets/xp_progress_bar.dart';
+import 'coin_store_screen.dart';
 import 'friends_screen.dart';
 import 'progression_screen.dart';
 import 'shop_screen.dart';
@@ -95,28 +96,32 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
           actions: [
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.monetization_on_outlined,
-                      color: theme.colorScheme.primary,
-                      size: 18,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      "${_pet.coins}",
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(18),
+                onTap: _openCoinStore,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.monetization_on_outlined,
                         color: theme.colorScheme.primary,
+                        size: 18,
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 6),
+                      Text(
+                        "${_pet.coins}",
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -869,6 +874,21 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
       }
     }
     return null;
+  }
+
+  Future<void> _openCoinStore() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => CoinStoreScreen(
+          currentBalance: _pet.coins,
+          onPurchase: (coinsAdded) {
+            final updated = _pet.copyWith(coins: _pet.coins + coinsAdded);
+            setState(() => _pet = updated);
+            widget.onPetChanged(updated);
+          },
+        ),
+      ),
+    );
   }
 }
 
