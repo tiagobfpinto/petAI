@@ -1,3 +1,4 @@
+import '../utils/test_coins.dart';
 import '../data/pet_evolution_data.dart';
 
 class PetState {
@@ -32,7 +33,7 @@ class PetState {
       stage: json["stage"] as String? ?? "egg",
       nextEvolutionXp: json["next_evolution_xp"] as int? ?? 100,
       petType: json["pet_type"] as String? ?? "sprout",
-      coins: json["coins"] as int? ?? 0,
+      coins: applyTestCoins(json["coins"] as int? ?? 0),
       currentSprite: json["current_sprite"] as String?,
     );
   }

@@ -199,7 +199,34 @@ class _ProgressionScreenState extends State<ProgressionScreen> {
 
   Widget _weeklyXp(List<ProgressionDay> days) {
     if (days.isEmpty) {
-      return const SizedBox.shrink();
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "Last 7 days",
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              "No XP logged yet. Log a win to start your weekly history.",
+              style: TextStyle(color: Colors.grey.shade700),
+            ),
+          ],
+        ),
+      );
     }
     final maxXp = days.map((d) => d.xp).fold<int>(0, max);
     const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
