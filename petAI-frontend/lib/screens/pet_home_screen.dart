@@ -519,14 +519,46 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
         if (_loadingActivities)
           const Center(child: CircularProgressIndicator())
         else if (_activities.isEmpty)
-          Container(
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              color: Colors.grey.shade100,
-            ),
-            child: const Text("No activity yet today."),
-          )
+          Builder(builder: (context) {
+            final nextInterest = _nextLoggableInterest();
+            return Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                color: Colors.grey.shade100,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "No activity yet today.",
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    "Log a quick win to start your streak.",
+                    style: TextStyle(color: Colors.grey.shade700),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      ElevatedButton.icon(
+                        onPressed:
+                            nextInterest == null ? null : () => _completeActivity(nextInterest),
+                        icon: const Icon(Icons.bolt_rounded),
+                        label: const Text("Log a win"),
+                      ),
+                      const SizedBox(width: 10),
+                      TextButton(
+                        onPressed: widget.onEditInterests,
+                        child: const Text("Add interests"),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          })
         else
           ..._activities.map((log) {
             final interestName =
@@ -826,6 +858,17 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
       level: MotivationLevel.sometimes,
       goal: "",
     );
+  }
+
+  UserInterest? _nextLoggableInterest() {
+    for (final interest in _interests) {
+      final id = interest.id;
+      final completed = id != null && _completedToday.contains(id);
+      if (!completed) {
+        return interest;
+      }
+    }
+    return null;
   }
 }
 
