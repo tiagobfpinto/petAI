@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../utils/test_coins.dart';
+
 class ShopItem {
   ShopItem({
     required this.id,
@@ -48,7 +50,7 @@ class ShopState {
         .map(ShopItem.fromJson)
         .toList();
     return ShopState(
-      balance: json['balance'] as int? ?? 0,
+      balance: applyTestCoins(json['balance'] as int? ?? 0),
       items: rawItems,
     );
   }
