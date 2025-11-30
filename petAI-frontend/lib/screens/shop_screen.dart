@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/shop.dart';
 import '../services/api_service.dart';
+import '../utils/test_coins.dart';
 
 class ShopScreen extends StatefulWidget {
   const ShopScreen({
@@ -9,11 +10,13 @@ class ShopScreen extends StatefulWidget {
     required this.apiService,
     required this.onError,
     this.onBalanceChanged,
+    this.petCoins,
   });
 
   final ApiService apiService;
   final void Function(String message) onError;
   final void Function(int balance)? onBalanceChanged;
+  final int? petCoins;
 
   @override
   State<ShopScreen> createState() => _ShopScreenState();
@@ -28,6 +31,18 @@ class _ShopScreenState extends State<ShopScreen> {
   void initState() {
     super.initState();
     _loadShop();
+  }
+
+  @override
+  void didUpdateWidget(covariant ShopScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_state != null &&
+        widget.petCoins != null &&
+        widget.petCoins != _state!.balance) {
+      setState(() {
+        _state = ShopState(balance: widget.petCoins!, items: _state!.items);
+      });
+    }
   }
 
   Future<void> _loadShop() async {
@@ -59,7 +74,34 @@ class _ShopScreenState extends State<ShopScreen> {
         SnackBar(content: Text("Purchased ${item.name}!")),
       );
     } else {
-      widget.onError(response.error ?? "Could not complete purchase");
+      final errorText = (response.error ?? "").toLowerCase();
+      final insufficient = errorText.contains("insufficient") || errorText.contains("not enough");
+      if (insufficient && spendTestCoins(item.price) && _state != null) {
+        final updatedBalance = (_state!.balance - item.price).clamp(0, 1 << 31);
+        final updatedItems = _state!.items.map((i) {
+          if (i.id == item.id) {
+            return ShopItem(
+              id: i.id,
+              name: i.name,
+              price: i.price,
+              rarity: i.rarity,
+              tag: i.tag,
+              description: i.description,
+              accent: i.accent,
+              owned: true,
+            );
+          }
+          return i;
+        }).toList();
+        final fallbackState = ShopState(balance: updatedBalance, items: updatedItems);
+        setState(() => _state = fallbackState);
+        widget.onBalanceChanged?.call(updatedBalance);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Purchased ${item.name}! (mock spend)")),
+        );
+      } else {
+        widget.onError(response.error ?? "Could not complete purchase");
+      }
     }
   }
 
@@ -104,7 +146,7 @@ class _ShopScreenState extends State<ShopScreen> {
 
   Widget _balanceCard(BuildContext context) {
     final theme = Theme.of(context);
-    final balance = _state?.balance ?? 0;
+    final balance = widget.petCoins ?? _state?.balance ?? 0;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
