@@ -1,5 +1,6 @@
 .env
 *.env
+petAI-frontend/build/
 venv/
 __pycache__/
 *.pyc
