@@ -68,6 +68,8 @@ class _ProgressionScreenState extends State<ProgressionScreen> {
           const SizedBox(height: 14),
           _todayRow(_snapshot!.today),
           const SizedBox(height: 14),
+          _weeklyGoals(_snapshot!.weeklyGoals),
+          const SizedBox(height: 14),
           _weeklyXp(_snapshot!.weeklyXp),
           const SizedBox(height: 14),
           _milestones(_snapshot!.milestones),
@@ -194,6 +196,111 @@ class _ProgressionScreenState extends State<ProgressionScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _weeklyGoals(List<ProgressionWeeklyGoal> goals) {
+    if (goals.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          "Weekly goals",
+          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+        ),
+        const SizedBox(height: 10),
+        ...goals.map(_weeklyGoalCard),
+      ],
+    );
+  }
+
+  Widget _weeklyGoalCard(ProgressionWeeklyGoal goal) {
+    final plan = goal.plan;
+    final hasPlan = plan != null && plan.weeklyGoalValue > 0;
+    final target = hasPlan
+        ? "${plan!.weeklyGoalValue.toStringAsFixed(plan.weeklyGoalValue >= 10 ? 0 : 1)} ${plan.weeklyGoalUnit}"
+        : "Not set";
+    final days = hasPlan && plan!.days.isNotEmpty ? plan.days.join(", ").toUpperCase() : "Flexible";
+    final perDay = hasPlan && plan!.perDayGoal() > 0 ? plan.perDayGoal().toStringAsFixed(1) : null;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.indigo.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.track_changes_rounded, color: Colors.indigo),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      goal.interest,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                      ),
+                    ),
+                    Text(
+                      target,
+                      style: TextStyle(
+                        color: hasPlan ? Colors.black87 : Colors.grey.shade700,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (perDay != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.indigo.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    "$perDay ${plan!.weeklyGoalUnit}/day",
+                    style: const TextStyle(fontWeight: FontWeight.w700, color: Colors.indigo),
+                  ),
+                ),
+            ],
+          ),
+          if (goal.goal != null && goal.goal!.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              goal.goal!,
+              style: TextStyle(color: Colors.grey.shade700),
+            ),
+          ],
+          const SizedBox(height: 6),
+          Text(
+            "Days: $days",
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+          ),
+        ],
+      ),
     );
   }
 

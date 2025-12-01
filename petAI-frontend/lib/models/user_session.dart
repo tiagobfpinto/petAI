@@ -12,6 +12,8 @@ class UserSession {
     this.streakBest,
     this.streakMultiplier,
     this.lastActivityAt,
+    this.age,
+    this.gender,
   });
 
   final int id;
@@ -26,6 +28,8 @@ class UserSession {
   final int? streakBest;
   final double? streakMultiplier;
   final DateTime? lastActivityAt;
+  final int? age;
+  final String? gender;
 
   String get displayName {
     final candidate = (fullName ?? username).trim();
@@ -52,6 +56,8 @@ class UserSession {
       streakBest: json["streak_best"] as int?,
       streakMultiplier: (json["streak_multiplier"] as num?)?.toDouble(),
       lastActivityAt: _parseDate(json["last_activity_at"] as String?),
+      age: json["age"] as int? ?? _coerceInt(json["age"]),
+      gender: json["gender"] as String?,
     );
   }
 
@@ -62,5 +68,14 @@ class UserSession {
     } catch (_) {
       return null;
     }
+  }
+
+  static int? _coerceInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) {
+      return int.tryParse(value);
+    }
+    return null;
   }
 }

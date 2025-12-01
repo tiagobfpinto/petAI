@@ -74,7 +74,8 @@ def test_token_blocked_when_trial_expired(app):
     with app.app_context():
         user = UserService.create_guest_user()
         db.session.commit()
-        token_value = AuthTokenService.issue_token(user.id)
+        user_id = user.id
+        token_value = AuthTokenService.issue_token(user_id)
         db.session.commit()
 
         user.created_at = datetime.now(timezone.utc) - timedelta(days=4)
@@ -91,7 +92,7 @@ def test_token_blocked_when_trial_expired(app):
     assert resp.status_code == 403
 
     with app.app_context():
-        user_obj = UserDAO.get_by_id(user.id)
+        user_obj = UserDAO.get_by_id(user_id)
         assert user_obj is not None
         assert user_obj.is_active is False
 

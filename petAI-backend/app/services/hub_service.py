@@ -196,9 +196,23 @@ class HubService:
             for key, value in sorted(daily_buckets.items())
         ]
 
+        weekly_goals: list[dict] = []
+        for interest in interests:
+            plan = interest._plan_dict()
+            if not plan:
+                continue
+            weekly_goals.append(
+                {
+                    "interest": interest.name,
+                    "goal": interest.goal,
+                    "plan": plan,
+                }
+            )
+
         return {
             "summary": summary,
             "today": today,
             "weekly_xp": weekly_payload,
             "milestones": milestones,
+            "weekly_goals": weekly_goals,
         }

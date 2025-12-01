@@ -37,7 +37,10 @@ class AuthTokenService:
     def is_token_active(token: AuthToken | None) -> bool:
         if not token:
             return False
-        if token.expires_at and token.expires_at <= datetime.now(timezone.utc):
+        expires_at = token.expires_at
+        if expires_at and expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if expires_at and expires_at <= datetime.now(timezone.utc):
             return False
         return True
 

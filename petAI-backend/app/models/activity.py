@@ -21,11 +21,24 @@ class ActivityLog(db.Model):
     user = db.relationship("User", back_populates="activities")
     interest = db.relationship("Interest")
 
+    @property
+    def interest_name(self) -> str | None:
+        return self.interest.name if self.interest else None
+
+    @property
+    def activity_title(self) -> str | None:
+        """Best-effort description of what the user did."""
+        if self.interest and getattr(self.interest, "goal", None):
+            return self.interest.goal
+        return self.interest_name
+
     def to_dict(self) -> dict:
         return {
             "id": self.id,
             "user_id": self.user_id,
             "interest_id": self.interest_id,
+            "interest": self.interest_name,
+            "activity": self.activity_title,
             "timestamp": self.timestamp.isoformat() if self.timestamp else None,
             "xp_earned": self.xp_earned,
         }

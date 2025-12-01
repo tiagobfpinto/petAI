@@ -5,8 +5,10 @@ import 'package:http/http.dart' as http;
 import '../models/activity_completion.dart';
 import '../models/activity_log.dart';
 import '../models/friend_profile.dart';
+import '../models/goal_suggestion.dart';
 import '../models/pet_state.dart';
 import '../models/progression_snapshot.dart';
+import '../models/daily_activity.dart';
 import '../models/session_bootstrap.dart';
 import '../models/user_interest.dart';
 import '../models/user_session.dart';
@@ -14,17 +16,13 @@ import '../models/shop.dart';
 import 'token_storage.dart';
 
 class ApiResponse<T> {
-  ApiResponse.success(
-    this.data, {
-    this.statusCode = 200,
-  })  : error = null,
-        isSuccess = true;
+  ApiResponse.success(this.data, {this.statusCode = 200})
+    : error = null,
+      isSuccess = true;
 
-  ApiResponse.failure(
-    this.error, {
-    this.statusCode,
-  })  : data = null,
-        isSuccess = false;
+  ApiResponse.failure(this.error, {this.statusCode})
+    : data = null,
+      isSuccess = false;
 
   final T? data;
   final String? error;
@@ -33,17 +31,15 @@ class ApiResponse<T> {
 }
 
 class ApiService {
-  ApiService({
-    http.Client? client,
-    String? baseUrl,
-    TokenStorage? tokenStorage,
-  })  : _client = client ?? http.Client(),
-        _baseUrl = baseUrl ??
-            const String.fromEnvironment(
-              "PETAI_API",
-              defaultValue: "http://127.0.0.1:5000",
-            ),
-        _tokenStorage = tokenStorage ?? const TokenStorage();
+  ApiService({http.Client? client, String? baseUrl, TokenStorage? tokenStorage})
+    : _client = client ?? http.Client(),
+      _baseUrl =
+          baseUrl ??
+          const String.fromEnvironment(
+            "PETAI_API",
+            defaultValue: "http://127.0.0.1:5000",
+          ),
+      _tokenStorage = tokenStorage ?? const TokenStorage();
 
   final http.Client _client;
   final String _baseUrl;
@@ -80,10 +76,7 @@ class ApiService {
         headers: _headers,
         body: jsonEncode({"email": email, "password": password}),
       );
-      return _parseSessionResponse(
-        response,
-        defaultError: "Failed to log in",
-      );
+      return _parseSessionResponse(response, defaultError: "Failed to log in");
     } catch (err) {
       return ApiResponse.failure("Network error: $err");
     }
@@ -103,9 +96,7 @@ class ApiService {
     }
     final authHeader = _headers["Authorization"];
     // ignore: avoid_print
-    print(
-      "[convertGuest] Authorization: $authHeader | token=$_token",
-    );
+    print("[convertGuest] Authorization: $authHeader | token=$_token");
     try {
       final response = await _client.post(
         _uri("/auth/convert"),
@@ -138,10 +129,7 @@ class ApiService {
   Future<ApiResponse<SessionBootstrap>> currentUser() async {
     await _ensureTokenLoaded();
     try {
-      final response = await _client.get(
-        _uri("/auth/me"),
-        headers: _headers,
-      );
+      final response = await _client.get(_uri("/auth/me"), headers: _headers);
       final payload = _decode(response.body);
       final data = _data(payload);
       if (response.statusCode == 200 && data.isNotEmpty) {
@@ -156,6 +144,117 @@ class ApiService {
       }
       return ApiResponse.failure(
         payload["error"] as String? ?? "Failed to load session",
+        statusCode: response.statusCode,
+      );
+    } catch (err) {
+      return ApiResponse.failure("Network error: $err");
+    }
+  }
+
+  Future<ApiResponse<UserSession>> updateProfile({
+    int? age,
+    String? gender,
+  }) async {
+    await _ensureTokenLoaded();
+    try {
+      final response = await _client.post(
+        _uri("/user/profile"),
+        headers: _headers,
+        body: jsonEncode({"age": age, "gender": gender}),
+      );
+      final payload = _decode(response.body);
+      final data = _data(payload);
+      if ((response.statusCode == 200 || response.statusCode == 201) &&
+          data["user"] is Map<String, dynamic>) {
+        return ApiResponse.success(
+          UserSession.fromJson(data["user"] as Map<String, dynamic>),
+          statusCode: response.statusCode,
+        );
+      }
+      return ApiResponse.failure(
+        payload["error"] as String? ?? "Failed to update profile",
+        statusCode: response.statusCode,
+      );
+    } catch (err) {
+      return ApiResponse.failure("Network error: $err");
+    }
+  }
+
+  Future<ApiResponse<GoalSuggestion>> fetchGoalSuggestion({
+    int? age,
+    String? gender,
+    String? activityLevel,
+    List<String>? refusedActivities,
+  }) async {
+    await _ensureTokenLoaded();
+    final params = <String, String>{};
+    if (age != null) params["age"] = "$age";
+    if (gender != null && gender.isNotEmpty) params["gender"] = gender;
+    if (activityLevel != null && activityLevel.isNotEmpty) {
+      params["activity_level"] = activityLevel;
+    }
+    if (refusedActivities != null && refusedActivities.isNotEmpty) {
+      params["refused"] = refusedActivities.join(",");
+    }
+    var uri = _uri("/goal/suggested");
+    if (params.isNotEmpty) {
+      uri = uri.replace(queryParameters: params);
+    }
+    try {
+      final response = await _client.get(uri, headers: _headers);
+      final payload = _decode(response.body);
+      final data = _data(payload);
+      if (response.statusCode == 200) {
+        return ApiResponse.success(
+          GoalSuggestion.fromJson(data),
+          statusCode: response.statusCode,
+        );
+      }
+      return ApiResponse.failure(
+        payload["error"] as String? ?? "Failed to load suggested goal",
+        statusCode: response.statusCode,
+      );
+    } catch (err) {
+      return ApiResponse.failure("Network error: $err");
+    }
+  }
+
+  Future<ApiResponse<GoalSuggestion>> fetchWeeklyGoalSuggestion({
+    int? age,
+    String? gender,
+    String? activity,
+    double? lastGoalValue,
+    String? lastGoalUnit,
+    String? interestName,
+  }) async {
+    await _ensureTokenLoaded();
+    final params = <String, String>{};
+    if (age != null) params["age"] = "$age";
+    if (gender != null && gender.isNotEmpty) params["gender"] = gender;
+    if (activity != null && activity.isNotEmpty) params["activity"] = activity;
+    if (lastGoalValue != null) params["last_goal_value"] = "$lastGoalValue";
+    if (lastGoalUnit != null && lastGoalUnit.isNotEmpty) {
+      params["last_goal_unit"] = lastGoalUnit;
+    }
+    if (interestName != null && interestName.isNotEmpty) {
+      params["interest"] = interestName;
+    }
+    var uri = _uri("/goal/weekly");
+    if (params.isNotEmpty) {
+      uri = uri.replace(queryParameters: params);
+    }
+    try {
+      final response = await _client.get(uri, headers: _headers);
+      final payload = _decode(response.body);
+      final data = _data(payload);
+      if (response.statusCode == 200) {
+        return ApiResponse.success(
+          GoalSuggestion.fromJson(data),
+          statusCode: response.statusCode,
+        );
+      }
+      return ApiResponse.failure(
+        payload["error"] as String? ?? "Failed to load weekly goal",
         statusCode: response.statusCode,
       );
     } catch (err) {
@@ -202,10 +301,7 @@ class ApiService {
 
   Future<ApiResponse<List<String>>> fetchDefaultInterests() async {
     try {
-      final response = await _client.get(
-        _uri("/interests"),
-        headers: _headers,
-      );
+      final response = await _client.get(_uri("/interests"), headers: _headers);
       final payload = _decode(response.body);
       final data = _data(payload);
       if (response.statusCode == 200) {
@@ -276,10 +372,7 @@ class ApiService {
 
   Future<ApiResponse<PetState>> fetchPet() async {
     try {
-      final response = await _client.get(
-        _uri("/pet"),
-        headers: _headers,
-      );
+      final response = await _client.get(_uri("/pet"), headers: _headers);
       final payload = _decode(response.body);
       final data = _data(payload);
       if (response.statusCode == 200 && data["pet"] is Map<String, dynamic>) {
@@ -348,12 +441,62 @@ class ApiService {
     }
   }
 
-  Future<ApiResponse<ShopState>> fetchShop() async {
+  Future<ApiResponse<List<DailyActivity>>> fetchDailyActivities() async {
+    await _ensureTokenLoaded();
     try {
       final response = await _client.get(
-        _uri("/hub/shop"),
+        _uri("/daily/activities"),
         headers: _headers,
       );
+      final payload = _decode(response.body);
+      final data = _data(payload);
+      if (response.statusCode == 200) {
+        final items = (data["activities"] as List<dynamic>? ?? [])
+            .whereType<Map<String, dynamic>>()
+            .map(DailyActivity.fromJson)
+            .toList();
+        return ApiResponse.success(items, statusCode: response.statusCode);
+      }
+      return ApiResponse.failure(
+        payload["error"] as String? ?? "Failed to load daily activities",
+        statusCode: response.statusCode,
+      );
+    } catch (err) {
+      return ApiResponse.failure("Network error: $err");
+    }
+  }
+
+  Future<ApiResponse<ActivityCompletionResult>> completeDailyActivity(
+    int activityId,
+  ) async {
+    await _ensureTokenLoaded();
+    try {
+      final response = await _client.post(
+        _uri("/daily/activities/complete"),
+        headers: _headers,
+        body: jsonEncode({"activity_id": activityId}),
+      );
+      final payload = _decode(response.body);
+      final data = _data(payload);
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        final completion = data["completion"] as Map<String, dynamic>? ?? {};
+        return ApiResponse.success(
+          ActivityCompletionResult.fromJson(completion),
+          statusCode: response.statusCode,
+        );
+      }
+      return ApiResponse.failure(
+        payload["error"] as String? ?? "Failed to complete activity",
+        statusCode: response.statusCode,
+      );
+    } catch (err) {
+      return ApiResponse.failure("Network error: $err");
+    }
+  }
+
+  Future<ApiResponse<ShopState>> fetchShop() async {
+    try {
+      final response = await _client.get(_uri("/hub/shop"), headers: _headers);
       final payload = _decode(response.body);
       final data = _data(payload);
       if (response.statusCode == 200) {
@@ -397,10 +540,7 @@ class ApiService {
 
   Future<ApiResponse<FriendsOverview>> fetchFriends() async {
     try {
-      final response = await _client.get(
-        _uri("/friends"),
-        headers: _headers,
-      );
+      final response = await _client.get(_uri("/friends"), headers: _headers);
       final payload = _decode(response.body);
       final data = _data(payload);
       if (response.statusCode == 200) {
@@ -418,7 +558,9 @@ class ApiService {
     }
   }
 
-  Future<ApiResponse<FriendRequestEntry>> sendFriendRequest(String username) async {
+  Future<ApiResponse<FriendRequestEntry>> sendFriendRequest(
+    String username,
+  ) async {
     try {
       final response = await _client.post(
         _uri("/friends/request"),
@@ -430,7 +572,10 @@ class ApiService {
       if (response.statusCode == 201 || response.statusCode == 200) {
         final requestJson = data["request"] as Map<String, dynamic>? ?? {};
         return ApiResponse.success(
-          FriendRequestEntry.fromJson(requestJson, direction: RequestDirection.outgoing),
+          FriendRequestEntry.fromJson(
+            requestJson,
+            direction: RequestDirection.outgoing,
+          ),
           statusCode: response.statusCode,
         );
       }
@@ -443,7 +588,9 @@ class ApiService {
     }
   }
 
-  Future<ApiResponse<FriendRequestEntry>> acceptFriendRequest(int requestId) async {
+  Future<ApiResponse<FriendRequestEntry>> acceptFriendRequest(
+    int requestId,
+  ) async {
     try {
       final response = await _client.post(
         _uri("/friends/accept"),
@@ -455,7 +602,10 @@ class ApiService {
       if (response.statusCode == 200) {
         final requestJson = data["request"] as Map<String, dynamic>? ?? {};
         return ApiResponse.success(
-          FriendRequestEntry.fromJson(requestJson, direction: RequestDirection.incoming),
+          FriendRequestEntry.fromJson(
+            requestJson,
+            direction: RequestDirection.incoming,
+          ),
           statusCode: response.statusCode,
         );
       }
@@ -525,10 +675,7 @@ class ApiService {
     }
   }
 
-  SessionBootstrap _parseBootstrap(
-    Map<String, dynamic> data, {
-    String? token,
-  }) {
+  SessionBootstrap _parseBootstrap(Map<String, dynamic> data, {String? token}) {
     final userJson = data["user"] as Map<String, dynamic>? ?? {};
     final trial = data["trial_days_left"];
     if (trial != null) {

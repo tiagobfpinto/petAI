@@ -1,3 +1,5 @@
+import 'activity_plan.dart';
+
 class ProgressionSummary {
   ProgressionSummary({
     required this.level,
@@ -97,12 +99,32 @@ class ProgressionDay {
   final int count;
 }
 
+class ProgressionWeeklyGoal {
+  ProgressionWeeklyGoal({required this.interest, this.goal, this.plan});
+
+  factory ProgressionWeeklyGoal.fromJson(Map<String, dynamic> json) {
+    final planJson = json['plan'];
+    return ProgressionWeeklyGoal(
+      interest: json['interest'] as String? ?? '',
+      goal: json['goal'] as String?,
+      plan: planJson is Map<String, dynamic>
+          ? ActivityPlan.fromJson(planJson)
+          : null,
+    );
+  }
+
+  final String interest;
+  final String? goal;
+  final ActivityPlan? plan;
+}
+
 class ProgressionSnapshot {
   ProgressionSnapshot({
     required this.summary,
     required this.today,
     required this.weeklyXp,
     required this.milestones,
+    required this.weeklyGoals,
   });
 
   factory ProgressionSnapshot.fromJson(Map<String, dynamic> json) {
@@ -114,6 +136,10 @@ class ProgressionSnapshot {
         .whereType<Map<String, dynamic>>()
         .map(ProgressionMilestone.fromJson)
         .toList();
+    final goals = (json['weekly_goals'] as List<dynamic>? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .map(ProgressionWeeklyGoal.fromJson)
+        .toList();
     return ProgressionSnapshot(
       summary: ProgressionSummary.fromJson(
         json['summary'] as Map<String, dynamic>? ?? {},
@@ -123,6 +149,7 @@ class ProgressionSnapshot {
       ),
       weeklyXp: weekly,
       milestones: milestones,
+      weeklyGoals: goals,
     );
   }
 
@@ -130,4 +157,5 @@ class ProgressionSnapshot {
   final ProgressionToday today;
   final List<ProgressionDay> weeklyXp;
   final List<ProgressionMilestone> milestones;
+  final List<ProgressionWeeklyGoal> weeklyGoals;
 }

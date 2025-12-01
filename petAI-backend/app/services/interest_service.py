@@ -10,6 +10,31 @@ from ..models.interest import Interest
 
 
 class InterestService:
+    _DAY_KEYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+    _DAY_ALIASES = {
+        "monday": "mon",
+        "mon": "mon",
+        "tuesday": "tue",
+        "tue": "tue",
+        "wednesday": "wed",
+        "wed": "wed",
+        "thursday": "thu",
+        "thu": "thu",
+        "friday": "fri",
+        "fri": "fri",
+        "saturday": "sat",
+        "sat": "sat",
+        "sunday": "sun",
+        "sun": "sun",
+        "0": "mon",
+        "1": "tue",
+        "2": "wed",
+        "3": "thu",
+        "4": "fri",
+        "5": "sat",
+        "6": "sun",
+    }
+
     @staticmethod
     def default_interests() -> list[str]:
         return BASE_INTERESTS.copy()
@@ -36,6 +61,9 @@ class InterestService:
                 raise ValueError("duplicate interests are not allowed")
             seen.add(normalized)
 
+            if InterestService._is_running_name(normalized):
+                InterestService._validate_running_plan(entry.get("plan"))
+
     @staticmethod
     def save_user_interests(user_id: int, entries: Iterable[dict]) -> list[Interest]:
         user = UserDAO.get_by_id(user_id)
@@ -52,6 +80,13 @@ class InterestService:
             name = entry["name"].strip()
             level = entry["level"].strip().lower()
             goal = (entry.get("goal") or "").strip() or None
+            weekly_goal_value: float | None = None
+            weekly_goal_unit: str | None = None
+            weekly_schedule: str | None = None
+            if InterestService._is_running_name(name):
+                plan = InterestService._normalize_running_plan(entry.get("plan"))
+                if plan:
+                    weekly_goal_value, weekly_goal_unit, weekly_schedule = plan
             normalized = name.lower()
             incoming_names.add(normalized)
 
@@ -60,9 +95,22 @@ class InterestService:
                 current.name = name
                 current.level = level
                 current.goal = goal
+                current.weekly_goal_value = weekly_goal_value
+                current.weekly_goal_unit = weekly_goal_unit
+                current.weekly_schedule = weekly_schedule
                 saved.append(current)
             else:
-                saved.append(InterestDAO.create(user_id=user_id, name=name, level=level, goal=goal))
+                saved.append(
+                    InterestDAO.create(
+                        user_id=user_id,
+                        name=name,
+                        level=level,
+                        goal=goal,
+                        weekly_goal_value=weekly_goal_value,
+                        weekly_goal_unit=weekly_goal_unit,
+                        weekly_schedule=weekly_schedule,
+                    )
+                )
 
         for normalized, interest in existing.items():
             if normalized not in incoming_names:
@@ -74,3 +122,64 @@ class InterestService:
     @staticmethod
     def list_user_interests(user_id: int) -> list[Interest]:
         return InterestDAO.list_for_user(user_id)
+
+    @staticmethod
+    def _validate_running_plan(plan: dict | None) -> None:
+        if not isinstance(plan, dict):
+            raise ValueError("Running plan requires weekly goal and schedule")
+        value = plan.get("weekly_goal_value")
+        days = plan.get("days")
+        if value is None:
+            raise ValueError("Running plan requires a weekly_goal_value")
+        try:
+            value_float = float(value)
+        except (TypeError, ValueError):
+            raise ValueError("weekly_goal_value must be numeric")
+        if value_float <= 0:
+            raise ValueError("weekly_goal_value must be greater than zero")
+        if not isinstance(days, (list, tuple)) or not days:
+            raise ValueError("Running plan requires at least one training day")
+        for day in days:
+            InterestService._normalize_day(day)
+
+    @staticmethod
+    def _normalize_running_plan(plan: dict | None) -> tuple[float, str, str] | None:
+        if not isinstance(plan, dict):
+            return None
+        value = plan.get("weekly_goal_value")
+        unit = (plan.get("weekly_goal_unit") or "km").strip()
+        days = plan.get("days")
+        if value is None or not isinstance(days, (list, tuple)) or not days:
+            return None
+        try:
+            weekly_goal_value = float(value)
+        except (TypeError, ValueError):
+            return None
+        if weekly_goal_value <= 0:
+            return None
+        normalized_days: list[str] = []
+        for day in days:
+            normalized = InterestService._normalize_day(day)
+            if normalized not in normalized_days:
+                normalized_days.append(normalized)
+        schedule = ",".join(normalized_days)
+        return weekly_goal_value, unit or "km", schedule
+
+    @staticmethod
+    def _normalize_day(day: str | int | None) -> str:
+        if day is None:
+            raise ValueError("Day cannot be empty")
+        if isinstance(day, int):
+            if 0 <= day <= 6:
+                return InterestService._DAY_KEYS[day]
+            raise ValueError("Day index must be between 0 (Mon) and 6 (Sun)")
+        lowered = str(day).strip().lower()
+        normalized = InterestService._DAY_ALIASES.get(lowered)
+        if not normalized:
+            raise ValueError("Invalid day provided")
+        return normalized
+
+    @staticmethod
+    def _is_running_name(name: str) -> bool:
+        normalized = name.strip().lower()
+        return "running" in normalized or "cardio" in normalized

@@ -93,6 +93,33 @@ def save_user_interests():
     return _persist_interests(user_id, entries)
 
 
+@user_bp.route("/profile", methods=["POST"])
+@token_required
+def update_profile():
+    payload = request.get_json(silent=True) or {}
+    user_id = _resolve_user_id(payload)
+    if not user_id:
+        return error_response("user_id is required", 400)
+    age = payload.get("age")
+    gender = payload.get("gender")
+    try:
+        age_value = int(age) if age is not None else None
+    except (TypeError, ValueError):
+        return error_response("age must be a number", 400)
+
+    try:
+        user_dict = UserService.update_profile(user_id, age=age_value, gender=gender)
+        db.session.commit()
+    except ValueError as exc:
+        db.session.rollback()
+        return error_response(str(exc), 400)
+    except LookupError as exc:
+        db.session.rollback()
+        return error_response(str(exc), 404)
+
+    return success_response("Profile updated", {"user": user_dict})
+
+
 @interests_bp.route("", methods=["POST"])
 @interests_bp.route("/", methods=["POST"])
 @token_required

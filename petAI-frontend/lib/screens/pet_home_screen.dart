@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/activity_log.dart';
+import '../models/daily_activity.dart';
 import '../models/interest.dart';
 import '../models/pet_state.dart';
 import '../models/user_interest.dart';
@@ -49,6 +50,8 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
   late PetState _pet;
   late List<UserInterest> _interests;
   final Map<String, bool> _logging = {};
+  List<DailyActivity> _dailyActivities = [];
+  bool _loadingDaily = true;
   List<ActivityLogEntry> _activities = [];
   bool _loadingActivities = true;
   Set<int> _completedToday = {};
@@ -65,6 +68,7 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
     _streakCurrent = widget.session.streakCurrent;
     _streakBest = widget.session.streakBest;
     _xpMultiplier = widget.session.streakMultiplier;
+    _loadDailyActivities();
     _loadActivities();
   }
 
@@ -96,7 +100,10 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: theme.colorScheme.primary.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(18),
@@ -195,15 +202,12 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
         ],
       ),
       child: TabBar(
-        isScrollable: false,
-        labelPadding: const EdgeInsets.symmetric(horizontal: 6),
+        isScrollable: true,
+        labelPadding: const EdgeInsets.symmetric(horizontal: 8),
         indicatorSize: TabBarIndicatorSize.tab,
         indicator: BoxDecoration(
           gradient: LinearGradient(
-            colors: [
-              theme.colorScheme.primary,
-              theme.colorScheme.secondary,
-            ],
+            colors: [theme.colorScheme.primary, theme.colorScheme.secondary],
           ),
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
@@ -220,7 +224,7 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
           Tab(icon: Icon(Icons.pets_rounded), text: "Home"),
           Tab(icon: Icon(Icons.store_mall_directory_rounded), text: "Shop"),
           Tab(icon: Icon(Icons.people_alt_rounded), text: "Friends"),
-          Tab(icon: Icon(Icons.auto_graph_rounded), text: "Progression"),
+          Tab(icon: Icon(Icons.auto_graph_rounded), text: "Progress"),
         ],
       ),
     );
@@ -241,7 +245,7 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
           const SizedBox(height: 16),
           _buildPetHeader(context),
           const SizedBox(height: 24),
-          _buildInterestsSection(),
+          _buildDailyActivitiesSection(),
           const SizedBox(height: 24),
           _buildActivityLog(),
         ],
@@ -350,27 +354,148 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
       );
     }
 
-    final visibleInterests = _interests.where((interest) {
-      final id = interest.id;
-      if (id == null) {
-        return true;
-      }
-      final celebrating = _celebrations.containsKey(id);
-      final completed = _completedToday.contains(id);
-      return !completed || celebrating;
-    }).toList();
+    return const SizedBox.shrink();
+  }
 
+  Widget _buildDailyActivitiesSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _sectionTitle("Today's focus"),
         const SizedBox(height: 12),
-        if (visibleInterests.isEmpty)
-          _allCaughtUpCard()
+        if (_loadingDaily)
+          const Center(child: CircularProgressIndicator())
+        else if (_dailyActivities.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              color: Colors.grey.shade100,
+            ),
+            child: const Text("No tasks scheduled today."),
+          )
         else
-          ...visibleInterests.map(_buildInterestCard),
+          ..._dailyActivities.map(_buildDailyActivityCard),
       ],
     );
+  }
+
+  Widget _buildDailyActivityCard(DailyActivity activity) {
+    final interest = _interests.firstWhere(
+      (i) => i.id == activity.interestId,
+      orElse: () => _fallbackInterest(activity.interestId),
+    );
+    final blueprint = interest.blueprint;
+    final isLoading = _logging["daily-${activity.id}"] ?? false;
+    final isCompleted = activity.isCompleted;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: blueprint.accentColor.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Icon(blueprint.icon, color: blueprint.accentColor),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        blueprint.name,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                        ),
+                      ),
+                      Text(
+                        activity.title,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          Chip(
+                            label: Text(
+                              "Today",
+                              style: TextStyle(color: Colors.grey.shade700),
+                            ),
+                            backgroundColor: blueprint.accentColor.withValues(
+                              alpha: 0.1,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                TextButton(
+                  onPressed: widget.onEditInterests,
+                  child: const Text("Edit"),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                icon: isLoading
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation(Colors.white),
+                        ),
+                      )
+                    : const Icon(Icons.bolt_rounded),
+                label: Text(
+                  isCompleted
+                      ? "Completed"
+                      : isLoading
+                      ? "Logging..."
+                      : "Log a win",
+                ),
+                onPressed: (isLoading || isCompleted)
+                    ? null
+                    : () => _completeDailyActivity(activity),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _todayKey() {
+    const keys = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+    final index = DateTime.now().weekday - 1;
+    if (index >= 0 && index < keys.length) {
+      return keys[index];
+    }
+    return "mon";
+  }
+
+  bool _isScheduledToday(UserInterest interest, String todayKey) {
+    final plan = interest.plan;
+    if (plan == null || plan.days.isEmpty) return true;
+    return plan.days.any((d) => d.toLowerCase() == todayKey);
   }
 
   Widget _buildInterestCard(UserInterest interest) {
@@ -379,9 +504,9 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
     final quickIdeas = blueprint.suggestedActivities.take(2).toList();
     final goalText = (interest.goal ?? "").trim();
     final interestId = interest.id;
-    final celebrationXp =
-        interestId != null ? _celebrations[interestId] : null;
-    final isCompleted = interestId != null && _completedToday.contains(interestId);
+    final celebrationXp = interestId != null ? _celebrations[interestId] : null;
+    final isCompleted =
+        interestId != null && _completedToday.contains(interestId);
 
     if (isCompleted && celebrationXp == null) {
       return const SizedBox.shrink();
@@ -404,10 +529,7 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
                     color: blueprint.accentColor.withValues(alpha: 0.18),
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: Icon(
-                    blueprint.icon,
-                    color: blueprint.accentColor,
-                  ),
+                  child: Icon(blueprint.icon, color: blueprint.accentColor),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -444,8 +566,9 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
                   .map(
                     (idea) => Chip(
                       label: Text(idea),
-                      backgroundColor:
-                          blueprint.accentColor.withValues(alpha: 0.12),
+                      backgroundColor: blueprint.accentColor.withValues(
+                        alpha: 0.12,
+                      ),
                     ),
                   )
                   .toList(),
@@ -455,7 +578,9 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
               duration: const Duration(milliseconds: 350),
               child: celebrationXp != null
                   ? _XpCelebration(
-                      key: ValueKey("celebrating-${interestId ?? interest.name}"),
+                      key: ValueKey(
+                        "celebrating-${interestId ?? interest.name}",
+                      ),
                       xp: celebrationXp,
                     )
                   : SizedBox(
@@ -468,7 +593,9 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
                                 height: 18,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation(Colors.white),
+                                  valueColor: AlwaysStoppedAnimation(
+                                    Colors.white,
+                                  ),
                                 ),
                               )
                             : const Icon(Icons.bolt_rounded),
@@ -529,11 +656,13 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
           )
         else
           ..._activities.map((log) {
-            final interestName =
-                _interests.firstWhere(
+            final interestName = _interests
+                .firstWhere(
                   (interest) => interest.id == log.interestId,
                   orElse: () => _fallbackInterest(log.interestId),
-                ).blueprint.name;
+                )
+                .blueprint
+                .name;
             final time = log.timestamp != null
                 ? TimeOfDay.fromDateTime(log.timestamp!)
                 : null;
@@ -573,10 +702,26 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
 
   Future<void> _refreshAll() async {
     await Future.wait([
+      _loadDailyActivities(),
       _loadActivities(),
       widget.onRefreshInterests(),
       _refreshPetState(),
     ]);
+  }
+
+  Future<void> _loadDailyActivities() async {
+    setState(() => _loadingDaily = true);
+    final response = await widget.apiService.fetchDailyActivities();
+    if (!mounted) return;
+    if (response.isSuccess && response.data != null) {
+      setState(() {
+        _dailyActivities = response.data!;
+        _loadingDaily = false;
+      });
+    } else {
+      setState(() => _loadingDaily = false);
+      widget.onError(response.error ?? "Failed to load daily activities");
+    }
   }
 
   Future<void> _loadActivities() async {
@@ -607,8 +752,7 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
 
   Future<void> _completeActivity(UserInterest interest) async {
     setState(() => _logging[interest.name] = true);
-    final response =
-        await widget.apiService.completeActivity(interest.name);
+    final response = await widget.apiService.completeActivity(interest.name);
     if (!mounted) return;
     setState(() => _logging[interest.name] = false);
     if (response.isSuccess && response.data != null) {
@@ -640,6 +784,50 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
     }
   }
 
+  Future<void> _completeDailyActivity(DailyActivity activity) async {
+    setState(() => _logging["daily-${activity.id}"] = true);
+    final response = await widget.apiService.completeDailyActivity(activity.id);
+    if (!mounted) return;
+    setState(() => _logging["daily-${activity.id}"] = false);
+    if (response.isSuccess && response.data != null) {
+      final completion = response.data!;
+      widget.onPetChanged(completion.pet);
+      setState(() {
+        _pet = completion.pet;
+        _streakCurrent = completion.streakCurrent ?? _streakCurrent;
+        _streakBest = completion.streakBest ?? _streakBest;
+        _xpMultiplier = completion.xpMultiplier ?? _xpMultiplier;
+        _dailyActivities = _dailyActivities
+            .map(
+              (a) => a.id == activity.id
+                  ? DailyActivity(
+                      id: a.id,
+                      interestId: a.interestId,
+                      activityTypeId: a.activityTypeId,
+                      title: a.title,
+                      scheduledFor: a.scheduledFor,
+                      status: "completed",
+                      goalId: a.goalId,
+                      completedAt: DateTime.now(),
+                      xpAwarded: completion.xpAwarded,
+                    )
+                  : a,
+            )
+            .toList();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            "Great job! ${activity.title} logged +${completion.xpAwarded} XP.",
+          ),
+        ),
+      );
+      _loadActivities();
+    } else {
+      widget.onError(response.error ?? "Failed to complete activity");
+    }
+  }
+
   void _showUpgradeDialog() {
     showDialog<void>(
       context: context,
@@ -668,16 +856,17 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
   Widget _sectionTitle(String text) {
     return Text(
       text,
-      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w700,
-          ),
+      style: Theme.of(
+        context,
+      ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
     );
   }
 
   Widget _buildGuestBanner(BuildContext context) {
     final daysLeft = _trialDaysLeft(widget.session);
-    final bannerText =
-        daysLeft != null ? "$daysLeft day${daysLeft == 1 ? "" : "s"} left" : "Free trial active";
+    final bannerText = daysLeft != null
+        ? "$daysLeft day${daysLeft == 1 ? "" : "s"} left"
+        : "Free trial active";
     return Card(
       color: Colors.amber.shade50,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
@@ -694,10 +883,7 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
                 children: [
                   const Text(
                     "Guest mode",
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 16,
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -753,7 +939,9 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: theme.colorScheme.primary.withValues(alpha: 0.18)),
+        border: Border.all(
+          color: theme.colorScheme.primary.withValues(alpha: 0.18),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -766,7 +954,10 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
                   color: theme.colorScheme.primary.withValues(alpha: 0.16),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(Icons.local_fire_department_rounded, color: theme.colorScheme.primary),
+                child: Icon(
+                  Icons.local_fire_department_rounded,
+                  color: theme.colorScheme.primary,
+                ),
               ),
               const SizedBox(width: 12),
               Column(
@@ -774,7 +965,9 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
                 children: [
                   Text(
                     daysLabel,
-                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                   Text(
                     "XP multiplier ${multiplier.toStringAsFixed(2)}x",
@@ -784,7 +977,10 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
               ),
               const Spacer(),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.deepPurple.shade50,
                   borderRadius: BorderRadius.circular(12),
@@ -869,10 +1065,7 @@ class _XpCelebration extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 4),
-            Text(
-              "Great job!",
-              style: theme.textTheme.bodySmall,
-            ),
+            Text("Great job!", style: theme.textTheme.bodySmall),
           ],
         ),
       ),

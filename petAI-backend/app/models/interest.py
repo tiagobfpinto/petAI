@@ -17,6 +17,9 @@ class Interest(db.Model):
     name = db.Column(db.String(120), nullable=False)
     level = db.Column(db.String(32), nullable=False)
     goal = db.Column(db.String(255))
+    weekly_goal_value = db.Column(db.Float)
+    weekly_goal_unit = db.Column(db.String(32))
+    weekly_schedule = db.Column(db.String(255))
     created_at = db.Column(db.DateTime(timezone=True), default=_utcnow, nullable=False)
     updated_at = db.Column(db.DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False)
 
@@ -33,6 +36,25 @@ class Interest(db.Model):
             "name": self.name,
             "level": self.level,
             "goal": self.goal,
+            "plan": self._plan_dict(),
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+    def _plan_dict(self) -> dict | None:
+        if (
+            self.weekly_goal_value is None
+            or self.weekly_goal_unit is None
+            or not self.weekly_schedule
+        ):
+            return None
+        days = [day for day in self.weekly_schedule.split(",") if day]
+        per_day = None
+        if days:
+            per_day = round(float(self.weekly_goal_value) / len(days), 2)
+        return {
+            "weekly_goal_value": self.weekly_goal_value,
+            "weekly_goal_unit": self.weekly_goal_unit,
+            "days": days,
+            "per_day_goal_value": per_day,
         }

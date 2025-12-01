@@ -73,12 +73,32 @@ class UserService:
         return get_current_user_id() or explicit_user_id
 
     @staticmethod
+    def update_profile(user_id: int, age: int | None = None, gender: str | None = None) -> dict:
+        user = UserDAO.get_by_id(user_id)
+        if not user:
+            raise LookupError("User not found")
+
+        if age is not None:
+            if age <= 0:
+                raise ValueError("age must be greater than zero")
+            user.age = age
+        if gender is not None:
+            gender = gender.strip()
+            if gender:
+                user.gender = gender
+        db.session.flush()
+        return user.to_dict()
+
+    @staticmethod
     def _trial_days_left(user: User, trial_length_days: int = 3) -> int:
         """Return remaining trial days from guest creation."""
         if not user.is_guest or not user.created_at:
             return 0
         now = datetime.now(timezone.utc)
-        elapsed_days = (now - user.created_at).days
+        created_at = user.created_at
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=timezone.utc)
+        elapsed_days = (now - created_at).days
         remaining = trial_length_days - elapsed_days
         return remaining if remaining > 0 else 0
 

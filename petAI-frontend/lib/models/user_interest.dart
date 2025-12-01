@@ -1,5 +1,6 @@
 import 'interest.dart';
 import '../data/interest_catalog.dart';
+import 'activity_plan.dart';
 
 class UserInterest {
   const UserInterest({
@@ -7,12 +8,14 @@ class UserInterest {
     required this.name,
     required this.level,
     this.goal,
+    this.plan,
   });
 
   final int? id;
   final String name;
   final MotivationLevel level;
   final String? goal;
+  final ActivityPlan? plan;
 
   InterestBlueprint get blueprint => resolveInterestBlueprint(name);
 
@@ -22,17 +25,23 @@ class UserInterest {
       name: json["name"] as String? ?? "",
       level: motivationLevelFromKey(json["level"] as String?),
       goal: json["goal"] as String?,
+      plan: json["plan"] is Map<String, dynamic>
+          ? ActivityPlan.fromJson(json["plan"] as Map<String, dynamic>)
+          : null,
     );
   }
 
   Map<String, dynamic> toPayload() {
-    final payload = {
+    final Map<String, dynamic> payload = {
       "name": name,
       "level": level.key,
     };
     final trimmedGoal = goal?.trim();
     if (trimmedGoal != null && trimmedGoal.isNotEmpty) {
       payload["goal"] = trimmedGoal;
+    }
+    if (plan != null) {
+      payload["plan"] = plan!.toPayload();
     }
     return payload;
   }
@@ -42,12 +51,14 @@ class UserInterest {
     String? name,
     MotivationLevel? level,
     String? goal,
+    ActivityPlan? plan,
   }) {
     return UserInterest(
       id: id ?? this.id,
       name: name ?? this.name,
       level: level ?? this.level,
       goal: goal ?? this.goal,
+      plan: plan ?? this.plan,
     );
   }
 

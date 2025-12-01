@@ -75,6 +75,7 @@ class _PetAiAppState extends State<PetAiApp> {
       return InterestSelectionScreen(
         apiService: _apiService,
         existingInterests: _interests,
+        user: _session!,
         onSaved: (interests) {
           setState(() {
             _interests = interests;

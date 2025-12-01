@@ -33,7 +33,12 @@ def test_activity_history_survives_interest_changes(ctx):
     db.session.commit()
 
     initial_entries = [
-        {"name": "Running", "level": "sometimes", "goal": "Jog 3km"},
+        {
+            "name": "Running",
+            "level": "sometimes",
+            "goal": "Jog 3km",
+            "plan": {"weekly_goal_value": 4, "weekly_goal_unit": "km", "days": ["mon", "wed"]},
+        },
         {"name": "Study", "level": "always"},
     ]
     interests = UserService.save_user_interests(user.id, initial_entries)
@@ -55,3 +60,25 @@ def test_activity_history_survives_interest_changes(ctx):
 
     logs_after = ActivityService.today_activities(user.id)
     assert any(log.interest_id == running_id for log in logs_after)
+
+
+def test_running_plan_saved_with_days(ctx):
+    user = UserService.create_guest_user()
+    db.session.commit()
+
+    entries = [
+        {
+            "name": "Running",
+            "level": "never",
+            "plan": {"weekly_goal_value": 4, "weekly_goal_unit": "km", "days": ["monday", "wed"]},
+        }
+    ]
+
+    interests = UserService.save_user_interests(user.id, entries)
+    db.session.commit()
+
+    running = interests[0]
+    assert running["plan"] is not None
+    assert running["plan"]["weekly_goal_value"] == 4
+    assert running["plan"]["weekly_goal_unit"] == "km"
+    assert running["plan"]["days"] == ["mon", "wed"]
