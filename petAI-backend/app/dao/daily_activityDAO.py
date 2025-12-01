@@ -19,7 +19,7 @@ class DailyActivityDAO:
             DailyActivity.query.filter(
                 and_(
                     DailyActivity.user_id == user_id,
-                    DailyActivity.scheduled_for == target_date,
+                    DailyActivity.todo_date == target_date,
                 )
             )
             .order_by(DailyActivity.id.asc())
@@ -35,6 +35,7 @@ class DailyActivityDAO:
         goal_id: int | None,
         title: str,
         scheduled_for: date,
+        todo_date: date | None = None,
     ) -> DailyActivity:
         activity = DailyActivity(
             user_id=user_id,
@@ -43,6 +44,7 @@ class DailyActivityDAO:
             goal_id=goal_id,
             title=title,
             scheduled_for=scheduled_for,
+            todo_date=todo_date or scheduled_for,
             status="pending",
         )
         db.session.add(activity)

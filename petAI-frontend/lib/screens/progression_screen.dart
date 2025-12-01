@@ -224,6 +224,14 @@ class _ProgressionScreenState extends State<ProgressionScreen> {
         : "Not set";
     final days = hasPlan && plan!.days.isNotEmpty ? plan.days.join(", ").toUpperCase() : "Flexible";
     final perDay = hasPlan && plan!.perDayGoal() > 0 ? plan.perDayGoal().toStringAsFixed(1) : null;
+    final progressTarget = goal.progressTarget ?? plan?.weeklyGoalValue ?? 0;
+    final progressValue = goal.progressValue ?? 0;
+    final progress = (goal.progress ?? (progressTarget > 0 ? progressValue / progressTarget : 0))
+        .clamp(0.0, 1.0)
+        .toDouble();
+    String _formatDouble(double value) {
+      return value >= 10 ? value.toStringAsFixed(0) : value.toStringAsFixed(1);
+    }
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
@@ -299,6 +307,43 @@ class _ProgressionScreenState extends State<ProgressionScreen> {
             "Days: $days",
             style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
           ),
+          if (progressTarget > 0) ...[
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  "Progress",
+                  style: TextStyle(
+                    color: Colors.grey.shade700,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  "${(progress * 100).clamp(0, 100).toStringAsFixed(0)}%",
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: Colors.indigo,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: LinearProgressIndicator(
+                value: progress,
+                minHeight: 8,
+                backgroundColor: Colors.grey.shade200,
+                valueColor: const AlwaysStoppedAnimation(Color(0xFF5667FF)),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              "${_formatDouble(progressValue)} / ${_formatDouble(progressTarget)} ${plan?.weeklyGoalUnit ?? ''}".trim(),
+              style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
+            ),
+          ],
         ],
       ),
     );

@@ -45,14 +45,49 @@ class DailyActivityService:
         return [d.lower() for d in plan.get("days", []) if isinstance(d, str) and d]
 
     @classmethod
-    def _plan_value(cls, interest):
+    def _plan_details(cls, interest) -> dict | None:
         try:
             plan = interest._plan_dict()
         except Exception:
-            return None, None
+            return None
         if not plan:
-            return None, None
-        return plan.get("weekly_goal_value"), plan.get("weekly_goal_unit")
+            return None
+        days = [d.lower() for d in plan.get("days", []) if isinstance(d, str) and d]
+        weekly_value = plan.get("weekly_goal_value")
+        unit = plan.get("weekly_goal_unit")
+        per_day = None
+        if weekly_value is not None and days:
+            try:
+                per_day = round(float(weekly_value) / max(len(days), 1), 2)
+            except (TypeError, ValueError):
+                per_day = None
+        return {
+            "days": days,
+            "weekly_value": weekly_value,
+            "unit": unit,
+            "per_day": per_day,
+        }
+
+    @classmethod
+    def _day_label(cls, day_key: str) -> str:
+        labels = {
+            "mon": "Monday",
+            "tue": "Tuesday",
+            "wed": "Wednesday",
+            "thu": "Thursday",
+            "fri": "Friday",
+            "sat": "Saturday",
+            "sun": "Sunday",
+        }
+        return labels.get(day_key.lower(), day_key)
+
+    @staticmethod
+    def _format_amount(value: float | int | None) -> str:
+        if value is None:
+            return ""
+        if isinstance(value, int) or value.is_integer():
+            return str(int(value))
+        return f"{value:.2f}".rstrip("0").rstrip(".")
 
     @classmethod
     def ensure_for_date(cls, user_id: int, target_date: date) -> list[DailyActivity]:
@@ -60,16 +95,33 @@ class DailyActivityService:
         interests = InterestDAO.list_for_user(user_id)
         existing_for_day = DailyActivityDAO.list_for_user_on_date(user_id, target_date)
         for interest in interests:
-            days = cls._plan_days(interest)
+            plan = cls._plan_details(interest)
+            days = plan["days"] if plan else []
             if days and day_key not in days:
                 continue
-            title = (interest.goal or "").strip() or interest.name
+            title_base = (interest.goal or "").strip() or interest.name
+            per_day_title = title_base
+            if plan and plan.get("per_day"):
+                amount_text = cls._format_amount(plan["per_day"])
+                if amount_text:
+                    unit = (plan.get("unit") or "").strip()
+                    day_label = cls._day_label(day_key)
+                    parts = [title_base, "for", amount_text]
+                    if unit:
+                        parts.append(unit)
+                    if day_label:
+                        parts.append(day_label)
+                    per_day_title = " ".join(parts)
+
             activity_type_id = cls.ensure_activity_type(user_id, interest.id, interest.name)
-            amount, unit = cls._plan_value(interest)
-            goal = cls.ensure_goal(user_id, activity_type_id, title=title, amount=amount, unit=unit)
+            amount = plan.get("weekly_value") if plan else None
+            unit = plan.get("unit") if plan else None
+            goal = cls.ensure_goal(user_id, activity_type_id, title=title_base, amount=amount, unit=unit)
             # avoid duplicates
             existing = [
-                a for a in existing_for_day if a.activity_type_id == activity_type_id and a.title == title
+                a
+                for a in existing_for_day
+                if a.activity_type_id == activity_type_id and a.title == per_day_title
             ]
             if existing:
                 continue
@@ -79,19 +131,25 @@ class DailyActivityService:
                     interest_id=interest.id,
                     activity_type_id=activity_type_id,
                     goal_id=goal.id if goal else None,
-                    title=title,
+                    title=per_day_title,
                     scheduled_for=target_date,
+                    todo_date=target_date,
                 )
             )
         return DailyActivityDAO.list_for_user_on_date(user_id, target_date)
 
     @classmethod
+    def ensure_week(cls, user_id: int, start_date: date | None = None, *, days: int = 7) -> None:
+        start = start_date or cls._today()
+        for offset in range(days):
+            target_date = start + timedelta(days=offset)
+            cls.ensure_for_date(user_id, target_date)
+
+    @classmethod
     def list_today(cls, user_id: int) -> list[DailyActivity]:
         today = cls._today()
-        activities = DailyActivityDAO.list_for_user_on_date(user_id, today)
-        if activities:
-            return activities
-        return cls.ensure_for_date(user_id, today)
+        cls.ensure_week(user_id, today)
+        return DailyActivityDAO.list_for_user_on_date(user_id, today)
 
     @classmethod
     def complete_daily_activity(cls, user_id: int, activity_id: int) -> dict:
@@ -111,10 +169,14 @@ class DailyActivityService:
         if activity.goal:
             increment = 0.0
             if activity.goal.amount:
-                # divide weekly amount by count of scheduled days if possible
-                increment = max(activity.goal.amount / 7.0, 1.0) if activity.goal.amount else 1.0
+                days = cls._plan_days(interest)
+                divisor = len(days) if days else 7.0
+                try:
+                    increment = max(activity.goal.amount / divisor, 1.0)
+                except Exception:
+                    increment = 1.0
             goal_progress = increment
-            GoalDAO.increment_progress(activity.goal, increment)
+            GoalDAO.increment_progress(activity.goal, increment if increment else 0.0)
 
         activity_payload = None
         activity_obj = result.get("activity")

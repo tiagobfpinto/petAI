@@ -100,22 +100,42 @@ class ProgressionDay {
 }
 
 class ProgressionWeeklyGoal {
-  ProgressionWeeklyGoal({required this.interest, this.goal, this.plan});
+  ProgressionWeeklyGoal({
+    required this.interest,
+    this.goal,
+    this.plan,
+    this.progress,
+    this.progressValue,
+    this.progressTarget,
+  });
 
   factory ProgressionWeeklyGoal.fromJson(Map<String, dynamic> json) {
     final planJson = json['plan'];
+    final progressTarget = (json['progress_target'] as num?)?.toDouble();
+    final progressValue = (json['progress_value'] as num?)?.toDouble();
+    double? progress = (json['progress'] as num?)?.toDouble();
+    if (progress == null && progressTarget != null && progressTarget > 0) {
+      final ratio = (progressValue ?? 0) / progressTarget;
+      progress = ratio.isFinite ? ratio : 0;
+    }
     return ProgressionWeeklyGoal(
       interest: json['interest'] as String? ?? '',
       goal: json['goal'] as String?,
       plan: planJson is Map<String, dynamic>
           ? ActivityPlan.fromJson(planJson)
           : null,
+      progress: progress,
+      progressValue: progressValue,
+      progressTarget: progressTarget,
     );
   }
 
   final String interest;
   final String? goal;
   final ActivityPlan? plan;
+  final double? progress;
+  final double? progressValue;
+  final double? progressTarget;
 }
 
 class ProgressionSnapshot {

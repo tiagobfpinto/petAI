@@ -4,6 +4,8 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 
 from ..dao.activityDAO import ActivityDAO
+from ..dao.activity_typeDAO import ActivityTypeDAO
+from ..dao.goalDAO import GoalDAO
 from ..dao.userDAO import UserDAO
 from ..services.interest_service import InterestService
 from ..services.pet_service import PetService
@@ -201,11 +203,25 @@ class HubService:
             plan = interest._plan_dict()
             if not plan:
                 continue
+            activity_type = ActivityTypeDAO.get_or_create(user_id, interest.id, interest.name)
+            goal = GoalDAO.latest_active(user_id, activity_type.id) if activity_type else None
+            progress_value = float(goal.progress_value or 0) if goal else 0.0
+            progress_target = float((goal.amount if goal else None) or plan.get("weekly_goal_value") or 0)
+            progress = 0.0
+            if progress_target > 0:
+                try:
+                    progress = max(0.0, min(progress_value / progress_target, 1.0))
+                except Exception:
+                    progress = 0.0
+
             weekly_goals.append(
                 {
                     "interest": interest.name,
                     "goal": interest.goal,
                     "plan": plan,
+                    "progress": progress,
+                    "progress_value": progress_value,
+                    "progress_target": progress_target,
                 }
             )
 

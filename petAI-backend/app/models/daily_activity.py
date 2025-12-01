@@ -19,6 +19,7 @@ class DailyActivity(db.Model):
     goal_id = db.Column(db.Integer, db.ForeignKey("goals.id", ondelete="SET NULL"))
     title = db.Column(db.String(255), nullable=False)
     scheduled_for = db.Column(db.Date, nullable=False, index=True)
+    todo_date = db.Column(db.Date, nullable=False, index=True)
     status = db.Column(db.String(32), default="pending", nullable=False)
     completed_at = db.Column(db.DateTime(timezone=True))
     xp_awarded = db.Column(db.Integer)
@@ -48,6 +49,7 @@ class DailyActivity(db.Model):
             "goal_id": self.goal_id,
             "title": self.title,
             "scheduled_for": self.scheduled_for.isoformat(),
+            "todo_date": self.todo_date.isoformat(),
             "status": self.status,
             "completed_at": self.completed_at.isoformat() if self.completed_at else None,
             "xp_awarded": self.xp_awarded,

@@ -778,6 +778,7 @@ class _InterestDraftSheetState extends State<_InterestDraftSheet> {
                         Text(_formatWeeklyLabel(_weeklyGoalValue)),
                       ],
                     ),
+                    
                     Align(
                       alignment: Alignment.centerLeft,
                       child: TextButton.icon(

@@ -61,8 +61,12 @@ class InterestService:
                 raise ValueError("duplicate interests are not allowed")
             seen.add(normalized)
 
+            plan = entry.get("plan")
             if InterestService._is_running_name(normalized):
-                InterestService._validate_running_plan(entry.get("plan"))
+                InterestService._validate_running_plan(plan)
+            elif plan:
+                # Allow plans for other activities when provided explicitly.
+                InterestService._validate_running_plan(plan)
 
     @staticmethod
     def save_user_interests(user_id: int, entries: Iterable[dict]) -> list[Interest]:
@@ -83,10 +87,11 @@ class InterestService:
             weekly_goal_value: float | None = None
             weekly_goal_unit: str | None = None
             weekly_schedule: str | None = None
-            if InterestService._is_running_name(name):
+            plan = None
+            if InterestService._is_running_name(name) or entry.get("plan"):
                 plan = InterestService._normalize_running_plan(entry.get("plan"))
-                if plan:
-                    weekly_goal_value, weekly_goal_unit, weekly_schedule = plan
+            if plan:
+                weekly_goal_value, weekly_goal_unit, weekly_schedule = plan
             normalized = name.lower()
             incoming_names.add(normalized)
 
