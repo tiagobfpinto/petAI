@@ -4,7 +4,8 @@ from flask import Blueprint, request
 
 from ..auth import get_current_user_id, token_required
 from ..dao.activityDAO import ActivityDAO
-from ..dao.interestDAO import InterestDAO
+from ..dao.activity_typeDAO import ActivityTypeDAO
+from ..dao.areaDAO import AreaDAO
 from ..dao.userDAO import UserDAO
 from ..routes import error_response, success_response
 from ..services.goal_service import GoalService
@@ -15,10 +16,10 @@ goal_bp = Blueprint("goal", __name__, url_prefix="/goal")
 def _find_running_interest(user_id: int | None):
     if not user_id:
         return None
-    interest = InterestDAO.get_by_user_and_name(user_id, "running")
+    interest = AreaDAO.get_by_user_and_name(user_id, "running")
     if interest:
         return interest
-    for entry in InterestDAO.list_for_user(user_id):
+    for entry in AreaDAO.list_for_user(user_id):
         name = (entry.name or "").lower()
         if "running" in name or "cardio" in name:
             return entry
@@ -61,8 +62,10 @@ def suggested_goal():
         return error_response("gender is required", 400)
 
     running_interest = _find_running_interest(user_id)
-    if activity_level is None and running_interest and running_interest.level:
-        activity_level = running_interest.level
+    if activity_level is None and running_interest:
+        activity_type = ActivityTypeDAO.primary_for_area(user_id, running_interest.id)
+        if activity_type and activity_type.level:
+            activity_level = activity_type.level
 
     recent_names: list[str] = []
     if running_interest:
@@ -115,10 +118,12 @@ def weekly_goal():
     # Try to pull the previous weekly goal from the user's stored plan.
     existing_interest = _find_running_interest(user_id)
     if existing_interest:
-        if last_goal_value is None and existing_interest.weekly_goal_value is not None:
-            last_goal_value = existing_interest.weekly_goal_value
-        if last_goal_unit is None and existing_interest.weekly_goal_unit:
-            last_goal_unit = existing_interest.weekly_goal_unit
+        activity_type = ActivityTypeDAO.primary_for_area(user_id, existing_interest.id)
+        if activity_type:
+            if last_goal_value is None and activity_type.weekly_goal_value is not None:
+                last_goal_value = activity_type.weekly_goal_value
+            if last_goal_unit is None and activity_type.weekly_goal_unit:
+                last_goal_unit = activity_type.weekly_goal_unit
 
     suggestion = GoalService.suggest_weekly_goal(
         age=age,

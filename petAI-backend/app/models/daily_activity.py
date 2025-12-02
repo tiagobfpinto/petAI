@@ -14,7 +14,7 @@ class DailyActivity(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    interest_id = db.Column(db.Integer, db.ForeignKey("interests.id", ondelete="CASCADE"), nullable=False, index=True)
+    interest_id = db.Column(db.Integer, db.ForeignKey("areas.id", ondelete="CASCADE"), nullable=False, index=True)
     activity_type_id = db.Column(db.Integer, db.ForeignKey("activity_types.id", ondelete="CASCADE"), nullable=False)
     goal_id = db.Column(db.Integer, db.ForeignKey("goals.id", ondelete="SET NULL"))
     title = db.Column(db.String(255), nullable=False)
@@ -26,7 +26,7 @@ class DailyActivity(db.Model):
     created_at = db.Column(db.DateTime(timezone=True), default=_utcnow, nullable=False)
     updated_at = db.Column(db.DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False)
 
-    interest = db.relationship("Interest")
+    interest = db.relationship("Area")
     activity_type = db.relationship("ActivityType")
     goal = db.relationship("Goal")
 

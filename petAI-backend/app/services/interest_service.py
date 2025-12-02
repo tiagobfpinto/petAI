@@ -3,10 +3,11 @@ from __future__ import annotations
 from typing import Iterable
 
 from ..config import ALLOWED_INTEREST_LEVELS, BASE_INTERESTS
-from ..dao.interestDAO import InterestDAO
+from ..dao.activity_typeDAO import ActivityTypeDAO
+from ..dao.areaDAO import AreaDAO
 from ..dao.userDAO import UserDAO
 from ..models import db
-from ..models.interest import Interest
+from ..models.areas import Area
 
 
 class InterestService:
@@ -50,10 +51,10 @@ class InterestService:
             if not isinstance(entry, dict):
                 raise ValueError("each interest entry must be an object")
             name = (entry.get("name") or "").strip()
-            level = (entry.get("level") or "").strip().lower()
+            level = (entry.get("level") or "sometimes").strip().lower()
             if not name:
                 raise ValueError("interest name is required")
-            if level not in ALLOWED_INTEREST_LEVELS:
+            if level and level not in ALLOWED_INTEREST_LEVELS:
                 allowed = ", ".join(ALLOWED_INTEREST_LEVELS)
                 raise ValueError(f"interest level '{level}' is invalid. Allowed: {allowed}")
             normalized = name.lower()
@@ -69,20 +70,22 @@ class InterestService:
                 InterestService._validate_running_plan(plan)
 
     @staticmethod
-    def save_user_interests(user_id: int, entries: Iterable[dict]) -> list[Interest]:
+    def save_user_interests(user_id: int, entries: Iterable[dict]) -> list[Area]:
         user = UserDAO.get_by_id(user_id)
         if not user:
             raise LookupError("User not found")
 
         existing = {
-            interest.name.lower(): interest for interest in InterestDAO.list_for_user(user_id)
+            interest.name.lower(): interest for interest in AreaDAO.list_for_user(user_id)
         }
         incoming_names: set[str] = set()
 
-        saved: list[Interest] = []
+        saved: list[Area] = []
         for entry in entries:
             name = entry["name"].strip()
-            level = entry["level"].strip().lower()
+            level = (entry.get("level") or "sometimes").strip().lower()
+            if level not in ALLOWED_INTEREST_LEVELS:
+                level = "sometimes"
             goal = (entry.get("goal") or "").strip() or None
             weekly_goal_value: float | None = None
             weekly_goal_unit: str | None = None
@@ -98,24 +101,23 @@ class InterestService:
             current = existing.get(normalized)
             if current:
                 current.name = name
-                current.level = level
-                current.goal = goal
-                current.weekly_goal_value = weekly_goal_value
-                current.weekly_goal_unit = weekly_goal_unit
-                current.weekly_schedule = weekly_schedule
-                saved.append(current)
+                interest = current
             else:
-                saved.append(
-                    InterestDAO.create(
-                        user_id=user_id,
-                        name=name,
-                        level=level,
-                        goal=goal,
-                        weekly_goal_value=weekly_goal_value,
-                        weekly_goal_unit=weekly_goal_unit,
-                        weekly_schedule=weekly_schedule,
-                    )
-                )
+                interest = AreaDAO.create(user_id=user_id, name=name)
+            saved.append(interest)
+
+            db.session.flush()
+            ActivityTypeDAO.get_or_create(
+                user_id,
+                interest.id,
+                name,
+                description=None,
+                level=level,
+                goal=goal,
+                weekly_goal_value=weekly_goal_value,
+                weekly_goal_unit=weekly_goal_unit,
+                weekly_schedule=weekly_schedule,
+            )
 
         for normalized, interest in existing.items():
             if normalized not in incoming_names:
@@ -125,8 +127,8 @@ class InterestService:
         return saved
 
     @staticmethod
-    def list_user_interests(user_id: int) -> list[Interest]:
-        return InterestDAO.list_for_user(user_id)
+    def list_user_interests(user_id: int) -> list[Area]:
+        return AreaDAO.list_for_user(user_id)
 
     @staticmethod
     def _validate_running_plan(plan: dict | None) -> None:

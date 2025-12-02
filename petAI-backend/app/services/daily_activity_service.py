@@ -5,7 +5,7 @@ from datetime import date, datetime, timedelta, timezone
 from ..dao.activity_typeDAO import ActivityTypeDAO
 from ..dao.daily_activityDAO import DailyActivityDAO
 from ..dao.goalDAO import GoalDAO
-from ..dao.interestDAO import InterestDAO
+from ..dao.areaDAO import AreaDAO
 from ..models.daily_activity import DailyActivity
 from ..services.activity_service import ActivityService
 
@@ -35,9 +35,9 @@ class DailyActivityService:
         return GoalDAO.create(user_id, activity_type_id, title, amount, unit, expires_at)
 
     @classmethod
-    def _plan_days(cls, interest) -> list[str]:
+    def _plan_days(cls, activity_type) -> list[str]:
         try:
-            plan = interest._plan_dict()
+            plan = activity_type._plan_dict()
         except Exception:
             plan = None
         if not plan:
@@ -45,9 +45,9 @@ class DailyActivityService:
         return [d.lower() for d in plan.get("days", []) if isinstance(d, str) and d]
 
     @classmethod
-    def _plan_details(cls, interest) -> dict | None:
+    def _plan_details(cls, activity_type) -> dict | None:
         try:
-            plan = interest._plan_dict()
+            plan = activity_type._plan_dict()
         except Exception:
             return None
         if not plan:
@@ -92,14 +92,19 @@ class DailyActivityService:
     @classmethod
     def ensure_for_date(cls, user_id: int, target_date: date) -> list[DailyActivity]:
         day_key = cls._day_key(target_date)
-        interests = InterestDAO.list_for_user(user_id)
+        interests = AreaDAO.list_for_user(user_id)
         existing_for_day = DailyActivityDAO.list_for_user_on_date(user_id, target_date)
         for interest in interests:
-            plan = cls._plan_details(interest)
+            activity_type = ActivityTypeDAO.primary_for_area(user_id, interest.id) or ActivityTypeDAO.get_or_create(
+                user_id, interest.id, interest.name
+            )
+            plan = cls._plan_details(activity_type) if activity_type else None
             days = plan["days"] if plan else []
             if days and day_key not in days:
                 continue
-            title_base = (interest.goal or "").strip() or interest.name
+            title_base = (activity_type.goal or "").strip() if activity_type else ""
+            if not title_base:
+                title_base = interest.name
             per_day_title = title_base
             if plan and plan.get("per_day"):
                 amount_text = cls._format_amount(plan["per_day"])
@@ -113,7 +118,7 @@ class DailyActivityService:
                         parts.append(day_label)
                     per_day_title = " ".join(parts)
 
-            activity_type_id = cls.ensure_activity_type(user_id, interest.id, interest.name)
+            activity_type_id = activity_type.id if activity_type else cls.ensure_activity_type(user_id, interest.id, interest.name)
             amount = plan.get("weekly_value") if plan else None
             unit = plan.get("unit") if plan else None
             goal = cls.ensure_goal(user_id, activity_type_id, title=title_base, amount=amount, unit=unit)
@@ -148,7 +153,6 @@ class DailyActivityService:
     @classmethod
     def list_today(cls, user_id: int) -> list[DailyActivity]:
         today = cls._today()
-        cls.ensure_week(user_id, today)
         return DailyActivityDAO.list_for_user_on_date(user_id, today)
 
     @classmethod
@@ -160,6 +164,7 @@ class DailyActivityService:
             raise ValueError("Activity already completed")
 
         interest = activity.interest
+        activity_type = activity.activity_type
         if not interest:
             raise LookupError("Interest not found for activity")
 
@@ -169,7 +174,7 @@ class DailyActivityService:
         if activity.goal:
             increment = 0.0
             if activity.goal.amount:
-                days = cls._plan_days(interest)
+                days = cls._plan_days(activity_type) if activity_type else []
                 divisor = len(days) if days else 7.0
                 try:
                     increment = max(activity.goal.amount / divisor, 1.0)

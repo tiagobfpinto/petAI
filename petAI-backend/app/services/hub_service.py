@@ -200,10 +200,12 @@ class HubService:
 
         weekly_goals: list[dict] = []
         for interest in interests:
-            plan = interest._plan_dict()
+            activity_type = ActivityTypeDAO.primary_for_area(user_id, interest.id) or ActivityTypeDAO.get_or_create(
+                user_id, interest.id, interest.name
+            )
+            plan = activity_type._plan_dict() if activity_type else None
             if not plan:
                 continue
-            activity_type = ActivityTypeDAO.get_or_create(user_id, interest.id, interest.name)
             goal = GoalDAO.latest_active(user_id, activity_type.id) if activity_type else None
             progress_value = float(goal.progress_value or 0) if goal else 0.0
             progress_target = float((goal.amount if goal else None) or plan.get("weekly_goal_value") or 0)
@@ -217,7 +219,7 @@ class HubService:
             weekly_goals.append(
                 {
                     "interest": interest.name,
-                    "goal": interest.goal,
+                    "goal": activity_type.goal if activity_type else None,
                     "plan": plan,
                     "progress": progress,
                     "progress_value": progress_value,

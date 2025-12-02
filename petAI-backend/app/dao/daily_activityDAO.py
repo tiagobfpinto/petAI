@@ -46,6 +46,7 @@ class DailyActivityDAO:
             scheduled_for=scheduled_for,
             todo_date=todo_date or scheduled_for,
             status="pending",
+            xp_awarded=0,
         )
         db.session.add(activity)
         db.session.flush()

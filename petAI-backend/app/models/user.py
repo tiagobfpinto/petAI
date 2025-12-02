@@ -42,7 +42,7 @@ class User(db.Model):
     plan = db.Column(PgEnum(PlanType, name="plan_type_enum"), default=PlanType.FREE, nullable=False)
 
     pet = db.relationship("Pet", back_populates="user", uselist=False, cascade="all, delete")
-    interests = db.relationship("Interest", back_populates="user", cascade="all, delete-orphan")
+    areas = db.relationship("Area", back_populates="user", cascade="all, delete-orphan")
     activities = db.relationship("ActivityLog", back_populates="user", cascade="all, delete-orphan")
     tokens = db.relationship("AuthToken", back_populates="user", cascade="all, delete-orphan")
 
@@ -54,7 +54,12 @@ class User(db.Model):
         return bcrypt.check_password_hash(self.password_hash, password)
 
     def needs_interest_setup(self) -> bool:
-        return len(self.interests) == 0
+        return len(self.areas) == 0
+
+    @property
+    def interests(self):
+        # Backwards compatibility with older code paths
+        return self.areas
 
     def to_dict(self) -> dict:
         return {

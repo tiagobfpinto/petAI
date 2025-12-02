@@ -245,12 +245,69 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
           const SizedBox(height: 16),
           _buildPetHeader(context),
           const SizedBox(height: 24),
+          _buildCreateActivityButton(context),
+          const SizedBox(height: 16),
           _buildDailyActivitiesSection(),
           const SizedBox(height: 24),
           _buildActivityLog(),
         ],
       ),
     );
+  }
+
+  Widget _buildCreateActivityButton(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        icon: const Icon(Icons.add_rounded),
+        label: const Text("Create new activity"),
+        onPressed: _openNewActivityForm,
+      ),
+    );
+  }
+
+  Future<void> _openNewActivityForm() async {
+    final result = await Navigator.of(context).push<_NewActivityData>(
+      MaterialPageRoute(
+        builder: (_) => _NewActivityScreen(
+          interests: _interests,
+        ),
+      ),
+    );
+    if (result == null) return;
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Saving activity...")),
+    );
+    final response = await widget.apiService.createActivity(
+      name: result.name,
+      area: result.areaName,
+      weeklyGoalValue: result.weeklyGoalValue,
+      weeklyGoalUnit: result.weeklyGoalUnit,
+      days: result.days,
+      rrule: result.rrule,
+    );
+    if (!mounted) return;
+    if (response.isSuccess) {
+      final weeklyText = result.weeklyGoalValue != null
+          ? "Weekly goal: ${result.weeklyGoalValue} ${result.weeklyGoalUnit} on ${result.days.isEmpty ? "flex days" : result.days.join(", ").toUpperCase()}"
+          : "No weekly goal set";
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            "Created \"${result.name}\" for ${result.areaName}. $weeklyText",
+          ),
+        ),
+      );
+      await _loadDailyActivities();
+      await _loadActivities();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(response.error ?? "Failed to create activity"),
+        ),
+      );
+    }
   }
 
   Widget _buildPetHeader(BuildContext context) {
@@ -414,26 +471,28 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        blueprint.name,
+                        activity.title,
                         style: const TextStyle(
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w800,
                           fontSize: 16,
                         ),
                       ),
                       Text(
-                        activity.title,
-                        style: const TextStyle(
+                        blueprint.name,
+                        style: TextStyle(
                           fontWeight: FontWeight.w600,
-                          fontSize: 14,
+                          fontSize: 13,
+                          color: Colors.grey.shade700,
                         ),
                       ),
                       const SizedBox(height: 6),
-                      Wrap(
-                        spacing: 8,
+                      Row(
                         children: [
                           Chip(
                             label: Text(
-                              "Today",
+                              activity.xpAwarded != null
+                                  ? "+${activity.xpAwarded} XP"
+                                  : "XP reward",
                               style: TextStyle(color: Colors.grey.shade700),
                             ),
                             backgroundColor: blueprint.accentColor.withValues(
@@ -1068,6 +1127,321 @@ class _XpCelebration extends StatelessWidget {
             Text("Great job!", style: theme.textTheme.bodySmall),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _NewActivityData {
+  _NewActivityData({
+    required this.name,
+    required this.areaName,
+    this.isNewArea = false,
+    this.weeklyGoalValue,
+    this.weeklyGoalUnit,
+    this.days = const [],
+    this.rrule,
+  });
+
+  final String name;
+  final String areaName;
+  final bool isNewArea;
+  final double? weeklyGoalValue;
+  final String? weeklyGoalUnit;
+  final List<String> days;
+  final String? rrule;
+}
+
+enum _RecurrenceOption { none, daily, weekly, monthly }
+
+class _NewActivityScreen extends StatefulWidget {
+  const _NewActivityScreen({required this.interests});
+
+  final List<UserInterest> interests;
+
+  @override
+  State<_NewActivityScreen> createState() => _NewActivityScreenState();
+}
+
+class _NewActivityScreenState extends State<_NewActivityScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _nameCtrl = TextEditingController();
+  bool _enableWeeklyGoal = false;
+  final _weeklyGoalCtrl = TextEditingController();
+  final _weeklyUnitCtrl = TextEditingController(text: "minutes");
+  String? _selectedInterest;
+  bool _useCustomArea = false;
+  final _customAreaCtrl = TextEditingController();
+  final Set<String> _selectedDays = {};
+  _RecurrenceOption _recurrence = _RecurrenceOption.none;
+  int _monthlyDay = 1;
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _weeklyGoalCtrl.dispose();
+    _weeklyUnitCtrl.dispose();
+    _customAreaCtrl.dispose();
+    super.dispose();
+  }
+
+  Widget _buildRecurrenceSelector() {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "Repetition",
+          style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _recurrenceOptionChip(_RecurrenceOption.none, "Never"),
+            _recurrenceOptionChip(_RecurrenceOption.daily, "Daily"),
+            _recurrenceOptionChip(_RecurrenceOption.weekly, "Weekly"),
+            _recurrenceOptionChip(_RecurrenceOption.monthly, "Monthly"),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _recurrenceOptionChip(_RecurrenceOption option, String label) {
+    final selected = _recurrence == option;
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => setState(() => _recurrence = option),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("New activity"),
+      ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          child: Form(
+            key: _formKey,
+            child: ListView(
+              children: [
+                TextFormField(
+                  controller: _nameCtrl,
+                  decoration: const InputDecoration(
+                    labelText: "Activity name",
+                    hintText: "e.g. Jump rope",
+                  ),
+                  validator: (value) =>
+                      (value == null || value.trim().isEmpty) ? "Name required" : null,
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  value: _useCustomArea ? "custom" : _selectedInterest,
+                  decoration: const InputDecoration(labelText: "Area"),
+                  items: [
+                    ...widget.interests.map(
+                      (interest) => DropdownMenuItem<String>(
+                        value: interest.name,
+                        child: Text(interest.name),
+                      ),
+                    ),
+                    const DropdownMenuItem<String>(
+                      value: "custom",
+                      child: Text("Create new area..."),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    setState(() {
+                      if (value == "custom") {
+                        _useCustomArea = true;
+                        _selectedInterest = null;
+                      } else {
+                        _useCustomArea = false;
+                        _selectedInterest = value;
+                      }
+                    });
+                  },
+                  validator: (_) {
+                    if (_useCustomArea) {
+                      if (_customAreaCtrl.text.trim().isEmpty) {
+                        return "Enter a new area name";
+                      }
+                      return null;
+                    }
+                    return (_selectedInterest == null || _selectedInterest!.isEmpty)
+                        ? "Select an area"
+                        : null;
+                  },
+                ),
+                if (_useCustomArea) ...[
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _customAreaCtrl,
+                    decoration: const InputDecoration(
+                      labelText: "New area name",
+                      hintText: "e.g. Reading",
+                    ),
+                    validator: (value) {
+                      if (!_useCustomArea) return null;
+                      if (value == null || value.trim().isEmpty) {
+                        return "Enter a new area name";
+                      }
+                      return null;
+                    },
+                  ),
+                ],
+                const SizedBox(height: 20),
+                _buildRecurrenceSelector(),
+                SwitchListTile(
+                  title: const Text("Add weekly goal"),
+                  value: _enableWeeklyGoal,
+                  onChanged: (value) => setState(() => _enableWeeklyGoal = value),
+                ),
+                if (_enableWeeklyGoal) ...[
+                  TextFormField(
+                    controller: _weeklyGoalCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: "Weekly goal amount",
+                      hintText: "e.g. 90",
+                    ),
+                    validator: (value) {
+                      if (!_enableWeeklyGoal) return null;
+                      final parsed = double.tryParse(value ?? "");
+                      if (parsed == null || parsed <= 0) {
+                        return "Enter a positive number";
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _weeklyUnitCtrl,
+                    decoration: const InputDecoration(
+                      labelText: "Unit",
+                      hintText: "minutes, km, etc.",
+                    ),
+                  ),
+                ],
+                if (_recurrence == _RecurrenceOption.weekly || _enableWeeklyGoal) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    "Days",
+                    style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      {"key": "mon", "label": "Mon"},
+                      {"key": "tue", "label": "Tue"},
+                      {"key": "wed", "label": "Wed"},
+                      {"key": "thu", "label": "Thu"},
+                      {"key": "fri", "label": "Fri"},
+                      {"key": "sat", "label": "Sat"},
+                      {"key": "sun", "label": "Sun"},
+                    ].map((entry) {
+                      final key = entry["key"]!;
+                      final label = entry["label"]!;
+                      final selected = _selectedDays.contains(key);
+                      return ChoiceChip(
+                        label: Text(label),
+                        selected: selected,
+                        onSelected: (value) {
+                          setState(() {
+                            if (value) {
+                              _selectedDays.add(key);
+                            } else {
+                              _selectedDays.remove(key);
+                            }
+                          });
+                        },
+                      );
+                    }).toList(),
+                  ),
+                ],
+                if (_recurrence == _RecurrenceOption.monthly) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    "Day of month",
+                    style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  Slider(
+                    value: _monthlyDay.toDouble(),
+                    min: 1,
+                    max: 28,
+                    divisions: 27,
+                    label: _monthlyDay.toString(),
+                    onChanged: (value) => setState(() => _monthlyDay = value.round()),
+                  ),
+                ],
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.save_rounded),
+                    label: const Text("Save activity"),
+                    onPressed: _submit,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _submit() {
+    if (!_formKey.currentState!.validate()) return;
+    if (_recurrence == _RecurrenceOption.weekly && _selectedDays.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Pick at least one day for weekly repeat")),
+      );
+      return;
+    }
+    final weeklyValue =
+        !_enableWeeklyGoal ? null : double.tryParse(_weeklyGoalCtrl.text.trim());
+    String? rrule;
+    if (_recurrence == _RecurrenceOption.daily) {
+      rrule = "FREQ=DAILY";
+    } else if (_recurrence == _RecurrenceOption.weekly && _selectedDays.isNotEmpty) {
+        final map = {
+          "mon": "MO",
+          "tue": "TU",
+          "wed": "WE",
+          "thu": "TH",
+          "fri": "FR",
+          "sat": "SA",
+          "sun": "SU",
+        };
+        final bydays = _selectedDays.map((d) => map[d] ?? "").where((d) => d.isNotEmpty).join(",");
+        if (bydays.isNotEmpty) {
+          rrule = "FREQ=WEEKLY;BYDAY=$bydays";
+        }
+    } else if (_recurrence == _RecurrenceOption.monthly) {
+      rrule = "FREQ=MONTHLY;BYMONTHDAY=$_monthlyDay";
+    }
+    final areaName = _useCustomArea ? _customAreaCtrl.text.trim() : (_selectedInterest ?? "");
+    Navigator.of(context).pop(
+      _NewActivityData(
+        name: _nameCtrl.text.trim(),
+        areaName: areaName,
+        isNewArea: _useCustomArea,
+        weeklyGoalValue: weeklyValue,
+        weeklyGoalUnit: _enableWeeklyGoal ? _weeklyUnitCtrl.text.trim() : null,
+        days: (_enableWeeklyGoal || _recurrence == _RecurrenceOption.weekly)
+            ? _selectedDays.toList()
+            : const [],
+        rrule: rrule,
       ),
     );
   }

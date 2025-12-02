@@ -7,6 +7,7 @@ bcrypt = Bcrypt()
 # Import models for Alembic autogeneration
 from .user import User  # noqa: E402,F401
 from .pet import Pet  # noqa: E402,F401
+from .areas import Area  # noqa: E402,F401
 from .interest import Interest  # noqa: E402,F401
 from .activity import ActivityLog  # noqa: E402,F401
 from .activity_type import ActivityType  # noqa: E402,F401
@@ -20,6 +21,7 @@ __all__ = [
     "bcrypt",
     "User",
     "Pet",
+    "Area",
     "Interest",
     "ActivityLog",
     "ActivityType",
