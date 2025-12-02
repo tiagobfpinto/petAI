@@ -27,9 +27,6 @@ class ActivityService:
         if not area:
             raise LookupError("area not found for user")
 
-        if ActivityDAO.has_completed_interest_today(user_id, area.id):
-            raise ValueError("You already completed this interest today")
-
         activity_type = ActivityTypeDAO.primary_for_area(user_id, area.id) or ActivityTypeDAO.get_or_create(
             user_id, area.id, area.name, level="sometimes"
         )

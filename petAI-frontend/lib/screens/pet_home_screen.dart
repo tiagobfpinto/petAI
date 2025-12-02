@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/activity_log.dart';
+import '../models/daily_activity.dart';
 import '../models/interest.dart';
 import '../models/pet_state.dart';
 import '../models/user_interest.dart';
@@ -50,6 +51,8 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
   late PetState _pet;
   late List<UserInterest> _interests;
   final Map<String, bool> _logging = {};
+  List<DailyActivity> _dailyActivities = [];
+  bool _loadingDaily = true;
   List<ActivityLogEntry> _activities = [];
   bool _loadingActivities = true;
   Set<int> _completedToday = {};
@@ -66,6 +69,7 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
     _streakCurrent = widget.session.streakCurrent;
     _streakBest = widget.session.streakBest;
     _xpMultiplier = widget.session.streakMultiplier;
+    _loadDailyActivities();
     _loadActivities();
   }
 
@@ -267,6 +271,44 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
         onPressed: _openNewActivityForm,
       ),
     );
+  }
+
+  Widget _buildDailyActivitiesSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle("Today's focus"),
+        const SizedBox(height: 12),
+        if (_loadingDaily)
+          const Center(child: CircularProgressIndicator())
+        else if (_dailyActivities.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              color: Colors.grey.shade100,
+            ),
+            child: const Text("No tasks scheduled today."),
+          )
+        else
+          ..._dailyActivities.map(_buildDailyActivityCard),
+      ],
+    );
+  }
+
+  Future<void> _loadDailyActivities() async {
+    setState(() => _loadingDaily = true);
+    final response = await widget.apiService.fetchDailyActivities();
+    if (!mounted) return;
+    if (response.isSuccess && response.data != null) {
+      setState(() {
+        _dailyActivities = response.data!;
+        _loadingDaily = false;
+      });
+    } else {
+      setState(() => _loadingDaily = false);
+      widget.onError(response.error ?? "Failed to load daily activities");
+    }
   }
 
   Future<void> _openNewActivityForm() async {
@@ -789,6 +831,7 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
 
   Future<void> _refreshAll() async {
     await Future.wait([
+      _loadDailyActivities(),
       _loadActivities(),
       widget.onRefreshInterests(),
       _refreshPetState(),
@@ -808,6 +851,50 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
     } else {
       setState(() => _loadingActivities = false);
       widget.onError(response.error ?? "Failed to load activity log");
+    }
+  }
+
+  Future<void> _completeDailyActivity(DailyActivity activity) async {
+    setState(() => _logging["daily-${activity.id}"] = true);
+    final response = await widget.apiService.completeDailyActivity(activity.id);
+    if (!mounted) return;
+    setState(() => _logging["daily-${activity.id}"] = false);
+    if (response.isSuccess && response.data != null) {
+      final completion = response.data!;
+      widget.onPetChanged(completion.pet);
+      setState(() {
+        _pet = completion.pet;
+        _streakCurrent = completion.streakCurrent ?? _streakCurrent;
+        _streakBest = completion.streakBest ?? _streakBest;
+        _xpMultiplier = completion.xpMultiplier ?? _xpMultiplier;
+        _dailyActivities = _dailyActivities
+            .map(
+              (a) => a.id == activity.id
+                  ? DailyActivity(
+                      id: a.id,
+                      interestId: a.interestId,
+                      activityTypeId: a.activityTypeId,
+                      title: a.title,
+                      scheduledFor: a.scheduledFor,
+                      status: "completed",
+                      goalId: a.goalId,
+                      completedAt: DateTime.now(),
+                      xpAwarded: completion.xpAwarded,
+                    )
+                  : a,
+            )
+            .toList();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            "Great job! ${activity.title} logged +${completion.xpAwarded} XP.",
+          ),
+        ),
+      );
+      _loadActivities();
+    } else {
+      widget.onError(response.error ?? "Failed to complete activity");
     }
   }
 
@@ -991,25 +1078,30 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
                   Text(
                     daysLabel,
                     style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                    overflow: TextOverflow.ellipsis,
                   ),
                   Text(
                     "XP multiplier ${multiplier.toStringAsFixed(2)}x",
                     style: TextStyle(color: Colors.grey.shade700),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
               const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.deepPurple.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  bestLabel,
-                  style: TextStyle(
-                    color: Colors.deepPurple.shade700,
-                    fontWeight: FontWeight.w700,
+              Flexible(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.deepPurple.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    bestLabel,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.deepPurple.shade700,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ),
