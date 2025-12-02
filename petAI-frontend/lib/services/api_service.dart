@@ -417,6 +417,53 @@ class ApiService {
     }
   }
 
+  Future<ApiResponse<Map<String, dynamic>>> createActivity({
+    required String name,
+    required String area,
+    double? weeklyGoalValue,
+    String? weeklyGoalUnit,
+    List<String>? days,
+    String? rrule,
+  }) async {
+    try {
+      final Map<String, dynamic> payload = {
+        "name": name,
+        "area": area,
+      };
+      if (weeklyGoalValue != null) {
+        payload["weekly_goal_value"] = weeklyGoalValue;
+      }
+      if (weeklyGoalUnit != null && weeklyGoalUnit.trim().isNotEmpty) {
+        payload["weekly_goal_unit"] = weeklyGoalUnit.trim();
+      }
+      if (days != null && days.isNotEmpty) {
+        payload["days"] = List<String>.from(days);
+      }
+      if (rrule != null && rrule.trim().isNotEmpty) {
+        payload["rrule"] = rrule.trim();
+      }
+      final response = await _client.post(
+        _uri("/activities"),
+        headers: _headers,
+        body: jsonEncode(payload),
+      );
+      final decoded = _decode(response.body);
+      final data = _data(decoded);
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        return ApiResponse.success(
+          data is Map<String, dynamic> ? data : <String, dynamic>{},
+          statusCode: response.statusCode,
+        );
+      }
+      return ApiResponse.failure(
+        decoded["error"] as String? ?? "Failed to create activity",
+        statusCode: response.statusCode,
+      );
+    } catch (err) {
+      return ApiResponse.failure("Network error: $err");
+    }
+  }
+
   Future<ApiResponse<List<ActivityLogEntry>>> fetchTodayActivities() async {
     try {
       final response = await _client.get(

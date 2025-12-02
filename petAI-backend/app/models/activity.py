@@ -14,22 +14,24 @@ class ActivityLog(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    interest_id = db.Column(db.Integer, db.ForeignKey("interests.id", ondelete="CASCADE"), nullable=False)
+    interest_id = db.Column(db.Integer, db.ForeignKey("areas.id", ondelete="CASCADE"), nullable=False)
     timestamp = db.Column(db.DateTime(timezone=True), default=_utcnow, nullable=False)
     xp_earned = db.Column(db.Integer, nullable=False)
 
     user = db.relationship("User", back_populates="activities")
-    interest = db.relationship("Interest")
+    area = db.relationship("Area")
 
     @property
     def interest_name(self) -> str | None:
-        return self.interest.name if self.interest else None
+        return self.area.name if self.area else None
 
     @property
     def activity_title(self) -> str | None:
         """Best-effort description of what the user did."""
-        if self.interest and getattr(self.interest, "goal", None):
-            return self.interest.goal
+        if self.area and getattr(self.area, "primary_activity_type", None):
+            activity_type = self.area.primary_activity_type
+            if activity_type and activity_type.goal:
+                return activity_type.goal
         return self.interest_name
 
     def to_dict(self) -> dict:

@@ -178,8 +178,7 @@ class _InterestSelectionScreenState extends State<InterestSelectionScreen> {
                     OutlinedButton.icon(
                       icon: const Icon(Icons.add_rounded),
                       label: const Text("Add a custom interest"),
-                      onPressed: () =>
-                          _openEditor(draft: _InterestDraft.custom()),
+                      onPressed: _promptCustomInterest,
                     ),
                     const SizedBox(height: 24),
                     _buildSelectionList(),
@@ -321,16 +320,7 @@ class _InterestSelectionScreenState extends State<InterestSelectionScreen> {
             final selected = _draftForName(name) != null;
             final blueprint = resolveInterestBlueprint(name);
             return GestureDetector(
-              onTap: () => _openEditor(
-                draft:
-                    _draftForName(name) ??
-                    _InterestDraft.suggested(
-                      blueprint.name,
-                      plan: blueprint.id.toLowerCase() == "running"
-                          ? _suggestRunningPlanDraft(MotivationLevel.sometimes)
-                          : null,
-                    ),
-              ),
+              onTap: () => _toggleInterest(name, blueprint: blueprint),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 padding: const EdgeInsets.symmetric(
@@ -433,21 +423,12 @@ class _InterestSelectionScreenState extends State<InterestSelectionScreen> {
                     ),
                 ],
               ),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    tooltip: "Edit",
-                    onPressed: () => _openEditor(draft: draft),
-                    icon: const Icon(Icons.edit_rounded),
-                  ),
-                  IconButton(
-                    tooltip: "Remove",
-                    onPressed: () => setState(() => _drafts.remove(draft)),
-                    icon: const Icon(Icons.delete_outline_rounded),
-                  ),
-                ],
+              trailing: IconButton(
+                tooltip: "Remove",
+                onPressed: () => setState(() => _drafts.remove(draft)),
+                icon: const Icon(Icons.delete_outline_rounded),
               ),
+              onTap: () => _toggleInterest(draft.name, blueprint: blueprint),
             ),
           );
         }),
@@ -475,37 +456,56 @@ class _InterestSelectionScreenState extends State<InterestSelectionScreen> {
     }
   }
 
-  Future<void> _openEditor({_InterestDraft? draft}) async {
-    var initial =
-        draft ??
-        (_defaultLibrary.isNotEmpty
-            ? _InterestDraft.suggested(_defaultLibrary.first)
-            : _InterestDraft.custom());
-    if (resolveInterestBlueprint(initial.name).id.toLowerCase() == "running" &&
-        initial.plan == null) {
-      initial = initial.copyWith(plan: _suggestRunningPlanDraft(initial.level));
+  void _toggleInterest(String name, {InterestBlueprint? blueprint}) {
+    final existing = _draftForName(name);
+    if (existing != null) {
+      setState(() {
+        _drafts.remove(existing);
+      });
+      return;
     }
-    final result = await showModalBottomSheet<_InterestDraft>(
+    final resolved = blueprint ?? resolveInterestBlueprint(name);
+    final plan = resolved.id.toLowerCase() == "running"
+        ? _suggestRunningPlanDraft(MotivationLevel.sometimes)
+        : null;
+    setState(() {
+      _drafts.add(
+        _InterestDraft.suggested(
+          resolved.name,
+          plan: plan,
+        ),
+      );
+    });
+  }
+
+  Future<void> _promptCustomInterest() async {
+    final controller = TextEditingController();
+    final name = await showDialog<String>(
       context: context,
-      isScrollControlled: true,
-      builder: (context) => _InterestDraftSheet(
-        initial: initial,
-        apiService: widget.apiService,
-        profileAge: _profileAge,
-        profileGender: _profileGender,
+      builder: (context) => AlertDialog(
+        title: const Text("Add a custom interest"),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(hintText: "e.g. Gardening"),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text("Cancel"),
+          ),
+          FilledButton(
+            onPressed: () {
+              final value = controller.text.trim();
+              Navigator.of(context).pop(value.isEmpty ? null : value);
+            },
+            child: const Text("Add"),
+          ),
+        ],
       ),
     );
-    if (result == null) return;
-    setState(() {
-      final index = _drafts.indexWhere(
-        (entry) => entry.name.toLowerCase() == result.name.toLowerCase(),
-      );
-      if (index >= 0) {
-        _drafts[index] = result;
-      } else {
-        _drafts.add(result);
-      }
-    });
+    if (name == null || name.trim().isEmpty) return;
+    _toggleInterest(name.trim());
   }
 
   _InterestDraft? _draftForName(String name) {
