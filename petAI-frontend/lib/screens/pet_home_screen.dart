@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 
 import '../models/activity_log.dart';
@@ -60,6 +62,20 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
   int? _streakCurrent;
   int? _streakBest;
   double? _xpMultiplier;
+  static const int _burstTarget = 3;
+  static const List<String> _burstPhrases = [
+    "Your pet is buzzing. Let it flex.",
+    "You are stacking wins faster than yesterday.",
+    "This streak feels unstoppable.",
+    "The garden is glowing because of you.",
+  ];
+  static const List<String> _burstRewards = [
+    "Momentum boost unlocked for the next log.",
+    "Pet mood lifted. Keep feeding it.",
+    "XP is primed. Drop another win soon.",
+    "Coins look shinier after this burst.",
+  ];
+  final Random _random = Random();
 
   @override
   void initState() {
@@ -250,7 +266,9 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
           _buildStreakCard(context),
           const SizedBox(height: 16),
           _buildPetHeader(context),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
+          _buildMomentumBurst(context),
+          const SizedBox(height: 16),
           _buildCreateActivityButton(context),
           const SizedBox(height: 16),
           _buildDailyActivitiesSection(),
@@ -433,6 +451,148 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  int _winsLoggedToday() => _activities.length;
+
+  Widget _buildMomentumBurst(BuildContext context) {
+    final theme = Theme.of(context);
+    final wins = _winsLoggedToday();
+    final ready = wins >= _burstTarget;
+    final remaining = max(0, _burstTarget - wins);
+    final progress = (wins / _burstTarget).clamp(0.0, 1.0).toDouble();
+    final subtitle = ready
+        ? "Burst ready. Drop a celebration to shower your pet."
+        : remaining == 0
+            ? "Charged for today."
+            : "$remaining win${remaining == 1 ? "" : "s"} left to charge today's burst.";
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        gradient: LinearGradient(
+          colors: [
+            theme.colorScheme.primary.withValues(alpha: 0.2),
+            theme.colorScheme.secondary.withValues(alpha: 0.16),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: theme.colorScheme.primary.withValues(alpha: 0.15),
+            blurRadius: 14,
+            offset: const Offset(0, 8),
+          ),
+        ],
+        border: Border.all(
+          color: theme.colorScheme.primary.withValues(alpha: 0.24),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withValues(alpha: 0.16),
+                ),
+                child: const Icon(
+                  Icons.auto_awesome_rounded,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Momentum burst",
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                    ),
+                    Text(
+                      subtitle,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: Colors.white.withValues(alpha: 0.85),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              AnimatedOpacity(
+                duration: const Duration(milliseconds: 300),
+                opacity: ready ? 1 : 0.45,
+                child: Icon(
+                  ready ? Icons.celebration_rounded : Icons.bolt_rounded,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 12,
+              backgroundColor: Colors.white.withValues(alpha: 0.2),
+              valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            "$wins / $_burstTarget wins logged today",
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: Colors.white.withValues(alpha: 0.85),
+            ),
+          ),
+          const SizedBox(height: 10),
+          _buildSparkleMeter(progress, theme),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: theme.colorScheme.primary,
+                elevation: 0,
+              ),
+              onPressed: ready ? _openHypeCelebration : _openQuickWinSheet,
+              icon: Icon(ready ? Icons.celebration_rounded : Icons.flash_on_rounded),
+              label: Text(ready ? "Release burst" : "Grab a quick win"),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSparkleMeter(double progress, ThemeData theme) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: List.generate(6, (index) {
+        final threshold = index / 5;
+        final opacity = (progress - threshold + 0.2).clamp(0.0, 1.0).toDouble();
+        final active = progress >= threshold;
+        return AnimatedOpacity(
+          duration: const Duration(milliseconds: 250),
+          opacity: active ? opacity : 0.2,
+          child: Icon(
+            Icons.star_rounded,
+            color: theme.colorScheme.secondary,
+            size: (14 + index * 2).toDouble(),
+          ),
+        );
+      }),
     );
   }
 
@@ -941,6 +1101,244 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
         widget.onError(response.error ?? "Failed to log activity");
       }
     }
+  }
+
+  void _openQuickWinSheet() {
+    final available = _interests
+        .where((interest) {
+          final id = interest.id;
+          if (id == null) return true;
+          return !_completedToday.contains(id);
+        })
+        .take(4)
+        .toList();
+
+    if (available.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("All set for today. Add a new interest or try a daily task."),
+        ),
+      );
+      return;
+    }
+
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        final theme = Theme.of(context);
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Grab a quick win",
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ...available.map((interest) {
+                  final blueprint = interest.blueprint;
+                  final quickHint = blueprint.suggestedActivities.isNotEmpty
+                      ? blueprint.suggestedActivities.first
+                      : "Anything small counts.";
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: blueprint.accentColor.withValues(alpha: 0.14),
+                        child: Icon(
+                          blueprint.icon,
+                          color: blueprint.accentColor,
+                        ),
+                      ),
+                      title: Text(interest.name),
+                      subtitle: Text(quickHint),
+                      trailing: FilledButton.tonalIcon(
+                        icon: const Icon(Icons.bolt_rounded),
+                        label: const Text("Log now"),
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                          _completeActivity(interest);
+                        },
+                      ),
+                    ),
+                  );
+                }),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                          widget.onEditInterests();
+                        },
+                        icon: const Icon(Icons.tune_rounded),
+                        label: const Text("Adjust interests"),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                          _openNewActivityForm();
+                        },
+                        icon: const Icon(Icons.add_rounded),
+                        label: const Text("New activity"),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _openHypeCelebration() {
+    final phrase = _pickBurstLine(_burstPhrases);
+    final reward = _pickBurstLine(_burstRewards);
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) {
+        final theme = Theme.of(context);
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              gradient: LinearGradient(
+                colors: [
+                  theme.colorScheme.primary.withValues(alpha: 0.9),
+                  theme.colorScheme.secondary.withValues(alpha: 0.9),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: theme.colorScheme.primary.withValues(alpha: 0.3),
+                  blurRadius: 22,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0.85, end: 1.0),
+                    duration: const Duration(milliseconds: 450),
+                    builder: (context, value, child) => Transform.scale(
+                      scale: value,
+                      child: child,
+                    ),
+                    child: const Icon(
+                      Icons.auto_awesome_rounded,
+                      color: Colors.white,
+                      size: 56,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    "Burst unleashed",
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    phrase,
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: Colors.white.withValues(alpha: 0.9),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.28),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.local_fire_department_rounded,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            reward,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildSparkleMeter(1.0, theme),
+                  const SizedBox(height: 14),
+                  Text(
+                    "Keep logging small wins today to overcharge tomorrow's streak.",
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: Colors.white.withValues(alpha: 0.85),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.5),
+                        ),
+                      ),
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text("Back to pet"),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  String _pickBurstLine(List<String> lines) {
+    if (lines.isEmpty) return "";
+    return lines[_random.nextInt(lines.length)];
   }
 
   void _showUpgradeDialog() {
