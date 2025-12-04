@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../config/api_config.dart';
 import '../models/activity_completion.dart';
 import '../models/activity_log.dart';
 import '../models/friend_profile.dart';
@@ -37,7 +38,7 @@ class ApiService {
           baseUrl ??
           const String.fromEnvironment(
             "PETAI_API",
-            defaultValue: "http://127.0.0.1:5000",
+            defaultValue: defaultApiUrl,
           ),
       _tokenStorage = tokenStorage ?? const TokenStorage();
 
