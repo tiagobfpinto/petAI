@@ -10,8 +10,13 @@ from ..models.activity import ActivityLog
 
 class ActivityDAO:
     @staticmethod
-    def log(user_id: int, interest_id: int, xp_earned: int) -> ActivityLog:
-        entry = ActivityLog(user_id=user_id, interest_id=interest_id, xp_earned=xp_earned)
+    def log(user_id: int, interest_id: int, xp_earned: int, activity_name: str | None = None) -> ActivityLog:
+        entry = ActivityLog(
+            user_id=user_id,
+            interest_id=interest_id,
+            xp_earned=xp_earned,
+            activity_name=activity_name,
+        )
         db.session.add(entry)
         return entry
 

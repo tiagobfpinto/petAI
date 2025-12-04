@@ -5,6 +5,8 @@ class ActivityLogEntry {
     required this.interestId,
     required this.xpEarned,
     required this.timestamp,
+    required this.activity,
+    required this.interest,
   });
 
   final int id;
@@ -12,6 +14,8 @@ class ActivityLogEntry {
   final int interestId;
   final int xpEarned;
   final DateTime? timestamp;
+  final String activity;
+  final String interest;
 
   factory ActivityLogEntry.fromJson(Map<String, dynamic> json) {
     return ActivityLogEntry(
@@ -20,6 +24,8 @@ class ActivityLogEntry {
       interestId: json["interest_id"] as int? ?? 0,
       xpEarned: json["xp_earned"] as int? ?? 0,
       timestamp: _parseDate(json["timestamp"] as String?),
+      activity: (json["activity"] as String? ?? "").trim(),
+      interest: (json["interest"] as String? ?? "").trim(),
     );
   }
 

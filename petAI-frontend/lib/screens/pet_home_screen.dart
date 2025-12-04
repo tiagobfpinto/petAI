@@ -272,7 +272,6 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
           _buildCreateActivityButton(context),
           const SizedBox(height: 16),
           _buildDailyActivitiesSection(),
-          _buildInterestsSection(),
           const SizedBox(height: 24),
           _buildActivityLog(),
         ],
@@ -596,49 +595,6 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
     );
   }
 
-  Widget _buildInterestsSection() {
-    if (_interests.isEmpty) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _sectionTitle("No interests yet"),
-          const SizedBox(height: 8),
-          Card(
-            child: ListTile(
-              title: const Text("Add at least one interest to begin."),
-              trailing: ElevatedButton(
-                onPressed: widget.onEditInterests,
-                child: const Text("Add now"),
-              ),
-            ),
-          ),
-        ],
-      );
-    }
-
-    final visibleInterests = _interests.where((interest) {
-      final id = interest.id;
-      if (id == null) {
-        return true;
-      }
-      final celebrating = _celebrations.containsKey(id);
-      final completed = _completedToday.contains(id);
-      return !completed || celebrating;
-    }).toList();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _sectionTitle("Today's focus"),
-        const SizedBox(height: 12),
-        if (visibleInterests.isEmpty)
-          _allCaughtUpCard()
-        else
-          ...visibleInterests.map(_buildInterestCard),
-      ],
-    );
-  }
-
   Widget _buildDailyActivityCard(DailyActivity activity) {
     final interest = _interests.firstWhere(
       (i) => i.id == activity.interestId,
@@ -744,133 +700,6 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
     );
   }
 
-  String _todayKey() {
-    const keys = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
-    final index = DateTime.now().weekday - 1;
-    if (index >= 0 && index < keys.length) {
-      return keys[index];
-    }
-    return "mon";
-  }
-
-  bool _isScheduledToday(UserInterest interest, String todayKey) {
-    final plan = interest.plan;
-    if (plan == null || plan.days.isEmpty) return true;
-    return plan.days.any((d) => d.toLowerCase() == todayKey);
-  }
-
-  Widget _buildInterestCard(UserInterest interest) {
-    final blueprint = interest.blueprint;
-    final isLoading = _logging[interest.name] ?? false;
-    final quickIdeas = blueprint.suggestedActivities.take(2).toList();
-    final goalText = (interest.goal ?? "").trim();
-    final interestId = interest.id;
-    final celebrationXp =
-        interestId != null ? _celebrations[interestId] : null;
-    final isCompleted = interestId != null && _completedToday.contains(interestId);
-
-    if (isCompleted && celebrationXp == null) {
-      return const SizedBox.shrink();
-    }
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: blueprint.accentColor.withValues(alpha: 0.18),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Icon(
-                    blueprint.icon,
-                    color: blueprint.accentColor,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        blueprint.name,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 16,
-                        ),
-                      ),
-                      Text(
-                        "${interest.level.label} • ${goalText.isEmpty ? "No goal yet" : goalText}",
-                        style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                TextButton(
-                  onPressed: widget.onEditInterests,
-                  child: const Text("Edit"),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              children: quickIdeas
-                  .map(
-                    (idea) => Chip(
-                      label: Text(idea),
-                      backgroundColor:
-                          blueprint.accentColor.withValues(alpha: 0.12),
-                    ),
-                  )
-                  .toList(),
-            ),
-            const SizedBox(height: 12),
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 350),
-              child: celebrationXp != null
-                  ? _XpCelebration(
-                      key: ValueKey("celebrating-${interestId ?? interest.name}"),
-                      xp: celebrationXp,
-                    )
-                  : SizedBox(
-                      key: ValueKey("cta-${interestId ?? interest.name}"),
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        icon: isLoading
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation(Colors.white),
-                                ),
-                              )
-                            : const Icon(Icons.bolt_rounded),
-                        label: Text(isLoading ? "Logging..." : "Log a win"),
-                        onPressed: (isLoading || isCompleted)
-                            ? null
-                            : () => _completeActivity(interest),
-                      ),
-                    ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Set<int> _extractCompletedInterestIds(List<ActivityLogEntry> logs) {
     final ids = <int>{};
     for (final log in logs) {
@@ -952,40 +781,20 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
                   (interest) => interest.id == log.interestId,
                   orElse: () => _fallbackInterest(log.interestId),
                 ).blueprint.name;
+            final activityName = log.activity.isNotEmpty
+                ? log.activity
+                : (log.interest.isNotEmpty ? log.interest : interestName);
             final time = log.timestamp != null
                 ? TimeOfDay.fromDateTime(log.timestamp!)
                 : null;
             return ListTile(
               contentPadding: const EdgeInsets.symmetric(horizontal: 12),
               leading: const Icon(Icons.check_circle_outline_rounded),
-              title: Text("$interestName • +${log.xpEarned} XP"),
+              title: Text("$activityName • +${log.xpEarned} XP"),
               subtitle: time == null ? null : Text(time.format(context)),
             );
           }),
       ],
-    );
-  }
-
-  Widget _allCaughtUpCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        color: Colors.green.shade50,
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.celebration_rounded, color: Colors.green.shade600),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              "All tasks completed for today! Come back tomorrow for more XP.",
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],
-      ),
     );
   }
 

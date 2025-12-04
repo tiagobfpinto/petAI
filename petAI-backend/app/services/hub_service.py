@@ -200,32 +200,49 @@ class HubService:
 
         weekly_goals: list[dict] = []
         for interest in interests:
-            activity_type = ActivityTypeDAO.primary_for_area(user_id, interest.id) or ActivityTypeDAO.get_or_create(
-                user_id, interest.id, interest.name
-            )
-            plan = activity_type._plan_dict() if activity_type else None
-            if not plan:
-                continue
-            goal = GoalDAO.latest_active(user_id, activity_type.id) if activity_type else None
-            progress_value = float(goal.progress_value or 0) if goal else 0.0
-            progress_target = float((goal.amount if goal else None) or plan.get("weekly_goal_value") or 0)
-            progress = 0.0
-            if progress_target > 0:
-                try:
-                    progress = max(0.0, min(progress_value / progress_target, 1.0))
-                except Exception:
-                    progress = 0.0
+            # Gather all activity types for this interest so we return every goal, not just the first.
+            activity_types = list(getattr(interest, "activity_types", []) or [])
+            if not activity_types:
+                primary = ActivityTypeDAO.primary_for_area(user_id, interest.id) or ActivityTypeDAO.get_or_create(
+                    user_id, interest.id, interest.name
+                )
+                activity_types = [primary]
 
-            weekly_goals.append(
-                {
-                    "interest": interest.name,
-                    "goal": activity_type.goal if activity_type else None,
-                    "plan": plan,
-                    "progress": progress,
-                    "progress_value": progress_value,
-                    "progress_target": progress_target,
-                }
-            )
+            for activity_type in activity_types:
+                plan = activity_type._plan_dict() if activity_type else None
+                goal = GoalDAO.latest_active(user_id, activity_type.id) if activity_type else None
+
+                # If we have no saved plan and no active goal, skip this activity type.
+                if plan is None and goal is None:
+                    continue
+
+                if plan is None and goal is not None:
+                    plan = {
+                        "weekly_goal_value": goal.amount or 0,
+                        "weekly_goal_unit": goal.unit or "units",
+                        "days": [],
+                        "per_day_goal_value": None,
+                    }
+
+                progress_value = float(goal.progress_value or 0) if goal else 0.0
+                progress_target = float((goal.amount if goal else None) or plan.get("weekly_goal_value") or 0)
+                progress = 0.0
+                if progress_target > 0:
+                    try:
+                        progress = max(0.0, min(progress_value / progress_target, 1.0))
+                    except Exception:
+                        progress = 0.0
+
+                weekly_goals.append(
+                    {
+                        "interest": interest.name,
+                        "goal": (goal.title if goal else None) or (activity_type.goal if activity_type else None),
+                        "plan": plan,
+                        "progress": progress,
+                        "progress_value": progress_value,
+                        "progress_target": progress_target,
+                    }
+                )
 
         return {
             "summary": summary,

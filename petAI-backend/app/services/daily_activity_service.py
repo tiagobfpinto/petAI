@@ -168,7 +168,11 @@ class DailyActivityService:
         if not interest:
             raise LookupError("Interest not found for activity")
 
-        result = ActivityService.complete_activity(user_id, interest.name)
+        result = ActivityService.complete_activity(
+            user_id,
+            interest.name,
+            activity_title=activity.title,
+        )
         DailyActivityDAO.mark_completed(activity, xp_awarded=result.get("xp_awarded"))
         goal_progress = 0.0
         if activity.goal:

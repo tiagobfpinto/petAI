@@ -265,12 +265,22 @@ class _ProgressionScreenState extends State<ProgressionScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      goal.interest,
+                      (goal.goal?.isNotEmpty ?? false) ? goal.goal! : goal.interest,
                       style: const TextStyle(
                         fontWeight: FontWeight.w700,
                         fontSize: 15,
                       ),
+                      overflow: TextOverflow.ellipsis,
                     ),
+                    if (goal.goal != null && goal.goal!.isNotEmpty)
+                      Text(
+                        goal.interest,
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 12,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     Text(
                       target,
                       style: TextStyle(
@@ -282,15 +292,21 @@ class _ProgressionScreenState extends State<ProgressionScreen> {
                 ),
               ),
               if (perDay != null)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.indigo.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    "$perDay ${plan!.weeklyGoalUnit}/day",
-                    style: const TextStyle(fontWeight: FontWeight.w700, color: Colors.indigo),
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerRight,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.indigo.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        "$perDay ${plan!.weeklyGoalUnit}/day",
+                        style: const TextStyle(fontWeight: FontWeight.w700, color: Colors.indigo),
+                      ),
+                    ),
                   ),
                 ),
             ],
@@ -566,18 +582,25 @@ class _ProgressionScreenState extends State<ProgressionScreen> {
             child: Icon(icon, color: color),
           ),
           const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, style: TextStyle(color: Colors.grey.shade700)),
-              Text(
-                value,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 18,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(color: Colors.grey.shade700),
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-            ],
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 18,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
           ),
         ],
       ),

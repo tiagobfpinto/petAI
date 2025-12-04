@@ -666,6 +666,7 @@ class ApiService {
   }
 
   Future<ApiResponse<ProgressionSnapshot>> fetchProgression() async {
+    await _ensureTokenLoaded();
     try {
       final response = await _client.get(
         _uri("/hub/progression"),

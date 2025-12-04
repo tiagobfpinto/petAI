@@ -18,7 +18,7 @@ from ..services.user_service import UserService
 
 class ActivityService:
     @staticmethod
-    def complete_activity(user_id: int, area_name: str) -> dict:
+    def complete_activity(user_id: int, area_name: str, activity_title: str | None = None) -> dict:
         user = UserDAO.get_by_id(user_id)
         if not user:
             raise LookupError("User not found")
@@ -57,7 +57,12 @@ class ActivityService:
         xp_multiplier = UserService.streak_multiplier(streak)
         xp_amount = int(round(base_xp * xp_multiplier))
 
-        activity = ActivityDAO.log(user_id=user_id, interest_id=area.id, xp_earned=xp_amount)
+        activity = ActivityDAO.log(
+            user_id=user_id,
+            interest_id=area.id,
+            xp_earned=xp_amount,
+            activity_name=activity_title,
+        )
 
         pet = PetService.get_pet_by_user(user_id) or PetService.create_pet(user_id)
         evolution_result = PetService.add_xp(pet, xp_amount)

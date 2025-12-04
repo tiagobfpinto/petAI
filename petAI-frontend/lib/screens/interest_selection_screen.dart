@@ -338,29 +338,32 @@ class _InterestSelectionScreenState extends State<InterestSelectionScreen> {
                         : Colors.grey.shade300,
                   ),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(blueprint.icon, color: blueprint.accentColor),
-                    const SizedBox(width: 10),
-                    Text(
-                      blueprint.name,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        color: selected
-                            ? blueprint.accentColor.darken()
-                            : Colors.black87,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(blueprint.icon, color: blueprint.accentColor),
+                      const SizedBox(width: 10),
+                      Text(
+                        blueprint.name,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: selected
+                              ? blueprint.accentColor.darken()
+                              : Colors.black87,
+                        ),
                       ),
-                    ),
-                    if (selected) ...[
-                      const SizedBox(width: 6),
-                      Icon(
-                        Icons.check_circle_rounded,
-                        color: blueprint.accentColor,
-                        size: 18,
-                      ),
+                      if (selected) ...[
+                        const SizedBox(width: 6),
+                        Icon(
+                          Icons.check_circle_rounded,
+                          color: blueprint.accentColor,
+                          size: 18,
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
             );
