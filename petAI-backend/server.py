@@ -1,6 +1,9 @@
 from waitress import serve
-from app import app
+from app import create_app
 import os
+
+# WSGI entrypoint used by Render/Waitress
+app = create_app()
 
 if __name__ == "__main__":
     # Bind to the port provided by the platform (e.g., Render sets $PORT)
