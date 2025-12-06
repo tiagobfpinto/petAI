@@ -398,7 +398,7 @@ class ApiService {
       final response = await _client.post(
         _uri("/activities/complete"),
         headers: _headers,
-        body: jsonEncode({"interest": interestName}),
+        body: jsonEncode({"area": interestName, "interest": interestName}),
       );
       final payload = _decode(response.body);
       final data = _data(payload);
