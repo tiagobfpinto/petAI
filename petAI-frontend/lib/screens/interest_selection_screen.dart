@@ -460,7 +460,8 @@ class _InterestSelectionScreenState extends State<InterestSelectionScreen> {
   }
 
   void _toggleInterest(String name, {InterestBlueprint? blueprint}) {
-    final existing = _draftForName(name);
+    final normalized = _normalizeName(name);
+    final existing = _draftForName(normalized);
     if (existing != null) {
       setState(() {
         _drafts.remove(existing);
@@ -512,13 +513,19 @@ class _InterestSelectionScreenState extends State<InterestSelectionScreen> {
   }
 
   _InterestDraft? _draftForName(String name) {
+    final normalized = _normalizeName(name);
     for (final draft in _drafts) {
-      if (draft.name.toLowerCase() == name.toLowerCase()) {
+      if (_normalizeName(draft.name) == normalized || _sameInterest(draft.name, name)) {
         return draft;
       }
     }
     return null;
   }
+
+  String _normalizeName(String name) => name.trim().toLowerCase();
+  bool _sameInterest(String a, String b) =>
+      resolveInterestBlueprint(a).id.toLowerCase() ==
+      resolveInterestBlueprint(b).id.toLowerCase();
 
   Future<void> _handleSave() async {
     if (!_profileComplete) {

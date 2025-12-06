@@ -305,7 +305,35 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
               borderRadius: BorderRadius.circular(20),
               color: Colors.grey.shade100,
             ),
-            child: const Text("No tasks scheduled today."),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "No tasks scheduled today.",
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  "Grab a quick win or add a new activity.",
+                  style: TextStyle(color: Colors.grey.shade700),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: _openQuickWinSheet,
+                      icon: const Icon(Icons.flash_on_rounded),
+                      label: const Text("Quick win"),
+                    ),
+                    const SizedBox(width: 8),
+                    OutlinedButton(
+                      onPressed: _openNewActivityForm,
+                      child: const Text("Add activity"),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           )
         else
           ..._dailyActivities.map(_buildDailyActivityCard),
@@ -836,6 +864,10 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
         _streakCurrent = completion.streakCurrent ?? _streakCurrent;
         _streakBest = completion.streakBest ?? _streakBest;
         _xpMultiplier = completion.xpMultiplier ?? _xpMultiplier;
+        if (completion.coinsAwarded != null) {
+          _pet = _pet.copyWith(coins: _pet.coins + completion.coinsAwarded!);
+          widget.onPetChanged(_pet);
+        }
         _dailyActivities = _dailyActivities
             .map(
               (a) => a.id == activity.id
@@ -853,6 +885,7 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
                   : a,
             )
             .toList();
+        _completedToday.add(activity.interestId);
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -891,6 +924,10 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
         _streakCurrent = completion.streakCurrent ?? _streakCurrent;
         _streakBest = completion.streakBest ?? _streakBest;
         _xpMultiplier = completion.xpMultiplier ?? _xpMultiplier;
+        if (completion.coinsAwarded != null) {
+          _pet = _pet.copyWith(coins: _pet.coins + completion.coinsAwarded!);
+          widget.onPetChanged(_pet);
+        }
       });
       _startCelebration(completion.interestId, completion.xpAwarded);
       _loadActivities();
