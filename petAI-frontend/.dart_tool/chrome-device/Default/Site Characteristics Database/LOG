@@ -1,20 +1,11 @@
-2025/12/08-23:06:15.012 4e40 Reusing MANIFEST C:\Users\TIAGOP~1\AppData\Local\Temp\flutter_tools.7368b7a1\flutter_tools_chrome_device.57c0843e\Default\Site Characteristics Database/MANIFEST-000001
-2025/12/08-23:06:15.014 4e40 Recovering log #3
-2025/12/08-23:06:15.014 4e40 Level-0 table #22: started
-2025/12/08-23:06:15.017 4e40 Level-0 table #22: 194 bytes OK
-2025/12/08-23:06:15.018 4e40 Recovering log #6
-2025/12/08-23:06:15.018 4e40 Level-0 table #23: started
-2025/12/08-23:06:15.021 4e40 Level-0 table #23: 388 bytes OK
-2025/12/08-23:06:15.021 4e40 Recovering log #10
-2025/12/08-23:06:15.022 4e40 Level-0 table #24: started
-2025/12/08-23:06:15.025 4e40 Level-0 table #24: 196 bytes OK
-2025/12/08-23:06:15.025 4e40 Recovering log #19
-2025/12/08-23:06:15.026 4e40 Reusing old log C:\Users\TIAGOP~1\AppData\Local\Temp\flutter_tools.7368b7a1\flutter_tools_chrome_device.57c0843e\Default\Site Characteristics Database/000019.log 
-2025/12/08-23:06:15.029 4e40 Delete type=0 #3
-2025/12/08-23:06:15.029 4e40 Delete type=2 #4
-2025/12/08-23:06:15.029 4e40 Delete type=2 #6
-2025/12/08-23:06:15.029 4e40 Delete type=0 #6
-2025/12/08-23:06:15.029 4e40 Delete type=0 #10
-2025/12/08-23:06:15.029 4e40 Delete type=2 #11
-2025/12/08-23:06:15.029 4e40 Delete type=2 #13
-2025/12/08-23:06:15.029 4e40 Delete type=2 #14
+2025/12/08-23:27:18.073 7834 Reusing MANIFEST C:\Users\TIAGOP~1\AppData\Local\Temp\flutter_tools.f1f0849d\flutter_tools_chrome_device.5b16202b\Default\Site Characteristics Database/MANIFEST-000001
+2025/12/08-23:27:18.077 7834 Recovering log #19
+2025/12/08-23:27:18.078 7834 Reusing old log C:\Users\TIAGOP~1\AppData\Local\Temp\flutter_tools.f1f0849d\flutter_tools_chrome_device.5b16202b\Default\Site Characteristics Database/000019.log 
+2025/12/08-23:27:18.078 7834 Delete type=0 #3
+2025/12/08-23:27:18.079 7834 Delete type=2 #4
+2025/12/08-23:27:18.079 7834 Delete type=2 #6
+2025/12/08-23:27:18.079 7834 Delete type=0 #6
+2025/12/08-23:27:18.079 7834 Delete type=0 #10
+2025/12/08-23:27:18.079 7834 Delete type=2 #11
+2025/12/08-23:27:18.079 7834 Delete type=2 #13
+2025/12/08-23:27:18.080 7834 Delete type=2 #14
