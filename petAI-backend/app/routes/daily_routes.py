@@ -32,13 +32,20 @@ def complete_daily_activity():
         return error_response("user_id is required", 400)
     payload = request.get_json(silent=True) or {}
     activity_id = payload.get("activity_id")
+    value = payload.get("value") if payload.get("value") is not None else payload.get("amount")
+    unit = (payload.get("unit") or "").strip() or None
     try:
         activity_id = int(activity_id)
     except (TypeError, ValueError):
         return error_response("activity_id is required", 400)
 
     try:
-        result = DailyActivityService.complete_daily_activity(user_id, activity_id)
+        result = DailyActivityService.complete_daily_activity(
+            user_id,
+            activity_id,
+            logged_value=value,
+            unit=unit,
+        )
         db.session.commit()
     except LookupError as exc:
         db.session.rollback()

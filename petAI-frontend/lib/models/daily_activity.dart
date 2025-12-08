@@ -7,6 +7,7 @@ class DailyActivity {
     required this.scheduledFor,
     required this.status,
     this.goalId,
+    this.goalUnit,
     this.completedAt,
     this.xpAwarded,
   });
@@ -22,6 +23,7 @@ class DailyActivity {
           DateTime.now(),
       status: json['status'] as String? ?? 'pending',
       goalId: json['goal_id'] as int?,
+      goalUnit: (json['goal_unit'] as String?)?.trim(),
       completedAt: DateTime.tryParse(json['completed_at'] as String? ?? ''),
       xpAwarded: json['xp_awarded'] as int?,
     );
@@ -31,6 +33,7 @@ class DailyActivity {
   final int interestId;
   final int activityTypeId;
   final int? goalId;
+  final String? goalUnit;
   final String title;
   final DateTime scheduledFor;
   final String status;

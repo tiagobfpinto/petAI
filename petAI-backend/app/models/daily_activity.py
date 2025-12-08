@@ -47,6 +47,7 @@ class DailyActivity(db.Model):
             "interest_id": self.interest_id,
             "activity_type_id": self.activity_type_id,
             "goal_id": self.goal_id,
+            "goal_unit": self.goal.unit if self.goal else None,
             "title": self.title,
             "scheduled_for": self.scheduled_for.isoformat(),
             "todo_date": self.todo_date.isoformat(),
