@@ -156,7 +156,14 @@ class DailyActivityService:
         return DailyActivityDAO.list_for_user_on_date(user_id, today)
 
     @classmethod
-    def complete_daily_activity(cls, user_id: int, activity_id: int) -> dict:
+    def complete_daily_activity(
+        cls,
+        user_id: int,
+        activity_id: int,
+        *,
+        logged_value: float | None = None,
+        unit: str | None = None,
+    ) -> dict:
         activity = DailyActivityDAO.get_by_id(activity_id)
         if not activity or activity.user_id != user_id:
             raise LookupError("Daily activity not found")
@@ -168,24 +175,43 @@ class DailyActivityService:
         if not interest:
             raise LookupError("Interest not found for activity")
 
+        plan = cls._plan_details(activity_type) if activity_type else None
+        per_day_target = plan.get("per_day") if plan else None
+        plan_unit = (plan.get("unit") or "").strip() if plan else None
+        normalized_unit = (unit or plan_unit or (activity.goal.unit if activity.goal else None) or "").strip() or None
+
+        logged_amount = None
+        if logged_value is not None:
+            try:
+                logged_amount = float(logged_value)
+            except (TypeError, ValueError):
+                logged_amount = None
+
         result = ActivityService.complete_activity(
             user_id,
             interest.name,
             activity_title=activity.title,
+            effort_value=logged_amount,
+            target_value=per_day_target,
+            effort_unit=normalized_unit,
         )
         DailyActivityDAO.mark_completed(activity, xp_awarded=result.get("xp_awarded"))
         goal_progress = 0.0
         if activity.goal:
-            increment = 0.0
-            if activity.goal.amount:
+            increment: float | None = None
+            if logged_amount is not None and logged_amount > 0:
+                increment = logged_amount
+            elif per_day_target is not None and per_day_target > 0:
+                increment = per_day_target
+            elif activity.goal.amount:
                 days = cls._plan_days(activity_type) if activity_type else []
                 divisor = len(days) if days else 7.0
                 try:
                     increment = max(activity.goal.amount / divisor, 1.0)
                 except Exception:
                     increment = 1.0
-            goal_progress = increment
-            GoalDAO.increment_progress(activity.goal, increment if increment else 0.0)
+            goal_progress = float(increment or 0.0)
+            GoalDAO.increment_progress(activity.goal, goal_progress if goal_progress else 0.0)
 
         activity_payload = None
         activity_obj = result.get("activity")
@@ -203,6 +229,10 @@ class DailyActivityService:
                 "streak_best": result.get("streak_best"),
                 "xp_multiplier": result.get("xp_multiplier"),
                 "evolved": result.get("evolved"),
+                "effort_value": result.get("effort_value"),
+                "effort_target": result.get("effort_target"),
+                "effort_unit": result.get("effort_unit"),
+                "effort_boost": result.get("effort_boost"),
             },
             "daily_activity": activity.to_dict(),
             "goal_progress_increment": goal_progress,

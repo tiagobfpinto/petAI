@@ -392,16 +392,24 @@ class ApiService {
   }
 
   Future<ApiResponse<ActivityCompletionResult>> completeActivity(
-    String interestName,
-  ) async {
+    String interestName, {
+    double? value,
+    String? unit,
+  }) async {
     try {
+      final Map<String, dynamic> payload = {
+        "area": interestName,
+        "interest": interestName,
+      };
+      if (value != null) payload["value"] = value;
+      if (unit != null && unit.trim().isNotEmpty) payload["unit"] = unit.trim();
       final response = await _client.post(
         _uri("/activities/complete"),
         headers: _headers,
-        body: jsonEncode({"area": interestName, "interest": interestName}),
+        body: jsonEncode(payload),
       );
-      final payload = _decode(response.body);
-      final data = _data(payload);
+      final decoded = _decode(response.body);
+      final data = _data(decoded);
       if ((response.statusCode == 201 || response.statusCode == 200) &&
           data["pet"] is Map<String, dynamic>) {
         return ApiResponse.success(
@@ -410,7 +418,7 @@ class ApiService {
         );
       }
       return ApiResponse.failure(
-        payload["error"] as String? ?? "Failed to complete activity",
+        decoded["error"] as String? ?? "Failed to complete activity",
         statusCode: response.statusCode,
       );
     } catch (err) {
@@ -515,14 +523,19 @@ class ApiService {
   }
 
   Future<ApiResponse<ActivityCompletionResult>> completeDailyActivity(
-    int activityId,
-  ) async {
+    int activityId, {
+    double? value,
+    String? unit,
+  }) async {
     await _ensureTokenLoaded();
     try {
+      final Map<String, dynamic> body = {"activity_id": activityId};
+      if (value != null) body["value"] = value;
+      if (unit != null && unit.trim().isNotEmpty) body["unit"] = unit.trim();
       final response = await _client.post(
         _uri("/daily/activities/complete"),
         headers: _headers,
-        body: jsonEncode({"activity_id": activityId}),
+        body: jsonEncode(body),
       );
       final payload = _decode(response.body);
       final data = _data(payload);

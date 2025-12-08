@@ -55,6 +55,7 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
   final Map<String, bool> _logging = {};
   List<DailyActivity> _dailyActivities = [];
   bool _loadingDaily = true;
+  bool _hadDailyToday = false;
   List<ActivityLogEntry> _activities = [];
   bool _loadingActivities = true;
   Set<int> _completedToday = {};
@@ -62,20 +63,6 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
   int? _streakCurrent;
   int? _streakBest;
   double? _xpMultiplier;
-  static const int _burstTarget = 3;
-  static const List<String> _burstPhrases = [
-    "Your pet is buzzing. Let it flex.",
-    "You are stacking wins faster than yesterday.",
-    "This streak feels unstoppable.",
-    "The garden is glowing because of you.",
-  ];
-  static const List<String> _burstRewards = [
-    "Momentum boost unlocked for the next log.",
-    "Pet mood lifted. Keep feeding it.",
-    "XP is primed. Drop another win soon.",
-    "Coins look shinier after this burst.",
-  ];
-  final Random _random = Random();
 
   @override
   void initState() {
@@ -267,9 +254,9 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
           const SizedBox(height: 16),
           _buildPetHeader(context),
           const SizedBox(height: 16),
-          _buildMomentumBurst(context),
-          const SizedBox(height: 16),
           _buildCreateActivityButton(context),
+          const SizedBox(height: 8),
+          _buildLogoutButton(context),
           const SizedBox(height: 16),
           _buildDailyActivitiesSection(),
           const SizedBox(height: 24),
@@ -290,11 +277,24 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
     );
   }
 
+  Widget _buildLogoutButton(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: TextButton.icon(
+        icon: const Icon(Icons.logout_rounded),
+        label: const Text("Log out"),
+        onPressed: widget.onLogout,
+      ),
+    );
+  }
+
   Widget _buildDailyActivitiesSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _sectionTitle("Today's focus"),
+        _buildDailyCelebration(),
+        if (_celebrations.isNotEmpty) const SizedBox(height: 8),
         const SizedBox(height: 12),
         if (_loadingDaily)
           const Center(child: CircularProgressIndicator())
@@ -308,29 +308,21 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  "No tasks scheduled today.",
-                  style: TextStyle(fontWeight: FontWeight.w700),
+                Text(
+                  _hadDailyToday ? "All daily tasks done." : "No tasks scheduled today.",
+                  style: const TextStyle(fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  "Grab a quick win or add a new activity.",
+                  _hadDailyToday
+                      ? "Your pet is celebrating. Queue a quick win while the streak is hot."
+                      : "Add a new activity to focus on today.",
                   style: TextStyle(color: Colors.grey.shade700),
                 ),
                 const SizedBox(height: 12),
-                Row(
-                  children: [
-                    ElevatedButton.icon(
-                      onPressed: _openQuickWinSheet,
-                      icon: const Icon(Icons.flash_on_rounded),
-                      label: const Text("Quick win"),
-                    ),
-                    const SizedBox(width: 8),
-                    OutlinedButton(
-                      onPressed: _openNewActivityForm,
-                      child: const Text("Add activity"),
-                    ),
-                  ],
+                OutlinedButton(
+                  onPressed: _openNewActivityForm,
+                  child: const Text("Add activity"),
                 ),
               ],
             ),
@@ -346,8 +338,11 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
     final response = await widget.apiService.fetchDailyActivities();
     if (!mounted) return;
     if (response.isSuccess && response.data != null) {
+      final daily = response.data!;
+      final pending = daily.where((a) => !a.isCompleted).toList();
       setState(() {
-        _dailyActivities = response.data!;
+        _dailyActivities = pending;
+        _hadDailyToday = _hadDailyToday || daily.isNotEmpty;
         _loadingDaily = false;
       });
     } else {
@@ -481,145 +476,154 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
     );
   }
 
-  int _winsLoggedToday() => _activities.length;
-
-  Widget _buildMomentumBurst(BuildContext context) {
-    final theme = Theme.of(context);
-    final wins = _winsLoggedToday();
-    final ready = wins >= _burstTarget;
-    final remaining = max(0, _burstTarget - wins);
-    final progress = (wins / _burstTarget).clamp(0.0, 1.0).toDouble();
-    final subtitle = ready
-        ? "Burst ready. Drop a celebration to shower your pet."
-        : remaining == 0
-            ? "Charged for today."
-            : "$remaining win${remaining == 1 ? "" : "s"} left to charge today's burst.";
-
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        gradient: LinearGradient(
-          colors: [
-            theme.colorScheme.primary.withValues(alpha: 0.2),
-            theme.colorScheme.secondary.withValues(alpha: 0.16),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: theme.colorScheme.primary.withValues(alpha: 0.15),
-            blurRadius: 14,
-            offset: const Offset(0, 8),
-          ),
-        ],
-        border: Border.all(
-          color: theme.colorScheme.primary.withValues(alpha: 0.24),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withValues(alpha: 0.16),
-                ),
-                child: const Icon(
-                  Icons.auto_awesome_rounded,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      "Momentum burst",
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                      ),
-                    ),
-                    Text(
-                      subtitle,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: Colors.white.withValues(alpha: 0.85),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              AnimatedOpacity(
-                duration: const Duration(milliseconds: 300),
-                opacity: ready ? 1 : 0.45,
-                child: Icon(
-                  ready ? Icons.celebration_rounded : Icons.bolt_rounded,
-                  color: Colors.white,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 12,
-              backgroundColor: Colors.white.withValues(alpha: 0.2),
-              valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            "$wins / $_burstTarget wins logged today",
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: Colors.white.withValues(alpha: 0.85),
-            ),
-          ),
-          const SizedBox(height: 10),
-          _buildSparkleMeter(progress, theme),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: theme.colorScheme.primary,
-                elevation: 0,
-              ),
-              onPressed: ready ? _openHypeCelebration : _openQuickWinSheet,
-              icon: Icon(ready ? Icons.celebration_rounded : Icons.flash_on_rounded),
-              label: Text(ready ? "Release burst" : "Grab a quick win"),
-            ),
-          ),
-        ],
-      ),
-    );
+  int _baseXpForLevel(MotivationLevel level) {
+    switch (level) {
+      case MotivationLevel.never:
+        return 20;
+      case MotivationLevel.sometimes:
+        return 15;
+      case MotivationLevel.usually:
+        return 10;
+      case MotivationLevel.always:
+        return 5;
+    }
   }
 
-  Widget _buildSparkleMeter(double progress, ThemeData theme) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: List.generate(6, (index) {
-        final threshold = index / 5;
-        final opacity = (progress - threshold + 0.2).clamp(0.0, 1.0).toDouble();
-        final active = progress >= threshold;
-        return AnimatedOpacity(
-          duration: const Duration(milliseconds: 250),
-          opacity: active ? opacity : 0.2,
-          child: Icon(
-            Icons.star_rounded,
-            color: theme.colorScheme.secondary,
-            size: (14 + index * 2).toDouble(),
-          ),
+  double _currentXpMultiplier() {
+    final multiplier = _xpMultiplier ?? widget.session.streakMultiplier ?? 1.0;
+    if (multiplier <= 0) return 1.0;
+    return multiplier;
+  }
+
+  double? _suggestedAmount(UserInterest interest) {
+    final plan = interest.plan;
+    if (plan == null) return null;
+    final perDay = plan.perDayGoalValue ?? plan.perDayGoal();
+    if (perDay > 0) return perDay;
+    return null;
+  }
+
+  String _goalUnit(UserInterest interest, {DailyActivity? activity}) {
+    final fromActivity = (activity?.goalUnit ?? "").trim();
+    if (fromActivity.isNotEmpty) return fromActivity;
+    final unit = (interest.plan?.weeklyGoalUnit ?? "").trim();
+    return unit.isNotEmpty ? unit : "units";
+  }
+
+  String _formatAmount(double value) {
+    if (value >= 10) return value.toStringAsFixed(0);
+    if ((value * 10).roundToDouble() == value * 10) {
+      return value.toStringAsFixed(1);
+    }
+    return value.toStringAsFixed(2);
+  }
+
+  int? _expectedDailyXp(DailyActivity activity, UserInterest interest) {
+    final stored = activity.xpAwarded;
+    if (stored != null && stored > 0) return stored;
+    final base = _baseXpForLevel(interest.level);
+    if (base <= 0) return null;
+    final scaled = (base * _currentXpMultiplier()).round();
+    return max(1, scaled);
+  }
+
+  Future<_LoggedAmount?> _promptForGoalAmount({
+    required String title,
+    required String unit,
+    double? suggested,
+  }) async {
+    final controller = TextEditingController(
+      text: suggested != null ? _formatAmount(suggested) : "",
+    );
+    final focusNode = FocusNode();
+    String? errorText;
+    final result = await showDialog<_LoggedAmount>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text("Log your effort"),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "How much did you complete for \"$title\"?",
+                  ),
+                  if (suggested != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      "Suggested ${_formatAmount(suggested)} $unit. Go above to earn extra XP.",
+                      style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: controller,
+                    focusNode: focusNode,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(
+                      labelText: "Amount ($unit)",
+                      hintText: suggested != null ? _formatAmount(suggested) : "Enter amount",
+                      errorText: errorText,
+                    ),
+                    autofocus: true,
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text("Cancel"),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    final parsed =
+                        double.tryParse(controller.text.trim().replaceAll(",", "."));
+                    if (parsed == null || parsed <= 0) {
+                      setState(() => errorText = "Enter a positive number");
+                      return;
+                    }
+                    Navigator.of(dialogContext).pop(
+                      _LoggedAmount(value: parsed, unit: unit),
+                    );
+                  },
+                  child: const Text("Log amount"),
+                ),
+              ],
+            );
+          },
         );
-      }),
+      },
+    );
+    controller.dispose();
+    focusNode.dispose();
+    return result;
+  }
+
+  Widget _buildDailyCelebration() {
+    final entry = _celebrations.entries.isNotEmpty ? _celebrations.entries.first : null;
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 350),
+      transitionBuilder: (child, animation) {
+        final slideAnimation = animation.drive(
+          Tween<Offset>(
+            begin: const Offset(0, -0.12),
+            end: Offset.zero,
+          ).chain(CurveTween(curve: Curves.easeOutCubic)),
+        );
+        return FadeTransition(
+          opacity: animation,
+          child: SlideTransition(position: slideAnimation, child: child),
+        );
+      },
+      child: entry == null
+          ? const SizedBox.shrink()
+          : _XpCelebration(
+              key: ValueKey("${entry.key}-${entry.value}"),
+              xp: entry.value,
+            ),
     );
   }
 
@@ -631,6 +635,9 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
     final blueprint = interest.blueprint;
     final isLoading = _logging["daily-${activity.id}"] ?? false;
     final isCompleted = activity.isCompleted;
+    final expectedXp = _expectedDailyXp(activity, interest);
+    final suggestedAmount = _suggestedAmount(interest);
+    final goalUnit = _goalUnit(interest, activity: activity);
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
@@ -676,9 +683,7 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
                         children: [
                           Chip(
                             label: Text(
-                              activity.xpAwarded != null
-                                  ? "+${activity.xpAwarded} XP"
-                                  : "XP reward",
+                              expectedXp != null ? "+$expectedXp XP" : "XP reward",
                               style: TextStyle(color: Colors.grey.shade700),
                             ),
                             backgroundColor: blueprint.accentColor.withValues(
@@ -687,6 +692,16 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
                           ),
                         ],
                       ),
+                      if (suggestedAmount != null) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          "Suggested ${_formatAmount(suggestedAmount)} $goalUnit",
+                          style: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -763,7 +778,6 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
           const Center(child: CircularProgressIndicator())
         else if (_activities.isEmpty)
           Builder(builder: (context) {
-            final nextInterest = _nextLoggableInterest();
             return Container(
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
@@ -779,24 +793,8 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    "Log a quick win to start your streak.",
+                    "Add a new activity to start your streak.",
                     style: TextStyle(color: Colors.grey.shade700),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      ElevatedButton.icon(
-                        onPressed:
-                            nextInterest == null ? null : () => _completeActivity(nextInterest),
-                        icon: const Icon(Icons.bolt_rounded),
-                        label: const Text("Log a win"),
-                      ),
-                      const SizedBox(width: 10),
-                      TextButton(
-                        onPressed: widget.onEditInterests,
-                        child: const Text("Add interests"),
-                      ),
-                    ],
                   ),
                 ],
               ),
@@ -852,51 +850,68 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
   }
 
   Future<void> _completeDailyActivity(DailyActivity activity) async {
-    setState(() => _logging["daily-${activity.id}"] = true);
-    final response = await widget.apiService.completeDailyActivity(activity.id);
-    if (!mounted) return;
-    setState(() => _logging["daily-${activity.id}"] = false);
-    if (response.isSuccess && response.data != null) {
-      final completion = response.data!;
-      widget.onPetChanged(completion.pet);
-      setState(() {
-        _pet = completion.pet;
-        _streakCurrent = completion.streakCurrent ?? _streakCurrent;
-        _streakBest = completion.streakBest ?? _streakBest;
-        _xpMultiplier = completion.xpMultiplier ?? _xpMultiplier;
-        if (completion.coinsAwarded != null) {
-          _pet = _pet.copyWith(coins: _pet.coins + completion.coinsAwarded!);
-          widget.onPetChanged(_pet);
-        }
-        _dailyActivities = _dailyActivities
-            .map(
-              (a) => a.id == activity.id
-                  ? DailyActivity(
-                      id: a.id,
-                      interestId: a.interestId,
-                      activityTypeId: a.activityTypeId,
-                      title: a.title,
-                      scheduledFor: a.scheduledFor,
-                      status: "completed",
-                      goalId: a.goalId,
-                      completedAt: DateTime.now(),
-                      xpAwarded: completion.xpAwarded,
-                    )
-                  : a,
-            )
-            .toList();
-        _completedToday.add(activity.interestId);
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            "Great job! ${activity.title} logged +${completion.xpAwarded} XP.",
-          ),
-        ),
+    final interest = _interests.firstWhere(
+      (i) => i.id == activity.interestId,
+      orElse: () => _fallbackInterest(activity.interestId),
+    );
+    final hasGoal = activity.goalId != null || (interest.plan?.weeklyGoalValue ?? 0) > 0;
+    final suggested = _suggestedAmount(interest);
+    _LoggedAmount? loggedAmount;
+    if (hasGoal) {
+      loggedAmount = await _promptForGoalAmount(
+        title: activity.title,
+        unit: _goalUnit(interest, activity: activity),
+        suggested: suggested,
       );
-      _loadActivities();
-    } else {
-      widget.onError(response.error ?? "Failed to complete activity");
+      if (!mounted || loggedAmount == null) {
+        return;
+      }
+    }
+
+    setState(() => _logging["daily-${activity.id}"] = true);
+    try {
+      final response = await widget.apiService.completeDailyActivity(
+        activity.id,
+        value: loggedAmount?.value,
+        unit: loggedAmount?.unit,
+      );
+      if (!mounted) return;
+      if (response.isSuccess && response.data != null) {
+        final completion = response.data!;
+        final xpEarned = completion.xpAwarded ?? _expectedDailyXp(activity, interest);
+        widget.onPetChanged(completion.pet);
+        setState(() {
+          _pet = completion.pet;
+          _streakCurrent = completion.streakCurrent ?? _streakCurrent;
+          _streakBest = completion.streakBest ?? _streakBest;
+          _xpMultiplier = completion.xpMultiplier ?? _xpMultiplier;
+          if (completion.coinsAwarded != null) {
+            _pet = _pet.copyWith(coins: _pet.coins + completion.coinsAwarded!);
+            widget.onPetChanged(_pet);
+          }
+          _dailyActivities =
+              _dailyActivities.where((a) => a.id != activity.id).toList();
+          _hadDailyToday = true;
+          _completedToday.add(activity.interestId);
+        });
+        if (xpEarned != null) {
+          _startCelebration(activity.interestId, xpEarned);
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              "Great job! ${activity.title} logged +${xpEarned ?? 0} XP.",
+            ),
+          ),
+        );
+        _loadActivities();
+      } else {
+        widget.onError(response.error ?? "Failed to complete activity");
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _logging["daily-${activity.id}"] = false);
+      }
     }
   }
 
@@ -911,280 +926,64 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
   }
 
   Future<void> _completeActivity(UserInterest interest) async {
-    setState(() => _logging[interest.name] = true);
-    final response =
-        await widget.apiService.completeActivity(interest.name);
-    if (!mounted) return;
-    setState(() => _logging[interest.name] = false);
-    if (response.isSuccess && response.data != null) {
-      final completion = response.data!;
-      widget.onPetChanged(completion.pet);
-      setState(() {
-        _pet = completion.pet;
-        _streakCurrent = completion.streakCurrent ?? _streakCurrent;
-        _streakBest = completion.streakBest ?? _streakBest;
-        _xpMultiplier = completion.xpMultiplier ?? _xpMultiplier;
-        if (completion.coinsAwarded != null) {
-          _pet = _pet.copyWith(coins: _pet.coins + completion.coinsAwarded!);
-          widget.onPetChanged(_pet);
-        }
-      });
-      _startCelebration(completion.interestId, completion.xpAwarded);
-      _loadActivities();
-      final coins = completion.coinsAwarded ?? 0;
-      final coinsText = coins > 0 ? " and +$coins coins" : "";
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            "Great job! ${interest.name} earned +${completion.xpAwarded} XP$coinsText.",
-          ),
-        ),
+    final hasPlan = (interest.plan?.weeklyGoalValue ?? 0) > 0;
+    final suggested = _suggestedAmount(interest);
+    _LoggedAmount? loggedAmount;
+    if (hasPlan) {
+      loggedAmount = await _promptForGoalAmount(
+        title: interest.name,
+        unit: _goalUnit(interest),
+        suggested: suggested,
       );
-    } else {
-      if (response.statusCode == 403) {
-        _showUpgradeDialog();
-      } else {
-        widget.onError(response.error ?? "Failed to log activity");
+      if (!mounted || loggedAmount == null) {
+        return;
       }
     }
-  }
 
-  void _openQuickWinSheet() {
-    final available = _interests
-        .where((interest) {
-          final id = interest.id;
-          if (id == null) return true;
-          return !_completedToday.contains(id);
-        })
-        .take(4)
-        .toList();
-
-    if (available.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("All set for today. Add a new interest or try a daily task."),
-        ),
+    setState(() => _logging[interest.name] = true);
+    try {
+      final response = await widget.apiService.completeActivity(
+        interest.name,
+        value: loggedAmount?.value,
+        unit: loggedAmount?.unit,
       );
-      return;
+      if (!mounted) return;
+      if (response.isSuccess && response.data != null) {
+        final completion = response.data!;
+        widget.onPetChanged(completion.pet);
+        setState(() {
+          _pet = completion.pet;
+          _streakCurrent = completion.streakCurrent ?? _streakCurrent;
+          _streakBest = completion.streakBest ?? _streakBest;
+          _xpMultiplier = completion.xpMultiplier ?? _xpMultiplier;
+          if (completion.coinsAwarded != null) {
+            _pet = _pet.copyWith(coins: _pet.coins + completion.coinsAwarded!);
+            widget.onPetChanged(_pet);
+          }
+        });
+        _startCelebration(completion.interestId, completion.xpAwarded);
+        _loadActivities();
+        final coins = completion.coinsAwarded ?? 0;
+        final coinsText = coins > 0 ? " and +$coins coins" : "";
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              "Great job! ${interest.name} earned +${completion.xpAwarded} XP$coinsText.",
+            ),
+          ),
+        );
+      } else {
+        if (response.statusCode == 403) {
+          _showUpgradeDialog();
+        } else {
+          widget.onError(response.error ?? "Failed to log activity");
+        }
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _logging[interest.name] = false);
+      }
     }
-
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) {
-        final theme = Theme.of(context);
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  "Grab a quick win",
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                ...available.map((interest) {
-                  final blueprint = interest.blueprint;
-                  final quickHint = blueprint.suggestedActivities.isNotEmpty
-                      ? blueprint.suggestedActivities.first
-                      : "Anything small counts.";
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: blueprint.accentColor.withValues(alpha: 0.14),
-                        child: Icon(
-                          blueprint.icon,
-                          color: blueprint.accentColor,
-                        ),
-                      ),
-                      title: Text(interest.name),
-                      subtitle: Text(quickHint),
-                      trailing: FilledButton.tonalIcon(
-                        icon: const Icon(Icons.bolt_rounded),
-                        label: const Text("Log now"),
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                          _completeActivity(interest);
-                        },
-                      ),
-                    ),
-                  );
-                }),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                          widget.onEditInterests();
-                        },
-                        icon: const Icon(Icons.tune_rounded),
-                        label: const Text("Adjust interests"),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                          _openNewActivityForm();
-                        },
-                        icon: const Icon(Icons.add_rounded),
-                        label: const Text("New activity"),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  void _openHypeCelebration() {
-    final phrase = _pickBurstLine(_burstPhrases);
-    final reward = _pickBurstLine(_burstRewards);
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) {
-        final theme = Theme.of(context);
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(24),
-              gradient: LinearGradient(
-                colors: [
-                  theme.colorScheme.primary.withValues(alpha: 0.9),
-                  theme.colorScheme.secondary.withValues(alpha: 0.9),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: theme.colorScheme.primary.withValues(alpha: 0.3),
-                  blurRadius: 22,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-            ),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TweenAnimationBuilder<double>(
-                    tween: Tween(begin: 0.85, end: 1.0),
-                    duration: const Duration(milliseconds: 450),
-                    builder: (context, value, child) => Transform.scale(
-                      scale: value,
-                      child: child,
-                    ),
-                    child: const Icon(
-                      Icons.auto_awesome_rounded,
-                      color: Colors.white,
-                      size: 56,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    "Burst unleashed",
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    phrase,
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: Colors.white.withValues(alpha: 0.9),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 12,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.14),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.28),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.local_fire_department_rounded,
-                          color: Colors.white,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            reward,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildSparkleMeter(1.0, theme),
-                  const SizedBox(height: 14),
-                  Text(
-                    "Keep logging small wins today to overcharge tomorrow's streak.",
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: Colors.white.withValues(alpha: 0.85),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.white,
-                        side: BorderSide(
-                          color: Colors.white.withValues(alpha: 0.5),
-                        ),
-                      ),
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: const Text("Back to pet"),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  String _pickBurstLine(List<String> lines) {
-    if (lines.isEmpty) return "";
-    return lines[_random.nextInt(lines.length)];
   }
 
   void _showUpgradeDialog() {
@@ -1405,6 +1204,13 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
       ),
     );
   }
+}
+
+class _LoggedAmount {
+  const _LoggedAmount({required this.value, required this.unit});
+
+  final double value;
+  final String unit;
 }
 
 class _XpCelebration extends StatelessWidget {

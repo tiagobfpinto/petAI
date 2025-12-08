@@ -18,7 +18,15 @@ from ..services.user_service import UserService
 
 class ActivityService:
     @staticmethod
-    def complete_activity(user_id: int, area_name: str, activity_title: str | None = None) -> dict:
+    def complete_activity(
+        user_id: int,
+        area_name: str,
+        activity_title: str | None = None,
+        *,
+        effort_value: float | None = None,
+        target_value: float | None = None,
+        effort_unit: str | None = None,
+    ) -> dict:
         user = UserDAO.get_by_id(user_id)
         if not user:
             raise LookupError("User not found")
@@ -30,6 +38,26 @@ class ActivityService:
         activity_type = ActivityTypeDAO.primary_for_area(user_id, area.id) or ActivityTypeDAO.get_or_create(
             user_id, area.id, area.name, level="sometimes"
         )
+        if target_value is None and getattr(activity_type, "_plan_dict", None):
+            try:
+                plan = activity_type._plan_dict()
+                per_day = plan.get("per_day_goal_value")
+                if per_day is None:
+                    days = plan.get("days") or []
+                    weekly_total = plan.get("weekly_goal_value")
+                    if weekly_total is not None and days:
+                        per_day = float(weekly_total) / max(len(days), 1)
+                if per_day:
+                    target_value = float(per_day)
+                if effort_unit is None:
+                    effort_unit = plan.get("weekly_goal_unit")
+            except Exception:
+                pass
+        if effort_value is not None:
+            try:
+                effort_value = float(effort_value)
+            except (TypeError, ValueError):
+                effort_value = None
         level = activity_type.level if activity_type else None
         base_xp = INTEREST_LEVEL_XP.get(level or "sometimes", 0)
         if base_xp <= 0:
@@ -55,7 +83,14 @@ class ActivityService:
         user.last_activity_at = now
 
         xp_multiplier = UserService.streak_multiplier(streak)
-        xp_amount = int(round(base_xp * xp_multiplier))
+        effort_boost = 1.0
+        if effort_value is not None and target_value is not None and target_value > 0:
+            try:
+                ratio = float(effort_value) / float(target_value)
+                effort_boost = min(2.0, max(0.5, ratio))
+            except Exception:
+                effort_boost = 1.0
+        xp_amount = max(1, int(round(base_xp * xp_multiplier * effort_boost)))
 
         activity = ActivityDAO.log(
             user_id=user_id,
@@ -81,6 +116,10 @@ class ActivityService:
             "streak_current": user.streak_current,
             "streak_best": user.streak_best,
             "xp_multiplier": xp_multiplier,
+            "effort_value": effort_value,
+            "effort_target": target_value,
+            "effort_unit": effort_unit,
+            "effort_boost": effort_boost,
         }
 
     @staticmethod

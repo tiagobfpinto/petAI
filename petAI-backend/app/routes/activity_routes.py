@@ -26,6 +26,8 @@ def _resolve_user_id() -> int | None:
 def complete_activity():
     payload = request.get_json(silent=True) or {}
     area_name = (payload.get("area") or "").strip()
+    value = payload.get("value") if payload.get("value") is not None else payload.get("amount")
+    unit = (payload.get("unit") or "").strip() or None
     user_id = _resolve_user_id()
 
     if not user_id:
@@ -35,7 +37,12 @@ def complete_activity():
         return error_response("area is required", 400)
 
     try:
-        result = ActivityService.complete_activity(user_id, area_name)
+        result = ActivityService.complete_activity(
+            user_id,
+            area_name,
+            effort_value=value if value is None else float(value),
+            effort_unit=unit,
+        )
         db.session.commit()
     except LookupError as exc:
         db.session.rollback()
