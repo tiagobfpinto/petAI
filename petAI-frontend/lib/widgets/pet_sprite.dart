@@ -1,20 +1,134 @@
 import 'package:flutter/material.dart';
 
+import '../data/cosmetic_catalog.dart';
+import '../models/cosmetics.dart';
+import 'cosmetic_art.dart';
+
 class PetSprite extends StatelessWidget {
   const PetSprite({
     super.key,
     required this.stage,
     required this.mood,
+    this.cosmetics,
   });
 
   final String stage;
   final int mood;
+  final PetCosmeticLoadout? cosmetics;
 
   @override
   Widget build(BuildContext context) {
-    return CustomPaint(
-      painter: _PetPainter(stage: stage, mood: mood),
+    final loadout = cosmetics;
+    final hasCosmetics = loadout != null && !loadout.isEmpty;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            if (hasCosmetics)
+              Positioned.fill(
+                child: CustomPaint(
+                  painter: _PetCosmeticPainter(
+                    cosmetics: loadout!,
+                    layer: _CosmeticLayer.background,
+                  ),
+                ),
+              ),
+            Positioned.fill(
+              child: CustomPaint(
+                painter: _PetPainter(stage: stage, mood: mood),
+              ),
+            ),
+            if (hasCosmetics)
+              Positioned.fill(
+                child: CustomPaint(
+                  painter: _PetCosmeticPainter(
+                    cosmetics: loadout!,
+                    layer: _CosmeticLayer.foreground,
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
+  }
+}
+
+enum _CosmeticLayer { background, foreground }
+
+class _PetCosmeticPainter extends CustomPainter {
+  const _PetCosmeticPainter({
+    required this.cosmetics,
+    required this.layer,
+  });
+
+  final PetCosmeticLoadout cosmetics;
+  final _CosmeticLayer layer;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final width = size.width == 0 ? 160.0 : size.width;
+    final height = size.height == 0 ? 160.0 : size.height;
+    final center = Offset(width / 2, height / 2);
+    final baseRadius = width * 0.32;
+    final bodyRect = Rect.fromCenter(
+      center: center,
+      width: baseRadius * 2,
+      height: baseRadius * 2.1,
+    );
+
+    cosmetics.equipped.forEach((slot, itemId) {
+      final isBackground = slot == CosmeticSlot.back;
+      if (layer == _CosmeticLayer.background && !isBackground) return;
+      if (layer == _CosmeticLayer.foreground && isBackground) return;
+
+      final def = CosmeticCatalog.definitionFor(itemId);
+      final artKey = (def?.previewKey ?? cosmeticSlotKey(slot));
+      final color = def?.accent ?? Colors.blueGrey.shade400;
+      final rect = _slotRect(bodyRect, slot);
+      CosmeticArt.paint(canvas, rect, artKey, color);
+    });
+  }
+
+  Rect _slotRect(Rect bodyRect, CosmeticSlot slot) {
+    switch (slot) {
+      case CosmeticSlot.head:
+        return Rect.fromCenter(
+          center: Offset(bodyRect.center.dx, bodyRect.top - bodyRect.height * 0.18),
+          width: bodyRect.width * 0.9,
+          height: bodyRect.height * 0.35,
+        );
+      case CosmeticSlot.face:
+        return Rect.fromCenter(
+          center: Offset(bodyRect.center.dx, bodyRect.center.dy - bodyRect.height * 0.1),
+          width: bodyRect.width * 0.82,
+          height: bodyRect.height * 0.26,
+        );
+      case CosmeticSlot.neck:
+        return Rect.fromCenter(
+          center: Offset(bodyRect.center.dx, bodyRect.bottom - bodyRect.height * 0.22),
+          width: bodyRect.width * 0.88,
+          height: bodyRect.height * 0.24,
+        );
+      case CosmeticSlot.feet:
+        return Rect.fromCenter(
+          center: Offset(bodyRect.center.dx, bodyRect.bottom + bodyRect.height * 0.02),
+          width: bodyRect.width * 0.96,
+          height: bodyRect.height * 0.32,
+        );
+      case CosmeticSlot.back:
+        return Rect.fromCenter(
+          center: Offset(bodyRect.center.dx, bodyRect.center.dy + bodyRect.height * 0.05),
+          width: bodyRect.width * 1.16,
+          height: bodyRect.height * 1.04,
+        );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _PetCosmeticPainter oldDelegate) {
+    return oldDelegate.cosmetics != cosmetics || oldDelegate.layer != layer;
   }
 }
 

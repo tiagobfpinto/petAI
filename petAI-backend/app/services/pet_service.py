@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections import defaultdict
+
 from ..config import PET_EVOLUTIONS
 from ..dao.petDAO import PetDAO
 from ..models import db
@@ -7,6 +9,9 @@ from ..models.pet import Pet
 
 
 class PetService:
+    _COSMETIC_SLOTS = ("head", "face", "neck", "feet", "back")
+    _cosmetic_loadouts: defaultdict[int, dict[str, str]] = defaultdict(dict)
+
     @staticmethod
     def create_pet(user_id: int) -> Pet:
         existing = PetDAO.get_by_user_id(user_id)
@@ -84,3 +89,45 @@ class PetService:
         pet.next_evolution_xp = PET_EVOLUTIONS[2]["xp_required"]
         PetDAO.save(pet)
         return pet
+
+    # --- Cosmetics helpers ---
+    @classmethod
+    def _normalized_slot(cls, slot: str | None) -> str | None:
+        if not slot:
+            return None
+        normalized = slot.strip().lower()
+        return normalized if normalized in cls._COSMETIC_SLOTS else None
+
+    @classmethod
+    def cosmetic_loadout(cls, user_id: int) -> dict[str, str]:
+        loadout = cls._cosmetic_loadouts.get(user_id) or {}
+        # filter out any legacy/invalid slots
+        return {
+            slot: item_id
+            for slot, item_id in loadout.items()
+            if slot in cls._COSMETIC_SLOTS and item_id
+        }
+
+    @classmethod
+    def equip_cosmetic(cls, user_id: int, slot: str, item_id: str) -> dict[str, str]:
+        normalized_slot = cls._normalized_slot(slot)
+        if not normalized_slot or not item_id:
+            return cls.cosmetic_loadout(user_id)
+        loadout = cls._cosmetic_loadouts[user_id]
+        loadout[normalized_slot] = item_id
+        return cls.cosmetic_loadout(user_id)
+
+    @classmethod
+    def clear_cosmetics(cls, user_id: int) -> dict[str, str]:
+        cls._cosmetic_loadouts.pop(user_id, None)
+        return {}
+
+    @classmethod
+    def cosmetic_payload(cls, user_id: int) -> dict:
+        return {"equipped": cls.cosmetic_loadout(user_id)}
+
+    @classmethod
+    def pet_payload(cls, pet: Pet) -> dict:
+        payload = pet.to_dict()
+        payload["cosmetics"] = cls.cosmetic_payload(pet.user_id)
+        return payload

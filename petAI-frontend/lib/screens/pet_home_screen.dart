@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import '../models/activity_log.dart';
 import '../models/daily_activity.dart';
 import '../models/interest.dart';
+import '../models/cosmetics.dart';
+import '../models/activity_type.dart';
 import '../models/pet_state.dart';
 import '../models/user_interest.dart';
 import '../models/user_session.dart';
@@ -56,6 +58,8 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
   List<DailyActivity> _dailyActivities = [];
   bool _loadingDaily = true;
   bool _hadDailyToday = false;
+  List<ActivityType> _activityTypes = [];
+  bool _loadingActivityTypes = false;
   List<ActivityLogEntry> _activities = [];
   bool _loadingActivities = true;
   Set<int> _completedToday = {};
@@ -74,6 +78,7 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
     _xpMultiplier = widget.session.streakMultiplier;
     _loadDailyActivities();
     _loadActivities();
+    _loadActivityTypes();
   }
 
   @override
@@ -167,6 +172,12 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
                 onBalanceChanged: (balance) {
                   setState(() {
                     _pet = _pet.copyWith(coins: balance);
+                  });
+                  widget.onPetChanged(_pet);
+                },
+                onCosmeticsChanged: (PetCosmeticLoadout loadout) {
+                  setState(() {
+                    _pet = _pet.copyWith(cosmetics: loadout);
                   });
                   widget.onPetChanged(_pet);
                 },
@@ -271,8 +282,8 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
       width: double.infinity,
       child: OutlinedButton.icon(
         icon: const Icon(Icons.add_rounded),
-        label: const Text("Create new activity"),
-        onPressed: _openNewActivityForm,
+        label: const Text("Add new activity"),
+        onPressed: _openAddActivityOverlay,
       ),
     );
   }
@@ -321,7 +332,7 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
                 ),
                 const SizedBox(height: 12),
                 OutlinedButton(
-                  onPressed: _openNewActivityForm,
+                  onPressed: _openAddActivityOverlay,
                   child: const Text("Add activity"),
                 ),
               ],
@@ -351,47 +362,209 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
     }
   }
 
+  Future<void> _loadActivityTypes() async {
+    setState(() => _loadingActivityTypes = true);
+    final response = await widget.apiService.fetchActivityTypes();
+    if (!mounted) return;
+    if (response.isSuccess && response.data != null) {
+      setState(() {
+        _activityTypes = response.data!;
+        _loadingActivityTypes = false;
+      });
+    } else {
+      setState(() => _loadingActivityTypes = false);
+      widget.onError(response.error ?? "Failed to load activity types");
+    }
+  }
+
+  Future<void> _openAddActivityOverlay() async {
+    if (_activityTypes.isEmpty && !_loadingActivityTypes) {
+      await _loadActivityTypes();
+    }
+    if (!mounted) return;
+    final result = await showModalBottomSheet<_ActivityPickerResult>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => _ActivityTypePickerSheet(
+        activityTypes: _activityTypes,
+        isLoading: _loadingActivityTypes,
+      ),
+    );
+    if (result == null) return;
+    if (result.createNew) {
+      await _openNewActivityForm();
+    } else if (result.type != null) {
+      await _startActivityFromType(result.type!);
+    }
+  }
+
   Future<void> _openNewActivityForm() async {
-    final result = await Navigator.of(context).push<_NewActivityData>(
+    final result = await Navigator.of(context).push<_ActivityFormResult>(
       MaterialPageRoute(
         builder: (_) => _NewActivityScreen(
           interests: _interests,
         ),
       ),
     );
-    if (result == null) return;
+    if (result == null || result.deleted) return;
+    final data = result.data;
+    if (data == null) return;
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text("Saving activity...")),
     );
     final response = await widget.apiService.createActivity(
-      name: result.name,
-      area: result.areaName,
-      weeklyGoalValue: result.weeklyGoalValue,
-      weeklyGoalUnit: result.weeklyGoalUnit,
-      days: result.days,
-      rrule: result.rrule,
+      name: data.name,
+      area: data.areaName,
+      weeklyGoalValue: data.weeklyGoalValue,
+      weeklyGoalUnit: data.weeklyGoalUnit,
+      days: data.days,
+      rrule: data.rrule,
     );
     if (!mounted) return;
     if (response.isSuccess) {
-      final weeklyText = result.weeklyGoalValue != null
-          ? "Weekly goal: ${result.weeklyGoalValue} ${result.weeklyGoalUnit} on ${result.days.isEmpty ? "flex days" : result.days.join(", ").toUpperCase()}"
+      final weeklyText = data.weeklyGoalValue != null
+          ? "Weekly goal: ${data.weeklyGoalValue} ${data.weeklyGoalUnit} on ${data.days.isEmpty ? "flex days" : data.days.join(", ").toUpperCase()}"
           : "No weekly goal set";
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            "Created \"${result.name}\" for ${result.areaName}. $weeklyText",
+            "Created \"${data.name}\" for ${data.areaName}. $weeklyText",
           ),
         ),
       );
       await _loadDailyActivities();
       await _loadActivities();
+      await _loadActivityTypes();
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(response.error ?? "Failed to create activity"),
         ),
       );
+    }
+  }
+
+  Future<void> _openEditDailyActivity(DailyActivity activity) async {
+    ActivityType? type;
+    try {
+      type = _activityTypes.firstWhere((t) => t.id == activity.activityTypeId);
+    } catch (_) {
+      type = null;
+    }
+    if (type == null) {
+      await _loadActivityTypes();
+      try {
+        type = _activityTypes.firstWhere((t) => t.id == activity.activityTypeId);
+      } catch (_) {
+        type = null;
+      }
+    }
+    if (type == null) {
+      widget.onError("Could not load activity details to edit");
+      return;
+    }
+
+    final result = await Navigator.of(context).push<_ActivityFormResult>(
+      MaterialPageRoute(
+        builder: (_) => _NewActivityScreen(
+          interests: _interests,
+          initialType: type,
+          allowDelete: true,
+        ),
+      ),
+    );
+    if (result == null) return;
+    if (result.deleted) {
+      await _deleteActivityType(type.id);
+      return;
+    }
+    final data = result.data;
+    if (data == null) return;
+    await _updateActivityType(type.id, data);
+  }
+
+  Future<void> _startActivityFromType(ActivityType type) async {
+    final plan = type.plan;
+    final planDays = plan?.days ?? [];
+    final weeklyGoalValue =
+        plan != null && plan.weeklyGoalValue > 0 ? plan.weeklyGoalValue : null;
+    final weeklyGoalUnit =
+        plan != null && plan.weeklyGoalUnit.isNotEmpty ? plan.weeklyGoalUnit : null;
+    final areaName = type.areaName.isNotEmpty ? type.areaName : type.name;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("Adding ${type.name}...")),
+    );
+
+    final response = await widget.apiService.createActivity(
+      name: type.name,
+      area: areaName,
+      weeklyGoalValue: weeklyGoalValue,
+      weeklyGoalUnit: weeklyGoalUnit,
+      days: planDays.isEmpty ? null : planDays,
+      rrule: type.rrule,
+    );
+    if (!mounted) return;
+    if (response.isSuccess) {
+      final goalText = weeklyGoalValue != null
+          ? " • weekly ${weeklyGoalValue.toString()} ${weeklyGoalUnit ?? ""}".trim()
+          : "";
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            "Added \"${type.name}\"${areaName != type.name ? " in $areaName" : ""}$goalText",
+          ),
+        ),
+      );
+      await _loadDailyActivities();
+      await _loadActivities();
+    } else {
+      widget.onError(response.error ?? "Failed to add activity");
+    }
+  }
+
+  Future<void> _updateActivityType(int activityTypeId, _NewActivityData data) async {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Updating activity...")),
+    );
+    final response = await widget.apiService.updateActivityType(
+      activityTypeId: activityTypeId,
+      name: data.name,
+      area: data.areaName,
+      weeklyGoalValue: data.weeklyGoalValue,
+      weeklyGoalUnit: data.weeklyGoalUnit,
+      days: data.days,
+      rrule: data.rrule,
+    );
+    if (!mounted) return;
+    if (response.isSuccess) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Updated \"${data.name}\"")),
+      );
+      await _loadDailyActivities();
+      await _loadActivities();
+      await _loadActivityTypes();
+    } else {
+      widget.onError(response.error ?? "Failed to update activity");
+    }
+  }
+
+  Future<void> _deleteActivityType(int activityTypeId) async {
+    final response = await widget.apiService.deleteActivityType(activityTypeId);
+    if (!mounted) return;
+    if (response.isSuccess) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Activity deleted")),
+      );
+      await _loadDailyActivities();
+      await _loadActivities();
+      await _loadActivityTypes();
+    } else {
+      widget.onError(response.error ?? "Failed to delete activity");
     }
   }
 
@@ -415,7 +588,11 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
           SizedBox(
             height: 180,
             width: double.infinity,
-            child: PetSprite(stage: _pet.stage, mood: _pet.level),
+            child: PetSprite(
+              stage: _pet.stage,
+              mood: _pet.level,
+              cosmetics: _pet.cosmetics,
+            ),
           ),
           const SizedBox(height: 12),
           Text(
@@ -706,7 +883,7 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
                   ),
                 ),
                 TextButton(
-                  onPressed: widget.onEditInterests,
+                  onPressed: () => _openEditDailyActivity(activity),
                   child: const Text("Edit"),
                 ),
               ],
@@ -828,6 +1005,7 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
     await Future.wait([
       _loadDailyActivities(),
       _loadActivities(),
+      _loadActivityTypes(),
       widget.onRefreshInterests(),
       _refreshPetState(),
     ]);
@@ -919,6 +1097,7 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
     final response = await widget.apiService.fetchPet();
     if (!mounted) return;
     if (response.isSuccess && response.data != null) {
+      setState(() => _pet = response.data!);
       widget.onPetChanged(response.data!);
     } else {
       widget.onError(response.error ?? "Failed to refresh pet");
@@ -1264,6 +1443,129 @@ class _XpCelebration extends StatelessWidget {
   }
 }
 
+class _ActivityTypePickerSheet extends StatelessWidget {
+  const _ActivityTypePickerSheet({
+    required this.activityTypes,
+    required this.isLoading,
+  });
+
+  final List<ActivityType> activityTypes;
+  final bool isLoading;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final height = MediaQuery.of(context).size.height * 0.65;
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          bottom: 16 + MediaQuery.of(context).viewInsets.bottom,
+          top: 12,
+        ),
+        child: SizedBox(
+          height: height,
+          child: Stack(
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 50,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade400,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    "Add new activity",
+                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    "Pick an existing type to schedule it again or create a new one.",
+                    style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey.shade700),
+                  ),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: isLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : activityTypes.isEmpty
+                            ? Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.history_rounded, size: 40, color: Colors.grey),
+                                    const SizedBox(height: 12),
+                                    const Text("No activity types yet"),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      "Create one with the + button.",
+                                      style: TextStyle(color: Colors.grey.shade700),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : ListView.separated(
+                                itemCount: activityTypes.length,
+                                separatorBuilder: (_, __) => const Divider(height: 1),
+                                itemBuilder: (context, index) {
+                                  final type = activityTypes[index];
+                                  final subtitleParts = <String>[];
+                                  if (type.areaName.isNotEmpty) {
+                                    subtitleParts.add(type.areaName);
+                                  }
+                                  final plan = type.plan;
+                                  if (plan != null && plan.weeklyGoalValue > 0) {
+                                    final daysLabel =
+                                        plan.days.isNotEmpty ? " • ${plan.days.join(", ").toUpperCase()}" : "";
+                                    subtitleParts.add(
+                                        "Goal: ${plan.weeklyGoalValue} ${plan.weeklyGoalUnit}$daysLabel");
+                                  }
+                                  final subtitle =
+                                      subtitleParts.isEmpty ? null : subtitleParts.join(" • ");
+                                  return ListTile(
+                                    leading: const Icon(Icons.history_rounded),
+                                    title: Text(type.name),
+                                    subtitle: subtitle != null ? Text(subtitle) : null,
+                                    trailing: const Icon(Icons.chevron_right),
+                                    onTap: () =>
+                                        Navigator.of(context).pop(_ActivityPickerResult(type: type)),
+                                  );
+                                },
+                              ),
+                  ),
+                ],
+              ),
+              Positioned(
+                bottom: 0,
+                right: 0,
+                child: FloatingActionButton(
+                  onPressed: () =>
+                      Navigator.of(context).pop(const _ActivityPickerResult(createNew: true)),
+                  child: const Icon(Icons.add_rounded),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ActivityPickerResult {
+  const _ActivityPickerResult({this.type, this.createNew = false});
+
+  final ActivityType? type;
+  final bool createNew;
+}
+
 class _NewActivityData {
   _NewActivityData({
     required this.name,
@@ -1273,6 +1575,7 @@ class _NewActivityData {
     this.weeklyGoalUnit,
     this.days = const [],
     this.rrule,
+    this.activityTypeId,
   });
 
   final String name;
@@ -1282,14 +1585,28 @@ class _NewActivityData {
   final String? weeklyGoalUnit;
   final List<String> days;
   final String? rrule;
+  final int? activityTypeId;
+}
+
+class _ActivityFormResult {
+  const _ActivityFormResult({this.data, this.deleted = false});
+
+  final _NewActivityData? data;
+  final bool deleted;
 }
 
 enum _RecurrenceOption { none, daily, weekly, monthly }
 
 class _NewActivityScreen extends StatefulWidget {
-  const _NewActivityScreen({required this.interests});
+  const _NewActivityScreen({
+    required this.interests,
+    this.initialType,
+    this.allowDelete = false,
+  });
 
   final List<UserInterest> interests;
+  final ActivityType? initialType;
+  final bool allowDelete;
 
   @override
   State<_NewActivityScreen> createState() => _NewActivityScreenState();
@@ -1307,6 +1624,92 @@ class _NewActivityScreenState extends State<_NewActivityScreen> {
   final Set<String> _selectedDays = {};
   _RecurrenceOption _recurrence = _RecurrenceOption.none;
   int _monthlyDay = 1;
+  ActivityType? get _initialType => widget.initialType;
+  bool get _isEditing => _initialType != null;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_isEditing) {
+      _prefillFromActivityType();
+    }
+  }
+
+  void _prefillFromActivityType() {
+    final type = _initialType;
+    if (type == null) return;
+    _nameCtrl.text = type.name;
+
+    final areaName = type.areaName.isNotEmpty ? type.areaName : type.name;
+    UserInterest? match;
+    try {
+      match = widget.interests
+          .firstWhere((interest) => interest.name.toLowerCase() == areaName.toLowerCase());
+    } catch (_) {
+      match = null;
+    }
+    if (match != null) {
+      _selectedInterest = match.name;
+      _useCustomArea = false;
+    } else {
+      _useCustomArea = true;
+      _customAreaCtrl.text = areaName;
+    }
+
+    final plan = type.plan;
+    if (plan != null && plan.weeklyGoalValue > 0) {
+      _enableWeeklyGoal = true;
+      _weeklyGoalCtrl.text = plan.weeklyGoalValue.toString();
+      _weeklyUnitCtrl.text = plan.weeklyGoalUnit;
+      _selectedDays.addAll(plan.days.map((d) => d.toLowerCase()));
+      _recurrence = _RecurrenceOption.weekly;
+    }
+
+    _applyRrule(type.rrule ?? "");
+    if (_recurrence == _RecurrenceOption.none && _selectedDays.isNotEmpty) {
+      _recurrence = _RecurrenceOption.weekly;
+    }
+  }
+
+  void _applyRrule(String rrule) {
+    if (rrule.isEmpty) return;
+    final upper = rrule.toUpperCase();
+    if (upper.contains("FREQ=DAILY")) {
+      _recurrence = _RecurrenceOption.daily;
+      return;
+    }
+    if (upper.contains("FREQ=WEEKLY")) {
+      _recurrence = _RecurrenceOption.weekly;
+      final match = RegExp(r"BYDAY=([^;]+)").firstMatch(upper);
+      if (match != null) {
+        final tokens = match.group(1)!.split(",");
+        const map = {
+          "MO": "mon",
+          "TU": "tue",
+          "WE": "wed",
+          "TH": "thu",
+          "FR": "fri",
+          "SA": "sat",
+          "SU": "sun",
+        };
+        for (final token in tokens) {
+          final normalized = map[token.trim()] ?? "";
+          if (normalized.isNotEmpty) _selectedDays.add(normalized);
+        }
+      }
+      return;
+    }
+    if (upper.contains("FREQ=MONTHLY")) {
+      _recurrence = _RecurrenceOption.monthly;
+      final match = RegExp(r"BYMONTHDAY=([0-9]{1,2})").firstMatch(upper);
+      if (match != null) {
+        final value = int.tryParse(match.group(1) ?? "");
+        if (value != null && value >= 1 && value <= 28) {
+          _monthlyDay = value;
+        }
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -1355,7 +1758,7 @@ class _NewActivityScreenState extends State<_NewActivityScreen> {
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: const Text("New activity"),
+        title: Text(_isEditing ? "Edit activity" : "New activity"),
       ),
       body: SafeArea(
         child: Padding(
@@ -1462,7 +1865,7 @@ class _NewActivityScreenState extends State<_NewActivityScreen> {
                     ),
                   ),
                 ],
-                if (_recurrence == _RecurrenceOption.weekly || _enableWeeklyGoal) ...[
+                if (_recurrence == _RecurrenceOption.weekly) ...[
                   const SizedBox(height: 12),
                   Text(
                     "Days",
@@ -1524,6 +1927,17 @@ class _NewActivityScreenState extends State<_NewActivityScreen> {
                     onPressed: _submit,
                   ),
                 ),
+                if (_isEditing && widget.allowDelete) ...[
+                  const SizedBox(height: 12),
+                  TextButton.icon(
+                    icon: const Icon(Icons.delete_forever_rounded, color: Colors.red),
+                    label: const Text(
+                      "Delete activity",
+                      style: TextStyle(color: Colors.red),
+                    ),
+                    onPressed: _confirmDelete,
+                  ),
+                ],
               ],
             ),
           ),
@@ -1564,17 +1978,44 @@ class _NewActivityScreenState extends State<_NewActivityScreen> {
     }
     final areaName = _useCustomArea ? _customAreaCtrl.text.trim() : (_selectedInterest ?? "");
     Navigator.of(context).pop(
-      _NewActivityData(
-        name: _nameCtrl.text.trim(),
-        areaName: areaName,
-        isNewArea: _useCustomArea,
-        weeklyGoalValue: weeklyValue,
-        weeklyGoalUnit: _enableWeeklyGoal ? _weeklyUnitCtrl.text.trim() : null,
-        days: (_enableWeeklyGoal || _recurrence == _RecurrenceOption.weekly)
-            ? _selectedDays.toList()
-            : const [],
-        rrule: rrule,
+      _ActivityFormResult(
+        data: _NewActivityData(
+          name: _nameCtrl.text.trim(),
+          areaName: areaName,
+          isNewArea: _useCustomArea,
+          weeklyGoalValue: weeklyValue,
+          weeklyGoalUnit: _enableWeeklyGoal ? _weeklyUnitCtrl.text.trim() : null,
+          days:
+              _recurrence == _RecurrenceOption.weekly ? _selectedDays.toList() : const [],
+          rrule: rrule,
+          activityTypeId: _initialType?.id,
+        ),
       ),
     );
+  }
+
+  Future<void> _confirmDelete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Delete activity"),
+        content: const Text(
+          "This will remove the activity and its upcoming daily tasks. Continue?",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text("Delete"),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    Navigator.of(context).pop(const _ActivityFormResult(deleted: true));
   }
 }

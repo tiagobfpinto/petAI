@@ -11,6 +11,7 @@ import '../models/pet_state.dart';
 import '../models/progression_snapshot.dart';
 import '../models/daily_activity.dart';
 import '../models/session_bootstrap.dart';
+import '../models/activity_type.dart';
 import '../models/user_interest.dart';
 import '../models/user_session.dart';
 import '../models/shop.dart';
@@ -466,6 +467,98 @@ class ApiService {
       }
       return ApiResponse.failure(
         decoded["error"] as String? ?? "Failed to create activity",
+        statusCode: response.statusCode,
+      );
+    } catch (err) {
+      return ApiResponse.failure("Network error: $err");
+    }
+  }
+
+  Future<ApiResponse<List<ActivityType>>> fetchActivityTypes() async {
+    await _ensureTokenLoaded();
+    try {
+      final response = await _client.get(
+        _uri("/activities/types"),
+        headers: _headers,
+      );
+      final payload = _decode(response.body);
+      final data = _data(payload);
+      if (response.statusCode == 200) {
+        final items = (data["activity_types"] as List<dynamic>? ?? [])
+            .whereType<Map<String, dynamic>>()
+            .map(ActivityType.fromJson)
+            .toList();
+        return ApiResponse.success(items, statusCode: response.statusCode);
+      }
+      return ApiResponse.failure(
+        payload["error"] as String? ?? "Failed to load activity types",
+        statusCode: response.statusCode,
+      );
+    } catch (err) {
+      return ApiResponse.failure("Network error: $err");
+    }
+  }
+
+  Future<ApiResponse<Map<String, dynamic>>> updateActivityType({
+    required int activityTypeId,
+    required String name,
+    required String area,
+    double? weeklyGoalValue,
+    String? weeklyGoalUnit,
+    List<String>? days,
+    String? rrule,
+  }) async {
+    await _ensureTokenLoaded();
+    try {
+      final Map<String, dynamic> payload = {
+        "name": name,
+        "area": area,
+      };
+      if (weeklyGoalValue != null) payload["weekly_goal_value"] = weeklyGoalValue;
+      if (weeklyGoalUnit != null && weeklyGoalUnit.trim().isNotEmpty) {
+        payload["weekly_goal_unit"] = weeklyGoalUnit.trim();
+      }
+      if (days != null && days.isNotEmpty) {
+        payload["days"] = List<String>.from(days);
+      }
+      if (rrule != null && rrule.trim().isNotEmpty) {
+        payload["rrule"] = rrule.trim();
+      }
+      final response = await _client.put(
+        _uri("/activities/types/$activityTypeId"),
+        headers: _headers,
+        body: jsonEncode(payload),
+      );
+      final decoded = _decode(response.body);
+      final data = _data(decoded);
+      if (response.statusCode == 200) {
+        return ApiResponse.success(
+          data is Map<String, dynamic> ? data : <String, dynamic>{},
+          statusCode: response.statusCode,
+        );
+      }
+      return ApiResponse.failure(
+        decoded["error"] as String? ?? "Failed to update activity",
+        statusCode: response.statusCode,
+      );
+    } catch (err) {
+      return ApiResponse.failure("Network error: $err");
+    }
+  }
+
+  Future<ApiResponse<void>> deleteActivityType(int activityTypeId) async {
+    await _ensureTokenLoaded();
+    try {
+      final response = await _client.delete(
+        _uri("/activities/types/$activityTypeId"),
+        headers: _headers,
+      );
+      if (response.statusCode == 200) {
+        return ApiResponse.success(null, statusCode: response.statusCode);
+      }
+      final payload = _decode(response.body);
+      return ApiResponse.failure(
+        payload["error"] as String? ?? "Failed to delete activity",
         statusCode: response.statusCode,
       );
     } catch (err) {

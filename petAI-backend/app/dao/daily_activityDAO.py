@@ -62,3 +62,61 @@ class DailyActivityDAO:
             activity.xp_awarded = xp_awarded
         db.session.add(activity)
         return activity
+
+    @staticmethod
+    def delete_pending_for_type(user_id: int, activity_type_id: int, *, start_date: date | None = None) -> int:
+        query = DailyActivity.query.filter(
+            and_(
+                DailyActivity.user_id == user_id,
+                DailyActivity.activity_type_id == activity_type_id,
+                DailyActivity.status == "pending",
+            )
+        )
+        if start_date is not None:
+            query = query.filter(DailyActivity.todo_date >= start_date)
+        deleted = query.delete(synchronize_session=False)
+        db.session.flush()
+        return deleted
+
+    @staticmethod
+    def recycle_or_create_for_today(
+        *,
+        user_id: int,
+        interest_id: int,
+        activity_type_id: int,
+        goal_id: int | None,
+        title: str,
+        target_date: date,
+    ) -> DailyActivity:
+        existing = (
+            DailyActivity.query.filter(
+                and_(
+                    DailyActivity.user_id == user_id,
+                    DailyActivity.activity_type_id == activity_type_id,
+                    DailyActivity.todo_date == target_date,
+                    DailyActivity.scheduled_for == target_date,
+                    DailyActivity.title == title,
+                )
+            )
+            .limit(1)
+            .first()
+        )
+        if existing:
+            existing.status = "pending"
+            existing.completed_at = None
+            existing.xp_awarded = 0
+            existing.goal_id = goal_id
+            existing.interest_id = interest_id
+            db.session.add(existing)
+            db.session.flush()
+            return existing
+
+        return DailyActivityDAO.create(
+            user_id=user_id,
+            interest_id=interest_id,
+            activity_type_id=activity_type_id,
+            goal_id=goal_id,
+            title=title,
+            scheduled_for=target_date,
+            todo_date=target_date,
+        )

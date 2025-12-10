@@ -78,3 +78,15 @@ class ActivityTypeDAO:
     @staticmethod
     def primary_for_area(user_id: int, area_id: int) -> ActivityType | None:
         return ActivityTypeDAO.primary_for_interest(user_id, area_id)
+
+    @staticmethod
+    def list_for_user(user_id: int) -> list[ActivityType]:
+        return (
+            ActivityType.query.filter(ActivityType.user_id == user_id)
+            .order_by(ActivityType.updated_at.desc())
+            .all()
+        )
+
+    @staticmethod
+    def get_by_id(activity_type_id: int) -> ActivityType | None:
+        return ActivityType.query.filter(ActivityType.id == activity_type_id).first()
