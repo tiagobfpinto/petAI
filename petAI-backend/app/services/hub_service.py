@@ -18,58 +18,76 @@ class HubService:
     # Static catalog we can serve without new tables/migrations.
     _SHOP_ITEMS: list[dict] = [
         {
-            "id": "berry-boost",
-            "name": "Berry Boost",
-            "price": 120,
-            "rarity": "rare",
-            "tag": "Energy",
-            "description": "Sweet berries that add a spark to your next training log.",
-            "accent": "#FF7A9E",
+            "id": "cozy-cap",
+            "name": "Cozy Cap",
+            "price": 140,
+            "rarity": "uncommon",
+            "tag": "Headwear",
+            "description": "A soft knit hat that sits snugly on top of your buddy.",
+            "accent": "#FFB74D",
+            "slot": "head",
+            "image": "hat",
+            "type": "cosmetic",
         },
         {
-            "id": "focus-tea",
-            "name": "Focus Tea",
-            "price": 95,
-            "rarity": "uncommon",
-            "tag": "Focus",
-            "description": "Calming brew that keeps your streak safe for the day.",
-            "accent": "#7C4DFF",
+            "id": "sunny-shades",
+            "name": "Sunny Shades",
+            "price": 120,
+            "rarity": "rare",
+            "tag": "Face",
+            "description": "Tinted sunglasses that add instant cool to every pose.",
+            "accent": "#6DD5ED",
+            "slot": "face",
+            "image": "shades",
+            "type": "cosmetic",
         },
         {
             "id": "trail-sneakers",
             "name": "Trail Sneakers",
             "price": 175,
             "rarity": "epic",
-            "tag": "Speed",
-            "description": "Lightweight sneakers that double XP on your next logged win.",
+            "tag": "Feet",
+            "description": "Comfy kicks that keep the pet light on its toes.",
             "accent": "#00BFA6",
+            "slot": "feet",
+            "image": "sneakers",
+            "type": "cosmetic",
         },
         {
-            "id": "zen-kit",
-            "name": "Zen Starter Kit",
-            "price": 80,
-            "rarity": "common",
-            "tag": "Calm",
-            "description": "Mini rituals to unwind and keep your pet mellow.",
-            "accent": "#6C8BA4",
-        },
-        {
-            "id": "coach-whistle",
-            "name": "Coach Whistle",
-            "price": 140,
+            "id": "leafy-cape",
+            "name": "Leafy Cape",
+            "price": 160,
             "rarity": "rare",
-            "tag": "Guidance",
-            "description": "Calls in a coach to suggest an extra activity idea.",
-            "accent": "#F8B400",
+            "tag": "Back",
+            "description": "A flowing cape stitched with little leaves for forest vibes.",
+            "accent": "#4CAF50",
+            "slot": "back",
+            "image": "cape",
+            "type": "cosmetic",
+        },
+        {
+            "id": "starlit-bowtie",
+            "name": "Starlit Bowtie",
+            "price": 95,
+            "rarity": "uncommon",
+            "tag": "Neck",
+            "description": "A sparkly bowtie that makes every check-in feel like a gala.",
+            "accent": "#CE93D8",
+            "slot": "neck",
+            "image": "bowtie",
+            "type": "cosmetic",
         },
         {
             "id": "glow-collar",
             "name": "Glow Collar",
             "price": 110,
-            "rarity": "uncommon",
-            "tag": "Style",
-            "description": "Cosmetic flair that keeps your buddy visible on the feed.",
+            "rarity": "common",
+            "tag": "Neck",
+            "description": "A luminescent collar so your buddy shines on the feed.",
             "accent": "#4AC2F7",
+            "slot": "neck",
+            "image": "collar",
+            "type": "cosmetic",
         },
     ]
 
@@ -87,14 +105,18 @@ class HubService:
         owned = cls._user_owned_items[user_id]
         if (pet.coins or 0) <= 0 and not owned:
             PetService.add_coins(pet, baseline)
+        loadout = PetService.cosmetic_loadout(user_id)
         items = []
         for entry in cls._SHOP_ITEMS:
             item = dict(entry)
             item["owned"] = entry["id"] in owned
+            if loadout.get(entry.get("slot")) == entry["id"]:
+                item["equipped"] = True
             items.append(item)
         return {
             "balance": pet.coins or 0,
             "items": items,
+            "equipped": loadout,
         }
 
     @classmethod
@@ -112,6 +134,9 @@ class HubService:
         pet = cls._ensure_pet(user_id)
         PetService.spend_coins(pet, item["price"])
         owned.add(item_id)
+        slot = item.get("slot")
+        if slot:
+            PetService.equip_cosmetic(user_id, slot, item_id)
 
         # Tiny XP boost to keep purchases meaningful.
         PetService.add_xp(pet, 5)

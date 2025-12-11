@@ -1,5 +1,6 @@
 import '../utils/test_coins.dart';
 import '../data/pet_evolution_data.dart';
+import 'cosmetics.dart';
 
 class PetState {
   const PetState({
@@ -12,6 +13,7 @@ class PetState {
     required this.petType,
     required this.coins,
     this.currentSprite,
+    this.cosmetics = const PetCosmeticLoadout.empty(),
   });
 
   final int id;
@@ -23,6 +25,7 @@ class PetState {
   final String petType;
   final int coins;
   final String? currentSprite;
+  final PetCosmeticLoadout cosmetics;
 
   factory PetState.fromJson(Map<String, dynamic> json) {
     return PetState(
@@ -35,6 +38,7 @@ class PetState {
       petType: json["pet_type"] as String? ?? "sprout",
       coins: applyTestCoins(json["coins"] as int? ?? 0),
       currentSprite: json["current_sprite"] as String?,
+      cosmetics: PetCosmeticLoadout.fromJson(json["cosmetics"] as Map<String, dynamic>?),
     );
   }
 
@@ -48,6 +52,7 @@ class PetState {
     String? petType,
     int? coins,
     String? currentSprite,
+    PetCosmeticLoadout? cosmetics,
   }) {
     return PetState(
       id: id ?? this.id,
@@ -59,6 +64,7 @@ class PetState {
       petType: petType ?? this.petType,
       coins: coins ?? this.coins,
       currentSprite: currentSprite ?? this.currentSprite,
+      cosmetics: cosmetics ?? this.cosmetics,
     );
   }
 

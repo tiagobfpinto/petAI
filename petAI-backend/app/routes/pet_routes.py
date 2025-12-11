@@ -27,7 +27,7 @@ def get_pet():
 
     pet = PetService.get_pet_by_user(user_id) or PetService.create_pet(user_id)
     db.session.commit()
-    return success_response("Pet state", {"pet": pet.to_dict()})
+    return success_response("Pet state", {"pet": PetService.pet_payload(pet)})
 
 
 @pet_bp.route("/reset", methods=["POST"])
@@ -41,7 +41,7 @@ def reset_pet():
     if not pet:
         return error_response("Pet not found", 404)
     db.session.commit()
-    return success_response("Pet reset", {"pet": pet.to_dict()})
+    return success_response("Pet reset", {"pet": PetService.pet_payload(pet)})
 
 
 @pet_bp.route("/evolve", methods=["POST"])
@@ -60,7 +60,7 @@ def evolve_pet():
     return success_response(
         "Pet evolution checked",
         {
-            "pet": pet.to_dict(),
+            "pet": PetService.pet_payload(pet),
             "evolved": result["evolved"],
         },
     )

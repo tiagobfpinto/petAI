@@ -25,7 +25,7 @@ class UserService:
         pet = PetService.create_pet(user.id)
         db.session.flush()
 
-        return user, pet.to_dict()
+        return user, PetService.pet_payload(pet)
 
     @staticmethod
     def create_guest_user() -> User:
@@ -53,7 +53,7 @@ class UserService:
         streak_multiplier = UserService.streak_multiplier(user.streak_current or 0)
         payload = {
             "user": user.to_dict(),
-            "pet": pet.to_dict(),
+            "pet": PetService.pet_payload(pet),
             "need_interests_setup": user.needs_interest_setup(),
             "trial_days_left": trial_left,
             "streak_multiplier": streak_multiplier,

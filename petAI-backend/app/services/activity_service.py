@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, date
 from dateutil.rrule import rrulestr
 
 from ..config import INTEREST_LEVEL_XP
@@ -213,21 +213,24 @@ class ActivityService:
         else:
             # Create a single task for today when no recurrence is provided.
             today = datetime.now(timezone.utc).date()
-            existing = [
-                a
-                for a in DailyActivityDAO.list_for_user_on_date(user_id, today)
-                if a.activity_type_id == activity_type.id and a.title == activity_name.strip()
-            ]
-            if not existing:
-                DailyActivityDAO.create(
-                    user_id=user_id,
-                    interest_id=area.id,
-                    activity_type_id=activity_type.id,
-                    goal_id=goal.id if goal else None,
-                    title=activity_name.strip(),
-                    scheduled_for=today,
-                    todo_date=today,
-                )
+            DailyActivityDAO.recycle_or_create_for_today(
+                user_id=user_id,
+                interest_id=area.id,
+                activity_type_id=activity_type.id,
+                goal_id=goal.id if goal else None,
+                title=activity_name.strip(),
+                target_date=today,
+            )
+        # Always seed a pending task for today so it appears immediately, even if the recurrence skips today.
+        today = datetime.now(timezone.utc).date()
+        DailyActivityDAO.recycle_or_create_for_today(
+            user_id=user_id,
+            interest_id=area.id,
+            activity_type_id=activity_type.id,
+            goal_id=goal.id if goal else None,
+            title=activity_name.strip(),
+            target_date=today,
+        )
 
         db.session.flush()
 
@@ -235,6 +238,99 @@ class ActivityService:
             "activity_type": activity_type.to_dict(),
             "goal": goal.to_dict() if goal else None,
         }
+
+    @staticmethod
+    def update_activity_type(
+        *,
+        user_id: int,
+        activity_type_id: int,
+        activity_name: str,
+        interest_name: str | None = None,
+        interest_id: int | None = None,
+        weekly_goal_value: float | None = None,
+        weekly_goal_unit: str | None = None,
+        days: list[str] | None = None,
+        rrule: str | None = None,
+    ) -> dict:
+        activity_type = ActivityTypeDAO.get_by_id(activity_type_id)
+        if not activity_type or activity_type.user_id != user_id:
+            raise LookupError("Activity not found")
+
+        if not activity_name.strip():
+            raise ValueError("activity name is required")
+
+        area = None
+        if interest_id is not None:
+            area = AreaDAO.get_by_user_and_id(user_id, interest_id)
+        if area is None and interest_name:
+            area = AreaDAO.get_by_user_and_name(user_id, interest_name.strip())
+        if area is None and interest_name:
+            area = AreaDAO.create(user_id=user_id, name=interest_name.strip())
+            db.session.flush()
+        if not area:
+            raise LookupError("Interest not found for user")
+
+        schedule = ",".join(days) if days else None
+        normalized_unit = (weekly_goal_unit or "").strip() or None
+        if weekly_goal_value is not None and normalized_unit is None:
+            normalized_unit = "minutes"
+
+        activity_type.name = activity_name.strip()
+        activity_type.interest_id = area.id
+        activity_type.weekly_goal_value = weekly_goal_value
+        activity_type.weekly_goal_unit = normalized_unit
+        activity_type.weekly_schedule = schedule
+        activity_type.rrule = rrule.strip() if rrule else None
+
+        goal = None
+        if weekly_goal_value is not None:
+            try:
+                value = float(weekly_goal_value)
+            except (TypeError, ValueError):
+                raise ValueError("weekly_goal_value must be numeric")
+            if value <= 0:
+                raise ValueError("weekly_goal_value must be greater than zero")
+            unit = (normalized_unit or "minutes").strip() or "minutes"
+            expires_at = datetime.now(timezone.utc) + timedelta(days=30)
+            goal = GoalDAO.create(
+                user_id,
+                activity_type.id,
+                title=activity_name.strip(),
+                amount=value,
+                unit=unit,
+                expires_at=expires_at,
+            )
+
+        # Refresh pending daily tasks for this activity type from today onward.
+        today = date.today()
+        DailyActivityDAO.delete_pending_for_type(user_id, activity_type.id, start_date=today)
+        from ..services.daily_activity_service import DailyActivityService  # local import to avoid cycle
+
+        DailyActivityService.ensure_week(user_id, start_date=today, days=7)
+        # Ensure a task exists for today so the UI can render it immediately.
+        DailyActivityDAO.recycle_or_create_for_today(
+            user_id=user_id,
+            interest_id=area.id,
+            activity_type_id=activity_type.id,
+            goal_id=goal.id if goal else None,
+            title=activity_name.strip(),
+            target_date=today,
+        )
+
+        db.session.flush()
+
+        return {
+            "activity_type": activity_type.to_dict(),
+            "goal": goal.to_dict() if goal else None,
+        }
+
+    @staticmethod
+    def delete_activity_type(*, user_id: int, activity_type_id: int) -> None:
+        activity_type = ActivityTypeDAO.get_by_id(activity_type_id)
+        if not activity_type or activity_type.user_id != user_id:
+            raise LookupError("Activity not found")
+        db.session.delete(activity_type)
+        db.session.flush()
 
     @staticmethod
     def _create_daily_tasks_from_rrule(

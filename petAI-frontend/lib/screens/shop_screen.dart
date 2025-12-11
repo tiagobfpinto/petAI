@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../data/cosmetic_catalog.dart';
+import '../models/cosmetics.dart';
 import '../models/shop.dart';
 import '../services/api_service.dart';
 import '../utils/test_coins.dart';
+import '../widgets/cosmetic_art.dart';
 
 class ShopScreen extends StatefulWidget {
   const ShopScreen({
@@ -11,12 +14,14 @@ class ShopScreen extends StatefulWidget {
     required this.onError,
     this.onBalanceChanged,
     this.petCoins,
+    this.onCosmeticsChanged,
   });
 
   final ApiService apiService;
   final void Function(String message) onError;
   final void Function(int balance)? onBalanceChanged;
   final int? petCoins;
+  final void Function(PetCosmeticLoadout loadout)? onCosmeticsChanged;
 
   @override
   State<ShopScreen> createState() => _ShopScreenState();
@@ -40,7 +45,11 @@ class _ShopScreenState extends State<ShopScreen> {
         widget.petCoins != null &&
         widget.petCoins != _state!.balance) {
       setState(() {
-        _state = ShopState(balance: widget.petCoins!, items: _state!.items);
+        _state = ShopState(
+          balance: widget.petCoins!,
+          items: _state!.items,
+          equippedCosmetics: _state!.equippedCosmetics,
+        );
       });
     }
   }
@@ -55,6 +64,7 @@ class _ShopScreenState extends State<ShopScreen> {
         _loading = false;
       });
       widget.onBalanceChanged?.call(response.data!.balance);
+      widget.onCosmeticsChanged?.call(response.data!.equippedCosmetics);
     } else {
       setState(() => _loading = false);
       widget.onError(response.error ?? "Failed to load shop");
@@ -70,6 +80,7 @@ class _ShopScreenState extends State<ShopScreen> {
     if (response.isSuccess && response.data != null) {
       setState(() => _state = response.data);
       widget.onBalanceChanged?.call(response.data!.balance);
+      widget.onCosmeticsChanged?.call(response.data!.equippedCosmetics);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Purchased ${item.name}!")),
       );
@@ -78,24 +89,35 @@ class _ShopScreenState extends State<ShopScreen> {
       final insufficient = errorText.contains("insufficient") || errorText.contains("not enough");
       if (insufficient && spendTestCoins(item.price) && _state != null) {
         final updatedBalance = (_state!.balance - item.price).clamp(0, 1 << 31);
+        final currentLoadout = _state!.equippedCosmetics;
+        final newLoadout =
+            item.slot != null ? currentLoadout.copyWithSlot(item.slot!, item.id) : currentLoadout;
         final updatedItems = _state!.items.map((i) {
-          if (i.id == item.id) {
-            return ShopItem(
-              id: i.id,
-              name: i.name,
-              price: i.price,
-              rarity: i.rarity,
-              tag: i.tag,
-              description: i.description,
-              accent: i.accent,
-              owned: true,
-            );
-          }
-          return i;
+          final isEquipped = i.slot != null && newLoadout.itemForSlot(i.slot!) == i.id;
+          final isOwned = i.id == item.id ? true : i.owned;
+          return ShopItem(
+            id: i.id,
+            name: i.name,
+            price: i.price,
+            rarity: i.rarity,
+            tag: i.tag,
+            description: i.description,
+            accent: i.accent,
+            owned: isOwned,
+            slot: i.slot,
+            imageKey: i.imageKey,
+            equipped: isEquipped,
+            type: i.type,
+          );
         }).toList();
-        final fallbackState = ShopState(balance: updatedBalance, items: updatedItems);
+        final fallbackState = ShopState(
+          balance: updatedBalance,
+          items: updatedItems,
+          equippedCosmetics: newLoadout,
+        );
         setState(() => _state = fallbackState);
         widget.onBalanceChanged?.call(updatedBalance);
+        widget.onCosmeticsChanged?.call(newLoadout);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("Purchased ${item.name}! (mock spend)")),
         );
@@ -260,6 +282,10 @@ class _ShopScreenState extends State<ShopScreen> {
     final theme = Theme.of(context);
     final isBuying = _buyingId == item.id;
     final owned = item.owned;
+    final equipped = _state?.isEquipped(item) ?? item.equipped;
+    final artKey =
+        item.imageKey ?? CosmeticCatalog.definitionFor(item.id)?.previewKey ?? item.slotLabel ?? item.id;
+    final slotLabel = item.slotLabel?.toUpperCase();
     return AnimatedContainer(
       duration: const Duration(milliseconds: 250),
       padding: const EdgeInsets.all(16),
@@ -291,7 +317,7 @@ class _ShopScreenState extends State<ShopScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  item.tag,
+                  item.tag.isNotEmpty ? item.tag : (slotLabel ?? "Cosmetic"),
                   style: TextStyle(
                     color: item.accentColor,
                     fontWeight: FontWeight.w700,
@@ -299,15 +325,47 @@ class _ShopScreenState extends State<ShopScreen> {
                 ),
               ),
               const Spacer(),
-              Text(
-                item.rarityLabel,
-                style: TextStyle(
-                  color: Colors.grey.shade600,
-                  fontSize: 12,
-                  letterSpacing: 0.4,
+              if (equipped)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.check_circle_rounded, color: theme.colorScheme.primary, size: 16),
+                      const SizedBox(width: 6),
+                      Text(
+                        "Equipped",
+                        style: TextStyle(
+                          color: theme.colorScheme.primary,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                Text(
+                  item.rarityLabel,
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontSize: 12,
+                    letterSpacing: 0.4,
+                  ),
                 ),
-              ),
             ],
+          ),
+          const SizedBox(height: 10),
+          Center(
+            child: CosmeticPreview(
+              artKey: artKey,
+              color: item.accentColor,
+              size: 90,
+            ),
           ),
           const SizedBox(height: 10),
           Text(
@@ -315,6 +373,13 @@ class _ShopScreenState extends State<ShopScreen> {
             style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 6),
+          if (slotLabel != null) ...[
+            Text(
+              "Slot: $slotLabel",
+              style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 4),
+          ],
           Text(
             item.description,
             style: TextStyle(color: Colors.grey.shade700),
@@ -322,12 +387,26 @@ class _ShopScreenState extends State<ShopScreen> {
           const SizedBox(height: 12),
           Row(
             children: [
-              Text(
-                "${item.price}c",
-                style: theme.textTheme.titleMedium?.copyWith(
-                  color: theme.colorScheme.primary,
-                  fontWeight: FontWeight.w800,
-                ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "${item.price}c",
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: theme.colorScheme.primary,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  if (equipped)
+                    Text(
+                      "Active on pet",
+                      style: TextStyle(
+                        color: theme.colorScheme.primary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
+                      ),
+                    ),
+                ],
               ),
               const Spacer(),
               ElevatedButton(
@@ -349,7 +428,7 @@ class _ShopScreenState extends State<ShopScreen> {
                           valueColor: AlwaysStoppedAnimation(Colors.white),
                         ),
                       )
-                    : Text(owned ? "Owned" : "Buy"),
+                    : Text(owned ? (equipped ? "Equipped" : "Owned") : "Buy"),
               ),
             ],
           ),
