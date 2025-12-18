@@ -10,6 +10,7 @@ from ..dao.userDAO import UserDAO
 from ..services.interest_service import InterestService
 from ..services.pet_service import PetService
 from ..services.friend_service import FriendService
+from ..services.user_service import UserService
 
 
 class HubService:
@@ -99,12 +100,15 @@ class HubService:
 
     @classmethod
     def shop_state(cls, user_id: int) -> dict:
+        user = UserDAO.get_by_id(user_id)
+        if not user:
+            raise LookupError("User not found")
         pet = cls._ensure_pet(user_id)
         # Give a small baseline that scales with level so the shop never feels empty.
         baseline = 260 + max(0, pet.level - 1) * 10
         owned = cls._user_owned_items[user_id]
-        if (pet.coins or 0) <= 0 and not owned:
-            PetService.add_coins(pet, baseline)
+        if (user.coins or 0) <= 0 and not owned:
+            UserService.add_coins(user, baseline)
         loadout = PetService.cosmetic_loadout(user_id)
         items = []
         for entry in cls._SHOP_ITEMS:
@@ -114,13 +118,16 @@ class HubService:
                 item["equipped"] = True
             items.append(item)
         return {
-            "balance": pet.coins or 0,
+            "balance": user.coins or 0,
             "items": items,
             "equipped": loadout,
         }
 
     @classmethod
     def purchase_item(cls, user_id: int, item_id: str) -> dict:
+        user = UserDAO.get_by_id(user_id)
+        if not user:
+            raise LookupError("User not found")
         state = cls.shop_state(user_id)
         owned = cls._user_owned_items[user_id]
         item = next((itm for itm in cls._SHOP_ITEMS if itm["id"] == item_id), None)
@@ -132,7 +139,7 @@ class HubService:
             raise ValueError("Not enough coins for this item")
 
         pet = cls._ensure_pet(user_id)
-        PetService.spend_coins(pet, item["price"])
+        UserService.spend_coins(user, item["price"])
         owned.add(item_id)
         slot = item.get("slot")
         if slot:

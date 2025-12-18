@@ -7,6 +7,7 @@ from ..models.user import PlanType, User
 
 
 class UserDAO:
+    
     @staticmethod
     def create(username: str, email: str, full_name: str | None, plan: PlanType = PlanType.FREE) -> User:
         user = User(username=username, email=email.lower(), full_name=full_name, plan=plan)
@@ -47,3 +48,20 @@ class UserDAO:
             .first()
             is not None
         )
+        
+    @staticmethod
+    def get_coins(user_id: int) -> int | None:
+        user = User.query.filter_by(id=user_id).first()
+        if user:
+          
+            return user.coins
+        return None
+    
+    @staticmethod
+    def update_coins(user_id: int, new_coins: int) -> None:
+        user = User.query.filter_by(id=user_id).first()
+        if user:
+            user.coins = new_coins
+            db.session.add(user)
+            db.session.commit()
+

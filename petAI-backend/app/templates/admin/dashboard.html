@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Admin Dashboard</title>
+    <style>
+      body {
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+        background: #0b1220;
+        color: #e5e7eb;
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+      }
+      main {
+        width: min(680px, calc(100% - 32px));
+        background: #111827;
+        border: 1px solid #1f2937;
+        border-radius: 14px;
+        padding: 22px;
+        box-shadow: 0 12px 50px rgba(0, 0, 0, 0.45);
+      }
+      h1 {
+        margin: 0 0 8px 0;
+        font-size: 22px;
+      }
+      p {
+        margin: 8px 0;
+        color: #cbd5e1;
+      }
+      .card {
+        margin-top: 14px;
+        padding: 14px;
+        border-radius: 12px;
+        border: 1px solid #334155;
+        background: #0b1220;
+      }
+      .actions {
+        margin-top: 16px;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+      }
+      button {
+        padding: 10px 12px;
+        border: 0;
+        border-radius: 10px;
+        background: #60a5fa;
+        color: #0b1220;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #93c5fd;
+      }
+      a {
+        color: #93c5fd;
+        text-decoration: none;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+      code {
+        color: #e5e7eb;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Admin Dashboard</h1>
+      <p>Logged in.</p>
+
+      <div class="card">
+        <p><strong>ID:</strong> <code>{{ admin.id }}</code></p>
+        <p><strong>Username:</strong> <code>{{ admin.username or '-' }}</code></p>
+        <p><strong>Email:</strong> <code>{{ admin.email or '-' }}</code></p>
+      </div>
+
+      <div class="actions">
+        <form method="post" action="{{ url_for('admin.logout') }}">
+          <button type="submit">Logout</button>
+        </form>
+        <a href="{{ url_for('admin.dashboard') }}">Refresh</a>
+      </div>
+    </main>
+  </body>
+</html>

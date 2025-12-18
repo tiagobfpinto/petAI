@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../utils/test_coins.dart';
 import 'cosmetics.dart';
 
 class ShopItem {
@@ -17,9 +16,12 @@ class ShopItem {
     this.imageKey,
     this.equipped = false,
     this.type,
+    this.rive,
+    this.rivePreview,
   });
 
   factory ShopItem.fromJson(Map<String, dynamic> json) {
+    final riveJson = json['rive'] as Map<String, dynamic>?;
     return ShopItem(
       id: json['id'] as String? ?? '',
       name: json['name'] as String? ?? 'Item',
@@ -33,6 +35,10 @@ class ShopItem {
       imageKey: json['image'] as String?,
       equipped: json['equipped'] as bool? ?? false,
       type: json['type'] as String?,
+      rive: CosmeticRiveAsset.fromMap(riveJson),
+      rivePreview:
+          CosmeticRiveAsset.fromMap(json['rivePreview'] as Map<String, dynamic>?) ??
+              CosmeticRiveAsset.fromMap(riveJson),
     );
   }
 
@@ -48,6 +54,8 @@ class ShopItem {
   final String? imageKey;
   final bool equipped;
   final String? type;
+  final CosmeticRiveAsset? rive;
+  final CosmeticRiveAsset? rivePreview;
 
   Color get accentColor => _colorFromHex(accent) ?? Colors.blueGrey.shade300;
 
@@ -56,6 +64,18 @@ class ShopItem {
   bool get isCosmetic => slot != null || (type ?? "").toLowerCase() == "cosmetic";
 
   String? get slotLabel => slot != null ? cosmeticSlotKey(slot!) : null;
+
+  CosmeticDefinition? toCosmeticDefinition() {
+    if (slot == null) return null;
+    return CosmeticDefinition(
+      id: id,
+      slot: slot!,
+      accent: accentColor,
+      previewKey: imageKey ?? slotLabel ?? id,
+      riveAsset: rive,
+      rivePreview: rivePreview ?? rive,
+    );
+  }
 }
 
 class ShopState {
@@ -71,7 +91,7 @@ class ShopState {
         .map(ShopItem.fromJson)
         .toList();
     return ShopState(
-      balance: applyTestCoins(json['balance'] as int? ?? 0),
+      balance: (json['balance'] as num?)?.toInt() ?? 0,
       items: rawItems,
       equippedCosmetics: PetCosmeticLoadout.fromJson(json['equipped'] as Map<String, dynamic>?),
     );

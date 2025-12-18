@@ -133,6 +133,24 @@ class UserService:
         db.session.commit()
 
     @staticmethod
+    def add_coins(user: User, amount: int) -> User:
+        if amount == 0:
+            return user
+        user.coins = max(0, (user.coins or 0) + amount)
+        UserDAO.save(user)
+        return user
+
+    @staticmethod
+    def spend_coins(user: User, amount: int) -> User:
+        if amount <= 0:
+            return user
+        if (user.coins or 0) < amount:
+            raise ValueError("Not enough coins")
+        user.coins = max(0, (user.coins or 0) - amount)
+        UserDAO.save(user)
+        return user
+
+    @staticmethod
     def streak_multiplier(streak: int, cap: int = 10) -> float:
         """Compute XP multiplier from streak (1x to 2x at cap)."""
         streak = max(0, min(streak, cap))

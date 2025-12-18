@@ -1,3 +1,5 @@
+import 'cosmetics.dart';
+
 class FriendProfile {
   FriendProfile({
     required this.id,
@@ -6,9 +8,13 @@ class FriendProfile {
     required this.petLevel,
     required this.petXp,
     required this.petNextEvolutionXp,
+    this.petType = 'sprout',
+    this.petCurrentSprite,
+    this.petCosmetics = const PetCosmeticLoadout.empty(),
   });
 
   factory FriendProfile.fromJson(Map<String, dynamic> json) {
+    final cosmeticsJson = json['pet_cosmetics'];
     return FriendProfile(
       id: json['id'] as int? ?? 0,
       username: json['username'] as String? ?? 'Friend',
@@ -16,6 +22,11 @@ class FriendProfile {
       petLevel: json['pet_level'] as int? ?? 1,
       petXp: json['pet_xp'] as int? ?? 0,
       petNextEvolutionXp: json['pet_next_evolution_xp'] as int? ?? 0,
+      petType: json['pet_type'] as String? ?? 'sprout',
+      petCurrentSprite: json['pet_current_sprite'] as String?,
+      petCosmetics: (cosmeticsJson is Map<String, dynamic>)
+          ? PetCosmeticLoadout.fromJson(cosmeticsJson)
+          : const PetCosmeticLoadout.empty(),
     );
   }
 
@@ -25,6 +36,9 @@ class FriendProfile {
   final int petLevel;
   final int petXp;
   final int petNextEvolutionXp;
+  final String petType;
+  final String? petCurrentSprite;
+  final PetCosmeticLoadout petCosmetics;
 }
 
 class FriendRequestEntry {

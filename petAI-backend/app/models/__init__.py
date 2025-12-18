@@ -15,6 +15,12 @@ from .goal import Goal  # noqa: E402,F401
 from .daily_activity import DailyActivity  # noqa: E402,F401
 from .auth_token import AuthToken  # noqa: E402,F401
 from .friend_request import FriendRequest  # noqa: E402,F401
+from .item import Item  # noqa: E402,F401
+from .itemOwnership import ItemOwnership  # noqa: E402,F401
+from .itemTransaction import ItemTransaction  # noqa: E402,F401
+from .storeListing import StoreListing  # noqa: E402,F401
+from .admin_user import Admin_Users  # noqa: E402,F401
+from .petStyle import PetStyle  # noqa: E402,F401
 
 __all__ = [
     "db",
@@ -29,4 +35,6 @@ __all__ = [
     "DailyActivity",
     "AuthToken",
     "FriendRequest",
+    "Item","ItemOwnership",
+    "ItemTransaction","StoreListing","Admin_Users","PetStyle",
 ]

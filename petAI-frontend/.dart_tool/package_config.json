@@ -2,6 +2,12 @@
   "configVersion": 2,
   "packages": [
     {
+      "name": "args",
+      "rootUri": "file:///C:/Users/Tiago%20Pinto/AppData/Local/Pub/Cache/hosted/pub.dev/args-2.7.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.3"
+    },
+    {
       "name": "async",
       "rootUri": "file:///C:/Users/Tiago%20Pinto/AppData/Local/Pub/Cache/hosted/pub.dev/async-2.13.0",
       "packageUri": "lib/",
@@ -122,6 +128,12 @@
       "languageVersion": "3.9"
     },
     {
+      "name": "graphs",
+      "rootUri": "file:///C:/Users/Tiago%20Pinto/AppData/Local/Pub/Cache/hosted/pub.dev/graphs-2.3.2",
+      "packageUri": "lib/",
+      "languageVersion": "3.4"
+    },
+    {
       "name": "http",
       "rootUri": "file:///C:/Users/Tiago%20Pinto/AppData/Local/Pub/Cache/hosted/pub.dev/http-1.6.0",
       "packageUri": "lib/",
@@ -234,6 +246,18 @@
       "rootUri": "file:///C:/Users/Tiago%20Pinto/AppData/Local/Pub/Cache/hosted/pub.dev/plugin_platform_interface-2.1.8",
       "packageUri": "lib/",
       "languageVersion": "3.0"
+    },
+    {
+      "name": "rive",
+      "rootUri": "file:///C:/Users/Tiago%20Pinto/AppData/Local/Pub/Cache/hosted/pub.dev/rive-0.14.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.6"
+    },
+    {
+      "name": "rive_native",
+      "rootUri": "file:///C:/Users/Tiago%20Pinto/AppData/Local/Pub/Cache/hosted/pub.dev/rive_native-0.1.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.6"
     },
     {
       "name": "sky_engine",
