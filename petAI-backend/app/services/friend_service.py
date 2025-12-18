@@ -74,6 +74,9 @@ class FriendService:
                     "pet_level": pet.level,
                     "pet_xp": pet.xp,
                     "pet_next_evolution_xp": pet.next_evolution_xp,
+                    "pet_type": pet.pet_type,
+                    "pet_current_sprite": pet.current_sprite,
+                    "pet_cosmetics": PetService.cosmetic_payload(pet.user_id),
                 }
             )
 

@@ -37,6 +37,7 @@ class User(db.Model):
     last_activity_at = db.Column(db.DateTime(timezone=True))
     age = db.Column(db.Integer)
     gender = db.Column(db.String(32))
+    coins = db.Column(db.Integer, default=0, nullable=False)
 
     created_at = db.Column(db.DateTime(timezone=True), default=_utcnow, nullable=False)
     plan = db.Column(PgEnum(PlanType, name="plan_type_enum"), default=PlanType.FREE, nullable=False)
@@ -45,6 +46,10 @@ class User(db.Model):
     areas = db.relationship("Area", back_populates="user", cascade="all, delete-orphan")
     activities = db.relationship("ActivityLog", back_populates="user", cascade="all, delete-orphan")
     tokens = db.relationship("AuthToken", back_populates="user", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        db.CheckConstraint("coins >= 0", name="ck_user_coins_non_negative"),
+    )
 
     def set_password(self, password: str) -> None:
         self.password_hash = bcrypt.generate_password_hash(password).decode("utf-8")
@@ -76,4 +81,5 @@ class User(db.Model):
             "streak_current": self.streak_current,
             "streak_best": self.streak_best,
             "last_activity_at": self.last_activity_at.isoformat() if self.last_activity_at else None,
+            "coins": self.coins,
         }

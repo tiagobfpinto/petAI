@@ -25,7 +25,7 @@ class UserService:
         pet = PetService.create_pet(user.id)
         db.session.flush()
 
-        return user, pet.to_dict()
+        return user, PetService.pet_payload(pet)
 
     @staticmethod
     def create_guest_user() -> User:
@@ -53,7 +53,7 @@ class UserService:
         streak_multiplier = UserService.streak_multiplier(user.streak_current or 0)
         payload = {
             "user": user.to_dict(),
-            "pet": pet.to_dict(),
+            "pet": PetService.pet_payload(pet),
             "need_interests_setup": user.needs_interest_setup(),
             "trial_days_left": trial_left,
             "streak_multiplier": streak_multiplier,
@@ -131,6 +131,24 @@ class UserService:
             return
         user.is_active = False
         db.session.commit()
+
+    @staticmethod
+    def add_coins(user: User, amount: int) -> User:
+        if amount == 0:
+            return user
+        user.coins = max(0, (user.coins or 0) + amount)
+        UserDAO.save(user)
+        return user
+
+    @staticmethod
+    def spend_coins(user: User, amount: int) -> User:
+        if amount <= 0:
+            return user
+        if (user.coins or 0) < amount:
+            raise ValueError("Not enough coins")
+        user.coins = max(0, (user.coins or 0) - amount)
+        UserDAO.save(user)
+        return user
 
     @staticmethod
     def streak_multiplier(streak: int, cap: int = 10) -> float:

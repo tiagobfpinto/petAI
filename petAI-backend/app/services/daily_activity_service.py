@@ -8,6 +8,7 @@ from ..dao.goalDAO import GoalDAO
 from ..dao.areaDAO import AreaDAO
 from ..models.daily_activity import DailyActivity
 from ..services.activity_service import ActivityService
+from ..services.pet_service import PetService
 
 
 class DailyActivityService:
@@ -220,9 +221,10 @@ class DailyActivityService:
 
         return {
             "completion": {
-                "pet": result["pet"].to_dict() if result.get("pet") else None,
+                "pet": PetService.pet_payload(result["pet"]) if result.get("pet") else None,
                 "xp_awarded": result.get("xp_awarded"),
                 "coins_awarded": result.get("coins_awarded"),
+                "coins_balance": result.get("coins_balance"),
                 "interest_id": result.get("interest_id"),
                 "activity": activity_payload,
                 "streak_current": result.get("streak_current"),

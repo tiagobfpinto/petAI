@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../utils/test_coins.dart';
+import 'cosmetics.dart';
 
 class ShopItem {
   ShopItem({
@@ -12,9 +12,16 @@ class ShopItem {
     required this.description,
     required this.accent,
     this.owned = false,
+    this.slot,
+    this.imageKey,
+    this.equipped = false,
+    this.type,
+    this.rive,
+    this.rivePreview,
   });
 
   factory ShopItem.fromJson(Map<String, dynamic> json) {
+    final riveJson = json['rive'] as Map<String, dynamic>?;
     return ShopItem(
       id: json['id'] as String? ?? '',
       name: json['name'] as String? ?? 'Item',
@@ -24,6 +31,14 @@ class ShopItem {
       description: json['description'] as String? ?? '',
       accent: json['accent'] as String? ?? '#5667FF',
       owned: json['owned'] as bool? ?? false,
+      slot: cosmeticSlotFromString(json['slot'] as String?),
+      imageKey: json['image'] as String?,
+      equipped: json['equipped'] as bool? ?? false,
+      type: json['type'] as String?,
+      rive: CosmeticRiveAsset.fromMap(riveJson),
+      rivePreview:
+          CosmeticRiveAsset.fromMap(json['rivePreview'] as Map<String, dynamic>?) ??
+              CosmeticRiveAsset.fromMap(riveJson),
     );
   }
 
@@ -35,14 +50,40 @@ class ShopItem {
   final String description;
   final String accent;
   final bool owned;
+  final CosmeticSlot? slot;
+  final String? imageKey;
+  final bool equipped;
+  final String? type;
+  final CosmeticRiveAsset? rive;
+  final CosmeticRiveAsset? rivePreview;
 
   Color get accentColor => _colorFromHex(accent) ?? Colors.blueGrey.shade300;
 
   String get rarityLabel => rarity.toUpperCase();
+
+  bool get isCosmetic => slot != null || (type ?? "").toLowerCase() == "cosmetic";
+
+  String? get slotLabel => slot != null ? cosmeticSlotKey(slot!) : null;
+
+  CosmeticDefinition? toCosmeticDefinition() {
+    if (slot == null) return null;
+    return CosmeticDefinition(
+      id: id,
+      slot: slot!,
+      accent: accentColor,
+      previewKey: imageKey ?? slotLabel ?? id,
+      riveAsset: rive,
+      rivePreview: rivePreview ?? rive,
+    );
+  }
 }
 
 class ShopState {
-  ShopState({required this.balance, required this.items});
+  ShopState({
+    required this.balance,
+    required this.items,
+    this.equippedCosmetics = const PetCosmeticLoadout.empty(),
+  });
 
   factory ShopState.fromJson(Map<String, dynamic> json) {
     final rawItems = (json['items'] as List<dynamic>? ?? [])
@@ -50,13 +91,21 @@ class ShopState {
         .map(ShopItem.fromJson)
         .toList();
     return ShopState(
-      balance: applyTestCoins(json['balance'] as int? ?? 0),
+      balance: (json['balance'] as num?)?.toInt() ?? 0,
       items: rawItems,
+      equippedCosmetics: PetCosmeticLoadout.fromJson(json['equipped'] as Map<String, dynamic>?),
     );
   }
 
   final int balance;
   final List<ShopItem> items;
+  final PetCosmeticLoadout equippedCosmetics;
+
+  bool isEquipped(ShopItem item) {
+    final slot = item.slot;
+    if (slot == null) return false;
+    return equippedCosmetics.itemForSlot(slot) == item.id;
+  }
 }
 
 Color? _colorFromHex(String? hex) {

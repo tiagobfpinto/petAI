@@ -11,9 +11,13 @@ import '../models/pet_state.dart';
 import '../models/progression_snapshot.dart';
 import '../models/daily_activity.dart';
 import '../models/session_bootstrap.dart';
+import '../models/activity_type.dart';
 import '../models/user_interest.dart';
 import '../models/user_session.dart';
 import '../models/shop.dart';
+import '../models/style_equip_result.dart';
+import '../models/style_inventory_item.dart';
+import '../models/store_listing.dart';
 import 'token_storage.dart';
 
 class ApiResponse<T> {
@@ -473,6 +477,98 @@ class ApiService {
     }
   }
 
+  Future<ApiResponse<List<ActivityType>>> fetchActivityTypes() async {
+    await _ensureTokenLoaded();
+    try {
+      final response = await _client.get(
+        _uri("/activities/types"),
+        headers: _headers,
+      );
+      final payload = _decode(response.body);
+      final data = _data(payload);
+      if (response.statusCode == 200) {
+        final items = (data["activity_types"] as List<dynamic>? ?? [])
+            .whereType<Map<String, dynamic>>()
+            .map(ActivityType.fromJson)
+            .toList();
+        return ApiResponse.success(items, statusCode: response.statusCode);
+      }
+      return ApiResponse.failure(
+        payload["error"] as String? ?? "Failed to load activity types",
+        statusCode: response.statusCode,
+      );
+    } catch (err) {
+      return ApiResponse.failure("Network error: $err");
+    }
+  }
+
+  Future<ApiResponse<Map<String, dynamic>>> updateActivityType({
+    required int activityTypeId,
+    required String name,
+    required String area,
+    double? weeklyGoalValue,
+    String? weeklyGoalUnit,
+    List<String>? days,
+    String? rrule,
+  }) async {
+    await _ensureTokenLoaded();
+    try {
+      final Map<String, dynamic> payload = {
+        "name": name,
+        "area": area,
+      };
+      if (weeklyGoalValue != null) payload["weekly_goal_value"] = weeklyGoalValue;
+      if (weeklyGoalUnit != null && weeklyGoalUnit.trim().isNotEmpty) {
+        payload["weekly_goal_unit"] = weeklyGoalUnit.trim();
+      }
+      if (days != null && days.isNotEmpty) {
+        payload["days"] = List<String>.from(days);
+      }
+      if (rrule != null && rrule.trim().isNotEmpty) {
+        payload["rrule"] = rrule.trim();
+      }
+      final response = await _client.put(
+        _uri("/activities/types/$activityTypeId"),
+        headers: _headers,
+        body: jsonEncode(payload),
+      );
+      final decoded = _decode(response.body);
+      final data = _data(decoded);
+      if (response.statusCode == 200) {
+        return ApiResponse.success(
+          data is Map<String, dynamic> ? data : <String, dynamic>{},
+          statusCode: response.statusCode,
+        );
+      }
+      return ApiResponse.failure(
+        decoded["error"] as String? ?? "Failed to update activity",
+        statusCode: response.statusCode,
+      );
+    } catch (err) {
+      return ApiResponse.failure("Network error: $err");
+    }
+  }
+
+  Future<ApiResponse<void>> deleteActivityType(int activityTypeId) async {
+    await _ensureTokenLoaded();
+    try {
+      final response = await _client.delete(
+        _uri("/activities/types/$activityTypeId"),
+        headers: _headers,
+      );
+      if (response.statusCode == 200) {
+        return ApiResponse.success(null, statusCode: response.statusCode);
+      }
+      final payload = _decode(response.body);
+      return ApiResponse.failure(
+        payload["error"] as String? ?? "Failed to delete activity",
+        statusCode: response.statusCode,
+      );
+    } catch (err) {
+      return ApiResponse.failure("Network error: $err");
+    }
+  }
+
   Future<ApiResponse<List<ActivityLogEntry>>> fetchTodayActivities() async {
     try {
       final response = await _client.get(
@@ -587,6 +683,136 @@ class ApiService {
       if (response.statusCode == 201 || response.statusCode == 200) {
         return ApiResponse.success(
           ShopState.fromJson(data),
+          statusCode: response.statusCode,
+        );
+      }
+      return ApiResponse.failure(
+        payload["error"] as String? ?? "Purchase failed",
+        statusCode: response.statusCode,
+      );
+    } catch (err) {
+      return ApiResponse.failure("Network error: $err");
+    }
+  }
+
+  Future<ApiResponse<List<StyleInventoryItem>>> fetchStyleInventory() async {
+    await _ensureTokenLoaded();
+    try {
+      final response = await _client.get(_uri("/style"), headers: _headers);
+      final payload = _decode(response.body);
+      final data = _data(payload);
+      if (response.statusCode == 200) {
+        final items =
+            (data["items"] as List<dynamic>? ?? [])
+                .whereType<Map<String, dynamic>>()
+                .map(StyleInventoryItem.fromJson)
+                .toList();
+        return ApiResponse.success(items, statusCode: response.statusCode);
+      }
+      return ApiResponse.failure(
+        payload["error"] as String? ?? "Failed to load inventory",
+        statusCode: response.statusCode,
+      );
+    } catch (err) {
+      return ApiResponse.failure("Network error: $err");
+    }
+  }
+
+  Future<ApiResponse<List<String>>> fetchEquippedStyleTriggers() async {
+    await _ensureTokenLoaded();
+    try {
+      final response = await _client.get(
+        _uri("/style/equipped"),
+        headers: _headers,
+      );
+      final payload = _decode(response.body);
+      final data = _data(payload);
+      if (response.statusCode == 200) {
+        final equipped = data["equipped"];
+        final triggers = <String>[];
+        if (equipped is Map<String, dynamic>) {
+          for (final slot in const ["hat", "sunglasses", "color"]) {
+            final entry = equipped[slot];
+            if (entry is! Map<String, dynamic>) continue;
+            final trigger = entry["trigger"]?.toString().trim() ?? "";
+            if (trigger.isNotEmpty) triggers.add(trigger);
+          }
+        }
+        return ApiResponse.success(triggers, statusCode: response.statusCode);
+      }
+      return ApiResponse.failure(
+        payload["error"] as String? ?? "Failed to load equipped style",
+        statusCode: response.statusCode,
+      );
+    } catch (err) {
+      return ApiResponse.failure("Network error: $err");
+    }
+  }
+
+  Future<ApiResponse<StyleEquipResult>> equipStyleItem(int itemId) async {
+    await _ensureTokenLoaded();
+    try {
+      final response = await _client.post(
+        _uri("/style/equip/$itemId"),
+        headers: _headers,
+        body: jsonEncode({}),
+      );
+      final payload = _decode(response.body);
+      final data = _data(payload);
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        return ApiResponse.success(
+          StyleEquipResult.fromJson(data),
+          statusCode: response.statusCode,
+        );
+      }
+      return ApiResponse.failure(
+        payload["error"] as String? ?? "Failed to equip item",
+        statusCode: response.statusCode,
+      );
+    } catch (err) {
+      return ApiResponse.failure("Network error: $err");
+    }
+  }
+
+  Future<ApiResponse<List<StoreListing>>> fetchStoreListings() async {
+    await _ensureTokenLoaded();
+    try {
+      final response = await _client.get(_uri("/store"), headers: _headers);
+      final payload = _decode(response.body);
+      final data = _data(payload);
+      if (response.statusCode == 200) {
+        final listings =
+            (data["listings"] as List<dynamic>? ?? [])
+                .whereType<Map<String, dynamic>>()
+                .map(StoreListing.fromJson)
+                .toList();
+        return ApiResponse.success(listings, statusCode: response.statusCode);
+      }
+      return ApiResponse.failure(
+        payload["error"] as String? ?? "Failed to load store listings",
+        statusCode: response.statusCode,
+      );
+    } catch (err) {
+      return ApiResponse.failure("Network error: $err");
+    }
+  }
+
+  Future<ApiResponse<StorePurchaseResult>> buyStoreListing(
+    int storeListingId, {
+    int quantity = 1,
+  }) async {
+    await _ensureTokenLoaded();
+    try {
+      final response = await _client.post(
+        _uri("/store/buy/$storeListingId"),
+        headers: _headers,
+        body: jsonEncode({"quantity": quantity}),
+      );
+      final payload = _decode(response.body);
+      final data = _data(payload);
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        return ApiResponse.success(
+          StorePurchaseResult.fromJson(data),
           statusCode: response.statusCode,
         );
       }

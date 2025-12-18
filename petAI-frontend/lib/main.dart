@@ -12,6 +12,7 @@ import 'services/api_service.dart';
 import 'theme/app_theme.dart';
 
 void main() {
+  
   runApp(const PetAiApp());
 }
 

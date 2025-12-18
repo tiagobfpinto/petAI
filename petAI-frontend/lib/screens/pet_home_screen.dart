@@ -1,20 +1,23 @@
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../models/activity_log.dart';
 import '../models/daily_activity.dart';
 import '../models/interest.dart';
+import '../models/activity_type.dart';
 import '../models/pet_state.dart';
 import '../models/user_interest.dart';
 import '../models/user_session.dart';
 import '../services/api_service.dart';
-import '../widgets/pet_sprite.dart';
 import '../widgets/xp_progress_bar.dart';
 import 'coin_store_screen.dart';
 import 'friends_screen.dart';
 import 'progression_screen.dart';
 import 'shop_screen.dart';
+import 'styles_sheet.dart';
+import 'package:rive/rive.dart' as rive;
 
 class PetHomeScreen extends StatefulWidget {
   const PetHomeScreen({
@@ -50,12 +53,18 @@ class PetHomeScreen extends StatefulWidget {
 }
 
 class _PetHomeScreenState extends State<PetHomeScreen> {
+  static const String _petRiveAssetPath = "assets/rive/pet_home.riv";
   late PetState _pet;
   late List<UserInterest> _interests;
+  rive.RiveWidgetController? _petRiveController;
+  rive.ViewModelInstance? _petRiveViewModel;
+  rive.RiveWidgetController? _petRiveViewModelController;
   final Map<String, bool> _logging = {};
   List<DailyActivity> _dailyActivities = [];
   bool _loadingDaily = true;
   bool _hadDailyToday = false;
+  List<ActivityType> _activityTypes = [];
+  bool _loadingActivityTypes = false;
   List<ActivityLogEntry> _activities = [];
   bool _loadingActivities = true;
   Set<int> _completedToday = {};
@@ -63,6 +72,9 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
   int? _streakCurrent;
   int? _streakBest;
   double? _xpMultiplier;
+  List<String> _equippedStyleTriggers = const [];
+  bool _loadingEquippedStyleTriggers = false;
+  rive.RiveWidgetController? _equippedStyleControllerAppliedTo;
 
   @override
   void initState() {
@@ -74,6 +86,8 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
     _xpMultiplier = widget.session.streakMultiplier;
     _loadDailyActivities();
     _loadActivities();
+    _loadActivityTypes();
+    _loadEquippedStyleTriggers();
   }
 
   @override
@@ -271,8 +285,8 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
       width: double.infinity,
       child: OutlinedButton.icon(
         icon: const Icon(Icons.add_rounded),
-        label: const Text("Create new activity"),
-        onPressed: _openNewActivityForm,
+        label: const Text("Add new activity"),
+        onPressed: _openAddActivityOverlay,
       ),
     );
   }
@@ -321,7 +335,7 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
                 ),
                 const SizedBox(height: 12),
                 OutlinedButton(
-                  onPressed: _openNewActivityForm,
+                  onPressed: _openAddActivityOverlay,
                   child: const Text("Add activity"),
                 ),
               ],
@@ -351,41 +365,83 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
     }
   }
 
+  Future<void> _loadActivityTypes() async {
+    setState(() => _loadingActivityTypes = true);
+    final response = await widget.apiService.fetchActivityTypes();
+    if (!mounted) return;
+    if (response.isSuccess && response.data != null) {
+      setState(() {
+        _activityTypes = response.data!;
+        _loadingActivityTypes = false;
+      });
+    } else {
+      setState(() => _loadingActivityTypes = false);
+      widget.onError(response.error ?? "Failed to load activity types");
+    }
+  }
+
+  Future<void> _openAddActivityOverlay() async {
+    if (_activityTypes.isEmpty && !_loadingActivityTypes) {
+      await _loadActivityTypes();
+    }
+    if (!mounted) return;
+    final result = await showModalBottomSheet<_ActivityPickerResult>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => _ActivityTypePickerSheet(
+        activityTypes: _activityTypes,
+        isLoading: _loadingActivityTypes,
+      ),
+    );
+    if (result == null) return;
+    if (result.createNew) {
+      await _openNewActivityForm();
+    } else if (result.type != null) {
+      await _startActivityFromType(result.type!);
+    }
+  }
+
   Future<void> _openNewActivityForm() async {
-    final result = await Navigator.of(context).push<_NewActivityData>(
+    final result = await Navigator.of(context).push<_ActivityFormResult>(
       MaterialPageRoute(
         builder: (_) => _NewActivityScreen(
           interests: _interests,
         ),
       ),
     );
-    if (result == null) return;
+    if (result == null || result.deleted) return;
+    final data = result.data;
+    if (data == null) return;
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text("Saving activity...")),
     );
     final response = await widget.apiService.createActivity(
-      name: result.name,
-      area: result.areaName,
-      weeklyGoalValue: result.weeklyGoalValue,
-      weeklyGoalUnit: result.weeklyGoalUnit,
-      days: result.days,
-      rrule: result.rrule,
+      name: data.name,
+      area: data.areaName,
+      weeklyGoalValue: data.weeklyGoalValue,
+      weeklyGoalUnit: data.weeklyGoalUnit,
+      days: data.days,
+      rrule: data.rrule,
     );
     if (!mounted) return;
     if (response.isSuccess) {
-      final weeklyText = result.weeklyGoalValue != null
-          ? "Weekly goal: ${result.weeklyGoalValue} ${result.weeklyGoalUnit} on ${result.days.isEmpty ? "flex days" : result.days.join(", ").toUpperCase()}"
+      final weeklyText = data.weeklyGoalValue != null
+          ? "Weekly goal: ${data.weeklyGoalValue} ${data.weeklyGoalUnit} on ${data.days.isEmpty ? "flex days" : data.days.join(", ").toUpperCase()}"
           : "No weekly goal set";
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            "Created \"${result.name}\" for ${result.areaName}. $weeklyText",
+            "Created \"${data.name}\" for ${data.areaName}. $weeklyText",
           ),
         ),
       );
       await _loadDailyActivities();
       await _loadActivities();
+      await _loadActivityTypes();
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -395,85 +451,432 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
     }
   }
 
-  Widget _buildPetHeader(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        gradient: LinearGradient(
-          colors: [
-            theme.colorScheme.primary.withValues(alpha: 0.9),
-            theme.colorScheme.secondary,
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+  Future<void> _openEditDailyActivity(DailyActivity activity) async {
+    ActivityType? type;
+    try {
+      type = _activityTypes.firstWhere((t) => t.id == activity.activityTypeId);
+    } catch (_) {
+      type = null;
+    }
+    if (type == null) {
+      await _loadActivityTypes();
+      try {
+        type = _activityTypes.firstWhere((t) => t.id == activity.activityTypeId);
+      } catch (_) {
+        type = null;
+      }
+    }
+    if (type == null) {
+      widget.onError("Could not load activity details to edit");
+      return;
+    }
+
+    final result = await Navigator.of(context).push<_ActivityFormResult>(
+      MaterialPageRoute(
+        builder: (_) => _NewActivityScreen(
+          interests: _interests,
+          initialType: type,
+          allowDelete: true,
         ),
       ),
-      child: Column(
-        children: [
-          SizedBox(
-            height: 180,
-            width: double.infinity,
-            child: PetSprite(stage: _pet.stage, mood: _pet.level),
+    );
+    if (result == null) return;
+    if (result.deleted) {
+      await _deleteActivityType(type.id);
+      return;
+    }
+    final data = result.data;
+    if (data == null) return;
+    await _updateActivityType(type.id, data);
+  }
+
+  Future<void> _startActivityFromType(ActivityType type) async {
+    final plan = type.plan;
+    final planDays = plan?.days ?? [];
+    final weeklyGoalValue =
+        plan != null && plan.weeklyGoalValue > 0 ? plan.weeklyGoalValue : null;
+    final weeklyGoalUnit =
+        plan != null && plan.weeklyGoalUnit.isNotEmpty ? plan.weeklyGoalUnit : null;
+    final areaName = type.areaName.isNotEmpty ? type.areaName : type.name;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("Adding ${type.name}...")),
+    );
+
+    final response = await widget.apiService.createActivity(
+      name: type.name,
+      area: areaName,
+      weeklyGoalValue: weeklyGoalValue,
+      weeklyGoalUnit: weeklyGoalUnit,
+      days: planDays.isEmpty ? null : planDays,
+      rrule: type.rrule,
+    );
+    if (!mounted) return;
+    if (response.isSuccess) {
+      final goalText = weeklyGoalValue != null
+          ? " • weekly ${weeklyGoalValue.toString()} ${weeklyGoalUnit ?? ""}".trim()
+          : "";
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            "Added \"${type.name}\"${areaName != type.name ? " in $areaName" : ""}$goalText",
           ),
-          const SizedBox(height: 12),
-          Text(
-            _pet.stage.toUpperCase(),
-            style: theme.textTheme.labelLarge?.copyWith(
-              color: Colors.white70,
-              letterSpacing: 1.2,
-            ),
-          ),
-          Text(
-            "Level ${_pet.level}",
-            style: theme.textTheme.headlineSmall?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 12),
-          XpProgressBar(
-            progress: _pet.progressToNext,
-            xp: _pet.xp,
-            nextXp: _pet.nextEvolutionXp,
-          ),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.monetization_on_outlined,
-                  color: Colors.white,
-                  size: 18,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  "${_pet.coins} coins",
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
+        ),
+      );
+      await _loadDailyActivities();
+      await _loadActivities();
+    } else {
+      widget.onError(response.error ?? "Failed to add activity");
+    }
+  }
+
+  Future<void> _updateActivityType(int activityTypeId, _NewActivityData data) async {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Updating activity...")),
+    );
+    final response = await widget.apiService.updateActivityType(
+      activityTypeId: activityTypeId,
+      name: data.name,
+      area: data.areaName,
+      weeklyGoalValue: data.weeklyGoalValue,
+      weeklyGoalUnit: data.weeklyGoalUnit,
+      days: data.days,
+      rrule: data.rrule,
+    );
+    if (!mounted) return;
+    if (response.isSuccess) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Updated \"${data.name}\"")),
+      );
+      await _loadDailyActivities();
+      await _loadActivities();
+      await _loadActivityTypes();
+    } else {
+      widget.onError(response.error ?? "Failed to update activity");
+    }
+  }
+
+  Future<void> _deleteActivityType(int activityTypeId) async {
+    final response = await widget.apiService.deleteActivityType(activityTypeId);
+    if (!mounted) return;
+    if (response.isSuccess) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Activity deleted")),
+      );
+      await _loadDailyActivities();
+      await _loadActivities();
+      await _loadActivityTypes();
+    } else {
+      widget.onError(response.error ?? "Failed to delete activity");
+    }
+  }
+
+  Widget _buildPetHeader(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      children: [
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final maxWidth = constraints.maxWidth.isFinite ? constraints.maxWidth : 240.0;
+            final size = min(maxWidth, 260.0);
+            return Center(
+              child: SizedBox(
+                width: size,
+                height: size,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      _PetRiveAnimation(
+                        assetPath: _petRiveAssetPath,
+                        fallback: ColoredBox(
+                          color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+                        ),
+                        onControllerReady: (controller) {
+                          _petRiveController = controller;
+                          _maybeBindPetViewModel(controller);
+                          _applyEquippedStyleTriggersIfReady();
+                        },
+                      ),
+                    ],
                   ),
                 ),
-              ],
-            ),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 12),
+        Text(
+          _pet.stage.toUpperCase(),
+          style: theme.textTheme.labelLarge?.copyWith(
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+            letterSpacing: 1.2,
           ),
-          const SizedBox(height: 12),
-          Text(
-            "Log quick wins to help your buddy evolve.",
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: Colors.white.withValues(alpha: 0.85),
-            ),
+        ),
+        Text(
+          "Level ${_pet.level}",
+          style: theme.textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.bold,
           ),
-        ],
+        ),
+        const SizedBox(height: 12),
+        XpProgressBar(
+          progress: _pet.progressToNext,
+          xp: _pet.xp,
+          nextXp: _pet.nextEvolutionXp,
+        ),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: _openStylesMenu,
+          icon: const Icon(Icons.checkroom_rounded),
+          label: const Text("Styles"),
+          style: OutlinedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          "Log quick wins to help your buddy evolve.",
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.75),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _openStylesMenu() async {
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => StylesSheet(
+        apiService: widget.apiService,
+        onError: widget.onError,
+        onTrigger: (trigger) {
+          _firePetTrigger(trigger);
+        },
       ),
     );
+  }
+
+  Future<void> _loadEquippedStyleTriggers() async {
+    if (_loadingEquippedStyleTriggers) return;
+    _loadingEquippedStyleTriggers = true;
+    final response = await widget.apiService.fetchEquippedStyleTriggers();
+    _loadingEquippedStyleTriggers = false;
+    if (!mounted) return;
+
+    if (response.isSuccess && response.data != null) {
+      _equippedStyleTriggers = response.data!;
+      _applyEquippedStyleTriggersIfReady();
+      return;
+    }
+
+    if (kDebugMode) {
+      debugPrint(
+        "[style] Failed to load equipped style triggers: ${response.error ?? 'unknown error'}",
+      );
+    }
+  }
+
+  void _applyEquippedStyleTriggersIfReady() {
+    final controller = _petRiveController;
+    if (controller == null) return;
+    if (_equippedStyleTriggers.isEmpty) return;
+    if (_equippedStyleControllerAppliedTo == controller) return;
+
+    for (final trigger in _equippedStyleTriggers) {
+      _firePetTrigger(trigger, showErrors: false);
+    }
+    _equippedStyleControllerAppliedTo = controller;
+  }
+
+  void _maybeBindPetViewModel(rive.RiveWidgetController controller) {
+    if (_petRiveViewModelController == controller) return;
+    _petRiveViewModelController = controller;
+    _petRiveViewModel = null;
+
+    try {
+      _petRiveViewModel = controller.dataBind(const rive.AutoBind());
+      if (kDebugMode) {
+        debugPrint(
+          "[pet_rive] bound view model: ${_petRiveViewModel?.name} (sm=${controller.stateMachine.name})",
+        );
+      }
+    } catch (err) {
+      if (kDebugMode) {
+        debugPrint("[pet_rive] no view model binding (sm=${controller.stateMachine.name}): $err");
+      }
+    }
+  }
+
+  static String _normalizeRiveName(String value) {
+    return value
+        .trim()
+        .toLowerCase()
+        .replaceAll(RegExp(r"[^a-z0-9]"), "");
+  }
+
+  static List<String> _triggerNameCandidates(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return const [];
+
+    final candidates = <String>[trimmed];
+
+    final hatAbbrev = RegExp(r"^h[_-]?(\d+)$", caseSensitive: false).firstMatch(trimmed);
+    if (hatAbbrev != null) {
+      candidates.add("hat_${hatAbbrev.group(1)}");
+    }
+
+    final hatFull = RegExp(r"^hat[_-]?(\d+)$", caseSensitive: false).firstMatch(trimmed);
+    if (hatFull != null) {
+      final id = hatFull.group(1);
+      if (id != null) {
+        candidates.add("hat_$id");
+        candidates.add("h_$id");
+      }
+    }
+
+    final unique = <String>[];
+    for (final candidate in candidates) {
+      if (unique.contains(candidate)) continue;
+      unique.add(candidate);
+    }
+    return unique;
+  }
+
+  static String _describeRiveInputs(rive.StateMachine stateMachine) {
+    final triggers = <String>[];
+    final booleans = <String>[];
+    final numbers = <String>[];
+
+    // ignore: deprecated_member_use
+    for (final input in stateMachine.inputs) {
+      if (input is rive.TriggerInput) {
+        triggers.add(input.name);
+      } else if (input is rive.BooleanInput) {
+        booleans.add(input.name);
+      } else if (input is rive.NumberInput) {
+        numbers.add(input.name);
+      }
+    }
+
+    final parts = <String>[];
+    if (triggers.isNotEmpty) parts.add("triggers=[${triggers.join(", ")}]");
+    if (booleans.isNotEmpty) parts.add("booleans=[${booleans.join(", ")}]");
+    if (numbers.isNotEmpty) parts.add("numbers=[${numbers.join(", ")}]");
+    return parts.isEmpty ? "inputs=[]" : parts.join(" ");
+  }
+
+  void _firePetTrigger(String triggerName, {bool showErrors = true}) {
+    final controller = _petRiveController;
+    final originalName = triggerName.trim();
+    if (originalName.isEmpty) return;
+    if (controller == null) {
+      if (showErrors) {
+        widget.onError("Pet animation not ready yet");
+      } else if (kDebugMode) {
+        debugPrint("[pet_rive] trigger ignored (animation not ready): $originalName");
+      }
+      return;
+    }
+
+    final stateMachine = controller.stateMachine;
+
+    bool tryFire(String name) {
+      // 1) Try state machine trigger input (legacy inputs).
+      // ignore: deprecated_member_use
+      final direct = stateMachine.trigger(name);
+      if (direct != null) {
+        direct.fire();
+        return true;
+      }
+
+      // 2) Try normalized match across inputs (handles case/underscore differences).
+      final normalized = _normalizeRiveName(name);
+      rive.Input? matched;
+      // ignore: deprecated_member_use
+      for (final input in stateMachine.inputs) {
+        if (_normalizeRiveName(input.name) == normalized) {
+          matched = input;
+          break;
+        }
+      }
+
+      if (matched is rive.TriggerInput) {
+        matched.fire();
+        return true;
+      }
+
+      // Some files use booleans/numbers as pseudo-triggers. Pulse them.
+      if (matched is rive.BooleanInput) {
+        final input = matched;
+        input.value = true;
+        Future.delayed(const Duration(milliseconds: 60), () {
+          if (_petRiveController == controller) {
+            input.value = false;
+          }
+        });
+        return true;
+      }
+
+      if (matched is rive.NumberInput) {
+        final input = matched;
+        input.value = 1;
+        Future.delayed(const Duration(milliseconds: 60), () {
+          if (_petRiveController == controller) {
+            input.value = 0;
+          }
+        });
+        return true;
+      }
+
+      // 3) Try data-binding triggers (new Rive workflow).
+      _maybeBindPetViewModel(controller);
+      final viewModel = stateMachine.boundRuntimeViewModelInstance ?? _petRiveViewModel;
+      if (viewModel != null) {
+        final vmTrigger = viewModel.trigger(name);
+        if (vmTrigger != null) {
+          vmTrigger.trigger();
+          return true;
+        }
+
+        final normalizedVm = _normalizeRiveName(name);
+        for (final property in viewModel.properties) {
+          if (property.type != rive.DataType.trigger) continue;
+          if (_normalizeRiveName(property.name) == normalizedVm) {
+            viewModel.trigger(property.name)?.trigger();
+            return true;
+          }
+        }
+      }
+
+      return false;
+    }
+
+    for (final candidate in _triggerNameCandidates(originalName)) {
+      if (!tryFire(candidate)) continue;
+      if (kDebugMode && candidate != originalName) {
+        debugPrint(
+          "[pet_rive] Aliased trigger \"$originalName\" -> \"$candidate\" (sm=${stateMachine.name})",
+        );
+      }
+      return;
+    }
+
+    if (kDebugMode) {
+      debugPrint(
+        "[pet_rive] Unknown input \"$originalName\" on state machine \"${stateMachine.name}\" (${_describeRiveInputs(stateMachine)})",
+      );
+    }
+
+    if (showErrors) {
+      widget.onError('Unknown pet trigger: $originalName (sm="${stateMachine.name}")');
+    }
   }
 
   int _baseXpForLevel(MotivationLevel level) {
@@ -706,7 +1109,7 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
                   ),
                 ),
                 TextButton(
-                  onPressed: widget.onEditInterests,
+                  onPressed: () => _openEditDailyActivity(activity),
                   child: const Text("Edit"),
                 ),
               ],
@@ -828,6 +1231,7 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
     await Future.wait([
       _loadDailyActivities(),
       _loadActivities(),
+      _loadActivityTypes(),
       widget.onRefreshInterests(),
       _refreshPetState(),
     ]);
@@ -876,24 +1280,20 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
         unit: loggedAmount?.unit,
       );
       if (!mounted) return;
-      if (response.isSuccess && response.data != null) {
-        final completion = response.data!;
-        final xpEarned = completion.xpAwarded ?? _expectedDailyXp(activity, interest);
-        widget.onPetChanged(completion.pet);
-        setState(() {
-          _pet = completion.pet;
-          _streakCurrent = completion.streakCurrent ?? _streakCurrent;
-          _streakBest = completion.streakBest ?? _streakBest;
-          _xpMultiplier = completion.xpMultiplier ?? _xpMultiplier;
-          if (completion.coinsAwarded != null) {
-            _pet = _pet.copyWith(coins: _pet.coins + completion.coinsAwarded!);
-            widget.onPetChanged(_pet);
-          }
-          _dailyActivities =
-              _dailyActivities.where((a) => a.id != activity.id).toList();
-          _hadDailyToday = true;
-          _completedToday.add(activity.interestId);
-        });
+        if (response.isSuccess && response.data != null) {
+          final completion = response.data!;
+          final xpEarned = completion.xpAwarded ?? _expectedDailyXp(activity, interest);
+          widget.onPetChanged(completion.pet);
+          setState(() {
+            _pet = completion.pet;
+            _streakCurrent = completion.streakCurrent ?? _streakCurrent;
+            _streakBest = completion.streakBest ?? _streakBest;
+            _xpMultiplier = completion.xpMultiplier ?? _xpMultiplier;
+            _dailyActivities =
+                _dailyActivities.where((a) => a.id != activity.id).toList();
+            _hadDailyToday = true;
+            _completedToday.add(activity.interestId);
+          });
         if (xpEarned != null) {
           _startCelebration(activity.interestId, xpEarned);
         }
@@ -919,6 +1319,7 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
     final response = await widget.apiService.fetchPet();
     if (!mounted) return;
     if (response.isSuccess && response.data != null) {
+      setState(() => _pet = response.data!);
       widget.onPetChanged(response.data!);
     } else {
       widget.onError(response.error ?? "Failed to refresh pet");
@@ -956,10 +1357,6 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
           _streakCurrent = completion.streakCurrent ?? _streakCurrent;
           _streakBest = completion.streakBest ?? _streakBest;
           _xpMultiplier = completion.xpMultiplier ?? _xpMultiplier;
-          if (completion.coinsAwarded != null) {
-            _pet = _pet.copyWith(coins: _pet.coins + completion.coinsAwarded!);
-            widget.onPetChanged(_pet);
-          }
         });
         _startCelebration(completion.interestId, completion.xpAwarded);
         _loadActivities();
@@ -1264,6 +1661,199 @@ class _XpCelebration extends StatelessWidget {
   }
 }
 
+class _ActivityTypePickerSheet extends StatelessWidget {
+  const _ActivityTypePickerSheet({
+    required this.activityTypes,
+    required this.isLoading,
+  });
+
+  final List<ActivityType> activityTypes;
+  final bool isLoading;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final height = MediaQuery.of(context).size.height * 0.65;
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          bottom: 16 + MediaQuery.of(context).viewInsets.bottom,
+          top: 12,
+        ),
+        child: SizedBox(
+          height: height,
+          child: Stack(
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 50,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade400,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    "Add new activity",
+                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    "Pick an existing type to schedule it again or create a new one.",
+                    style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey.shade700),
+                  ),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: isLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : activityTypes.isEmpty
+                            ? Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.history_rounded, size: 40, color: Colors.grey),
+                                    const SizedBox(height: 12),
+                                    const Text("No activity types yet"),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      "Create one with the + button.",
+                                      style: TextStyle(color: Colors.grey.shade700),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : ListView.separated(
+                                itemCount: activityTypes.length,
+                                separatorBuilder: (_, __) => const Divider(height: 1),
+                                itemBuilder: (context, index) {
+                                  final type = activityTypes[index];
+                                  final subtitleParts = <String>[];
+                                  if (type.areaName.isNotEmpty) {
+                                    subtitleParts.add(type.areaName);
+                                  }
+                                  final plan = type.plan;
+                                  if (plan != null && plan.weeklyGoalValue > 0) {
+                                    final daysLabel =
+                                        plan.days.isNotEmpty ? " • ${plan.days.join(", ").toUpperCase()}" : "";
+                                    subtitleParts.add(
+                                        "Goal: ${plan.weeklyGoalValue} ${plan.weeklyGoalUnit}$daysLabel");
+                                  }
+                                  final subtitle =
+                                      subtitleParts.isEmpty ? null : subtitleParts.join(" • ");
+                                  return ListTile(
+                                    leading: const Icon(Icons.history_rounded),
+                                    title: Text(type.name),
+                                    subtitle: subtitle != null ? Text(subtitle) : null,
+                                    trailing: const Icon(Icons.chevron_right),
+                                    onTap: () =>
+                                        Navigator.of(context).pop(_ActivityPickerResult(type: type)),
+                                  );
+                                },
+                              ),
+                  ),
+                ],
+              ),
+              Positioned(
+                bottom: 0,
+                right: 0,
+                child: FloatingActionButton(
+                  onPressed: () =>
+                      Navigator.of(context).pop(const _ActivityPickerResult(createNew: true)),
+                  child: const Icon(Icons.add_rounded),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PetRiveAnimation extends StatefulWidget {
+  const _PetRiveAnimation({
+    required this.assetPath,
+    required this.fallback,
+    this.onControllerReady,
+    this.fit = rive.Fit.cover,
+  });
+
+  final String assetPath;
+  final Widget fallback;
+  final rive.Fit fit;
+  final ValueChanged<rive.RiveWidgetController>? onControllerReady;
+
+  @override
+  State<_PetRiveAnimation> createState() => _PetRiveAnimationState();
+}
+
+class _PetRiveAnimationState extends State<_PetRiveAnimation> {
+  late final rive.FileLoader _fileLoader;
+  rive.RiveWidgetController? _notifiedController;
+
+  @override
+  void initState() {
+    super.initState();
+    _fileLoader = rive.FileLoader.fromAsset(
+      widget.assetPath,
+      riveFactory: rive.Factory.rive,
+    );
+  }
+
+  @override
+  void dispose() {
+    _fileLoader.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return rive.RiveWidgetBuilder(
+      fileLoader: _fileLoader,
+      stateMachineSelector: const rive.StateMachineDefault(),
+      builder: (context, state) => switch (state) {
+        rive.RiveLoading() => Stack(
+            fit: StackFit.expand,
+            children: [
+              widget.fallback,
+              const Center(child: CircularProgressIndicator()),
+            ],
+          ),
+        rive.RiveFailed() => widget.fallback,
+        rive.RiveLoaded() => Builder(
+            builder: (context) {
+              final controller = state.controller;
+              if (widget.onControllerReady != null && _notifiedController != controller) {
+                _notifiedController = controller;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  widget.onControllerReady?.call(controller);
+                });
+              }
+              return rive.RiveWidget(
+                controller: controller,
+                fit: widget.fit,
+              );
+            },
+          ),
+      },
+    );
+  }
+}
+
+class _ActivityPickerResult {
+  const _ActivityPickerResult({this.type, this.createNew = false});
+
+  final ActivityType? type;
+  final bool createNew;
+}
+
 class _NewActivityData {
   _NewActivityData({
     required this.name,
@@ -1273,6 +1863,7 @@ class _NewActivityData {
     this.weeklyGoalUnit,
     this.days = const [],
     this.rrule,
+    this.activityTypeId,
   });
 
   final String name;
@@ -1282,14 +1873,28 @@ class _NewActivityData {
   final String? weeklyGoalUnit;
   final List<String> days;
   final String? rrule;
+  final int? activityTypeId;
+}
+
+class _ActivityFormResult {
+  const _ActivityFormResult({this.data, this.deleted = false});
+
+  final _NewActivityData? data;
+  final bool deleted;
 }
 
 enum _RecurrenceOption { none, daily, weekly, monthly }
 
 class _NewActivityScreen extends StatefulWidget {
-  const _NewActivityScreen({required this.interests});
+  const _NewActivityScreen({
+    required this.interests,
+    this.initialType,
+    this.allowDelete = false,
+  });
 
   final List<UserInterest> interests;
+  final ActivityType? initialType;
+  final bool allowDelete;
 
   @override
   State<_NewActivityScreen> createState() => _NewActivityScreenState();
@@ -1307,6 +1912,92 @@ class _NewActivityScreenState extends State<_NewActivityScreen> {
   final Set<String> _selectedDays = {};
   _RecurrenceOption _recurrence = _RecurrenceOption.none;
   int _monthlyDay = 1;
+  ActivityType? get _initialType => widget.initialType;
+  bool get _isEditing => _initialType != null;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_isEditing) {
+      _prefillFromActivityType();
+    }
+  }
+
+  void _prefillFromActivityType() {
+    final type = _initialType;
+    if (type == null) return;
+    _nameCtrl.text = type.name;
+
+    final areaName = type.areaName.isNotEmpty ? type.areaName : type.name;
+    UserInterest? match;
+    try {
+      match = widget.interests
+          .firstWhere((interest) => interest.name.toLowerCase() == areaName.toLowerCase());
+    } catch (_) {
+      match = null;
+    }
+    if (match != null) {
+      _selectedInterest = match.name;
+      _useCustomArea = false;
+    } else {
+      _useCustomArea = true;
+      _customAreaCtrl.text = areaName;
+    }
+
+    final plan = type.plan;
+    if (plan != null && plan.weeklyGoalValue > 0) {
+      _enableWeeklyGoal = true;
+      _weeklyGoalCtrl.text = plan.weeklyGoalValue.toString();
+      _weeklyUnitCtrl.text = plan.weeklyGoalUnit;
+      _selectedDays.addAll(plan.days.map((d) => d.toLowerCase()));
+      _recurrence = _RecurrenceOption.weekly;
+    }
+
+    _applyRrule(type.rrule ?? "");
+    if (_recurrence == _RecurrenceOption.none && _selectedDays.isNotEmpty) {
+      _recurrence = _RecurrenceOption.weekly;
+    }
+  }
+
+  void _applyRrule(String rrule) {
+    if (rrule.isEmpty) return;
+    final upper = rrule.toUpperCase();
+    if (upper.contains("FREQ=DAILY")) {
+      _recurrence = _RecurrenceOption.daily;
+      return;
+    }
+    if (upper.contains("FREQ=WEEKLY")) {
+      _recurrence = _RecurrenceOption.weekly;
+      final match = RegExp(r"BYDAY=([^;]+)").firstMatch(upper);
+      if (match != null) {
+        final tokens = match.group(1)!.split(",");
+        const map = {
+          "MO": "mon",
+          "TU": "tue",
+          "WE": "wed",
+          "TH": "thu",
+          "FR": "fri",
+          "SA": "sat",
+          "SU": "sun",
+        };
+        for (final token in tokens) {
+          final normalized = map[token.trim()] ?? "";
+          if (normalized.isNotEmpty) _selectedDays.add(normalized);
+        }
+      }
+      return;
+    }
+    if (upper.contains("FREQ=MONTHLY")) {
+      _recurrence = _RecurrenceOption.monthly;
+      final match = RegExp(r"BYMONTHDAY=([0-9]{1,2})").firstMatch(upper);
+      if (match != null) {
+        final value = int.tryParse(match.group(1) ?? "");
+        if (value != null && value >= 1 && value <= 28) {
+          _monthlyDay = value;
+        }
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -1355,7 +2046,7 @@ class _NewActivityScreenState extends State<_NewActivityScreen> {
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: const Text("New activity"),
+        title: Text(_isEditing ? "Edit activity" : "New activity"),
       ),
       body: SafeArea(
         child: Padding(
@@ -1462,7 +2153,7 @@ class _NewActivityScreenState extends State<_NewActivityScreen> {
                     ),
                   ),
                 ],
-                if (_recurrence == _RecurrenceOption.weekly || _enableWeeklyGoal) ...[
+                if (_recurrence == _RecurrenceOption.weekly) ...[
                   const SizedBox(height: 12),
                   Text(
                     "Days",
@@ -1524,6 +2215,17 @@ class _NewActivityScreenState extends State<_NewActivityScreen> {
                     onPressed: _submit,
                   ),
                 ),
+                if (_isEditing && widget.allowDelete) ...[
+                  const SizedBox(height: 12),
+                  TextButton.icon(
+                    icon: const Icon(Icons.delete_forever_rounded, color: Colors.red),
+                    label: const Text(
+                      "Delete activity",
+                      style: TextStyle(color: Colors.red),
+                    ),
+                    onPressed: _confirmDelete,
+                  ),
+                ],
               ],
             ),
           ),
@@ -1564,17 +2266,44 @@ class _NewActivityScreenState extends State<_NewActivityScreen> {
     }
     final areaName = _useCustomArea ? _customAreaCtrl.text.trim() : (_selectedInterest ?? "");
     Navigator.of(context).pop(
-      _NewActivityData(
-        name: _nameCtrl.text.trim(),
-        areaName: areaName,
-        isNewArea: _useCustomArea,
-        weeklyGoalValue: weeklyValue,
-        weeklyGoalUnit: _enableWeeklyGoal ? _weeklyUnitCtrl.text.trim() : null,
-        days: (_enableWeeklyGoal || _recurrence == _RecurrenceOption.weekly)
-            ? _selectedDays.toList()
-            : const [],
-        rrule: rrule,
+      _ActivityFormResult(
+        data: _NewActivityData(
+          name: _nameCtrl.text.trim(),
+          areaName: areaName,
+          isNewArea: _useCustomArea,
+          weeklyGoalValue: weeklyValue,
+          weeklyGoalUnit: _enableWeeklyGoal ? _weeklyUnitCtrl.text.trim() : null,
+          days:
+              _recurrence == _RecurrenceOption.weekly ? _selectedDays.toList() : const [],
+          rrule: rrule,
+          activityTypeId: _initialType?.id,
+        ),
       ),
     );
+  }
+
+  Future<void> _confirmDelete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Delete activity"),
+        content: const Text(
+          "This will remove the activity and its upcoming daily tasks. Continue?",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text("Delete"),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    Navigator.of(context).pop(const _ActivityFormResult(deleted: true));
   }
 }
