@@ -6,6 +6,7 @@ from ..config import PET_EVOLUTIONS
 from ..dao.petDAO import PetDAO
 from ..models import db
 from ..models.pet import Pet
+from ..models.petStyle import PetStyle
 
 
 class PetService:
@@ -13,12 +14,26 @@ class PetService:
     _cosmetic_loadouts: defaultdict[int, dict[str, str]] = defaultdict(dict)
 
     @staticmethod
+    def _ensure_pet_style(pet_id: int | None) -> bool:
+        if not pet_id:
+            return False
+        existing = PetStyle.query.filter_by(pet_id=pet_id).first()
+        if existing:
+            return False
+        db.session.add(PetStyle(pet_id=pet_id))
+        return True
+
+    @staticmethod
     def create_pet(user_id: int) -> Pet:
         existing = PetDAO.get_by_user_id(user_id)
         if existing:
+            if PetService._ensure_pet_style(existing.id):
+                db.session.flush()
             return existing
         pet = PetDAO.create_for_user(user_id)
         db.session.flush()
+        if PetService._ensure_pet_style(pet.id):
+            db.session.flush()
         return pet
 
     @staticmethod
@@ -34,24 +49,6 @@ class PetService:
         pet_state = PetService.evolve_if_needed(pet)
         PetDAO.save(pet)
         return pet_state
-
-    @staticmethod
-    def add_coins(pet: Pet, amount: int) -> Pet:
-        if amount == 0:
-            return pet
-        pet.coins = max(0, (pet.coins or 0) + amount)
-        PetDAO.save(pet)
-        return pet
-
-    @staticmethod
-    def spend_coins(pet: Pet, amount: int) -> Pet:
-        if amount <= 0:
-            return pet
-        if (pet.coins or 0) < amount:
-            raise ValueError("Not enough coins")
-        pet.coins = max(0, (pet.coins or 0) - amount)
-        PetDAO.save(pet)
-        return pet
 
     @staticmethod
     def evolve_if_needed(pet: Pet) -> dict:
@@ -129,5 +126,7 @@ class PetService:
     @classmethod
     def pet_payload(cls, pet: Pet) -> dict:
         payload = pet.to_dict()
+        user = getattr(pet, "user", None)
+        payload["coins"] = (getattr(user, "coins", 0) or 0) if user else 0
         payload["cosmetics"] = cls.cosmetic_payload(pet.user_id)
         return payload

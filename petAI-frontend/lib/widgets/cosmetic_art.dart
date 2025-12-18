@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:rive/rive.dart' as rive;
+
+import '../models/cosmetics.dart';
 
 Color _darken(Color color, [double amount = 0.12]) {
   final hsl = HSLColor.fromColor(color);
@@ -196,14 +199,18 @@ class CosmeticPreview extends StatelessWidget {
     required this.artKey,
     required this.color,
     this.size = 94,
+    this.riveAsset,
   });
 
   final String artKey;
   final Color color;
   final double size;
+  final CosmeticRiveAsset? riveAsset;
 
   @override
   Widget build(BuildContext context) {
+    final fallback = _PaintedCosmeticSticker(artKey: artKey, accent: color);
+    final riveSource = riveAsset;
     return Container(
       width: size,
       height: size,
@@ -211,10 +218,98 @@ class CosmeticPreview extends StatelessWidget {
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(18),
       ),
-      child: CustomPaint(
-        painter: _CosmeticStickerPainter(artKey: artKey, accent: color),
-        child: const SizedBox.expand(),
-      ),
+      child: riveSource != null && riveSource.isValid
+          ? _RiveCosmeticPreview(
+              asset: riveSource,
+              fallback: fallback,
+            )
+          : fallback,
+    );
+  }
+}
+
+class _PaintedCosmeticSticker extends StatelessWidget {
+  const _PaintedCosmeticSticker({required this.artKey, required this.accent});
+
+  final String artKey;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: _CosmeticStickerPainter(artKey: artKey, accent: accent),
+      child: const SizedBox.expand(),
+    );
+  }
+}
+
+class _RiveCosmeticPreview extends StatefulWidget {
+  const _RiveCosmeticPreview({
+    required this.asset,
+    required this.fallback,
+  });
+
+  final CosmeticRiveAsset asset;
+  final Widget fallback;
+
+  @override
+  State<_RiveCosmeticPreview> createState() => _RiveCosmeticPreviewState();
+}
+
+class _RiveCosmeticPreviewState extends State<_RiveCosmeticPreview> {
+  late rive.FileLoader _loader;
+
+  @override
+  void initState() {
+    super.initState();
+    _loader = _buildLoader(widget.asset);
+  }
+
+  @override
+  void didUpdateWidget(covariant _RiveCosmeticPreview oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.asset.asset != widget.asset.asset) {
+      _loader.dispose();
+      _loader = _buildLoader(widget.asset);
+    }
+  }
+
+  @override
+  void dispose() {
+    _loader.dispose();
+    super.dispose();
+  }
+
+  rive.FileLoader _buildLoader(CosmeticRiveAsset asset) {
+    return rive.FileLoader.fromAsset(asset.asset, riveFactory: rive.Factory.rive);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return rive.RiveWidgetBuilder(
+      fileLoader: _loader,
+      artboardSelector: widget.asset.artboardSelector,
+      stateMachineSelector: widget.asset.stateMachineSelector,
+      builder: (context, state) => switch (state) {
+        rive.RiveLoading() => Stack(
+            fit: StackFit.expand,
+            children: [
+              widget.fallback,
+              const Center(
+                child: SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            ],
+          ),
+        rive.RiveFailed() => widget.fallback,
+        rive.RiveLoaded() => rive.RiveWidget(
+            controller: state.controller,
+            fit: widget.asset.fit,
+          ),
+      },
     );
   }
 }

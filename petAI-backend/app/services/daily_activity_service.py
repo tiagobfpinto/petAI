@@ -224,6 +224,7 @@ class DailyActivityService:
                 "pet": PetService.pet_payload(result["pet"]) if result.get("pet") else None,
                 "xp_awarded": result.get("xp_awarded"),
                 "coins_awarded": result.get("coins_awarded"),
+                "coins_balance": result.get("coins_balance"),
                 "interest_id": result.get("interest_id"),
                 "activity": activity_payload,
                 "streak_current": result.get("streak_current"),

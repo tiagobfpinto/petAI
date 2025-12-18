@@ -24,8 +24,8 @@ class XpProgressBar extends StatelessWidget {
           child: LinearProgressIndicator(
             value: value,
             minHeight: 12,
-            backgroundColor: Colors.white.withValues(alpha: 0.2),
-            valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+            backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+            valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).colorScheme.primary),
           ),
         ),
         const SizedBox(height: 6),
@@ -34,7 +34,7 @@ class XpProgressBar extends StatelessWidget {
               ? "$xp / $nextXp XP • $remaining XP to evolve"
               : "$xp XP • maxed out!",
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Colors.white.withValues(alpha: 0.85),
+                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.75),
               ),
         ),
       ],

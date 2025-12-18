@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:rive/rive.dart' as rive;
 
 import '../data/cosmetic_catalog.dart';
 import '../models/cosmetics.dart';
@@ -10,18 +11,41 @@ class PetSprite extends StatelessWidget {
     required this.stage,
     required this.mood,
     this.cosmetics,
+    this.paintBody = true,
   });
 
   final String stage;
   final int mood;
   final PetCosmeticLoadout? cosmetics;
+  final bool paintBody;
 
   @override
   Widget build(BuildContext context) {
     final loadout = cosmetics;
     final hasCosmetics = loadout != null && !loadout.isEmpty;
+    final riveCosmetics = <CosmeticSlot, CosmeticDefinition>{};
+    if (hasCosmetics) {
+      loadout!.equipped.forEach((slot, itemId) {
+        final def = CosmeticCatalog.definitionFor(itemId);
+        if (def?.riveAsset != null && def!.riveAsset!.isValid) {
+          riveCosmetics[slot] = def;
+        }
+      });
+    }
+    final ignoreSlots = riveCosmetics.keys.toSet();
     return LayoutBuilder(
       builder: (context, constraints) {
+        final size = Size(
+          constraints.maxWidth == double.infinity ? 0 : constraints.maxWidth,
+          constraints.maxHeight == double.infinity ? 0 : constraints.maxHeight,
+        );
+        final bodyRect = _petBodyRect(size);
+        final backgroundRive = riveCosmetics.entries
+            .where((entry) => entry.key == CosmeticSlot.back)
+            .toList();
+        final foregroundRive = riveCosmetics.entries
+            .where((entry) => entry.key != CosmeticSlot.back)
+            .toList();
         return Stack(
           fit: StackFit.expand,
           children: [
@@ -31,12 +55,29 @@ class PetSprite extends StatelessWidget {
                   painter: _PetCosmeticPainter(
                     cosmetics: loadout!,
                     layer: _CosmeticLayer.background,
+                    ignoreSlots: ignoreSlots,
                   ),
                 ),
               ),
+            ...backgroundRive.map(
+              (entry) => _RiveCosmeticLayer(
+                definition: entry.value,
+                slot: entry.key,
+                rect: _slotRectForBody(bodyRect, entry.key),
+              ),
+            ),
             Positioned.fill(
-              child: CustomPaint(
-                painter: _PetPainter(stage: stage, mood: mood),
+              child: paintBody
+                  ? CustomPaint(
+                      painter: _PetPainter(stage: stage, mood: mood),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+            ...foregroundRive.map(
+              (entry) => _RiveCosmeticLayer(
+                definition: entry.value,
+                slot: entry.key,
+                rect: _slotRectForBody(bodyRect, entry.key),
               ),
             ),
             if (hasCosmetics)
@@ -45,6 +86,7 @@ class PetSprite extends StatelessWidget {
                   painter: _PetCosmeticPainter(
                     cosmetics: loadout!,
                     layer: _CosmeticLayer.foreground,
+                    ignoreSlots: ignoreSlots,
                   ),
                 ),
               ),
@@ -61,74 +103,36 @@ class _PetCosmeticPainter extends CustomPainter {
   const _PetCosmeticPainter({
     required this.cosmetics,
     required this.layer,
+    this.ignoreSlots = const {},
   });
 
   final PetCosmeticLoadout cosmetics;
   final _CosmeticLayer layer;
+  final Set<CosmeticSlot> ignoreSlots;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final width = size.width == 0 ? 160.0 : size.width;
-    final height = size.height == 0 ? 160.0 : size.height;
-    final center = Offset(width / 2, height / 2);
-    final baseRadius = width * 0.32;
-    final bodyRect = Rect.fromCenter(
-      center: center,
-      width: baseRadius * 2,
-      height: baseRadius * 2.1,
-    );
+    final bodyRect = _petBodyRect(size);
 
     cosmetics.equipped.forEach((slot, itemId) {
       final isBackground = slot == CosmeticSlot.back;
+      if (ignoreSlots.contains(slot)) return;
       if (layer == _CosmeticLayer.background && !isBackground) return;
       if (layer == _CosmeticLayer.foreground && isBackground) return;
 
       final def = CosmeticCatalog.definitionFor(itemId);
       final artKey = (def?.previewKey ?? cosmeticSlotKey(slot));
       final color = def?.accent ?? Colors.blueGrey.shade400;
-      final rect = _slotRect(bodyRect, slot);
+      final rect = _slotRectForBody(bodyRect, slot);
       CosmeticArt.paint(canvas, rect, artKey, color);
     });
   }
 
-  Rect _slotRect(Rect bodyRect, CosmeticSlot slot) {
-    switch (slot) {
-      case CosmeticSlot.head:
-        return Rect.fromCenter(
-          center: Offset(bodyRect.center.dx, bodyRect.top - bodyRect.height * 0.18),
-          width: bodyRect.width * 0.9,
-          height: bodyRect.height * 0.35,
-        );
-      case CosmeticSlot.face:
-        return Rect.fromCenter(
-          center: Offset(bodyRect.center.dx, bodyRect.center.dy - bodyRect.height * 0.1),
-          width: bodyRect.width * 0.82,
-          height: bodyRect.height * 0.26,
-        );
-      case CosmeticSlot.neck:
-        return Rect.fromCenter(
-          center: Offset(bodyRect.center.dx, bodyRect.bottom - bodyRect.height * 0.22),
-          width: bodyRect.width * 0.88,
-          height: bodyRect.height * 0.24,
-        );
-      case CosmeticSlot.feet:
-        return Rect.fromCenter(
-          center: Offset(bodyRect.center.dx, bodyRect.bottom + bodyRect.height * 0.02),
-          width: bodyRect.width * 0.96,
-          height: bodyRect.height * 0.32,
-        );
-      case CosmeticSlot.back:
-        return Rect.fromCenter(
-          center: Offset(bodyRect.center.dx, bodyRect.center.dy + bodyRect.height * 0.05),
-          width: bodyRect.width * 1.16,
-          height: bodyRect.height * 1.04,
-        );
-    }
-  }
-
   @override
   bool shouldRepaint(covariant _PetCosmeticPainter oldDelegate) {
-    return oldDelegate.cosmetics != cosmetics || oldDelegate.layer != layer;
+    return oldDelegate.cosmetics != cosmetics ||
+        oldDelegate.layer != layer ||
+        oldDelegate.ignoreSlots != ignoreSlots;
   }
 }
 
@@ -303,10 +307,178 @@ class _PetPainter extends CustomPainter {
   }
 }
 
+class _RiveCosmeticLayer extends StatefulWidget {
+  const _RiveCosmeticLayer({
+    required this.definition,
+    required this.slot,
+    required this.rect,
+  });
+
+  final CosmeticDefinition definition;
+  final CosmeticSlot slot;
+  final Rect rect;
+
+  @override
+  State<_RiveCosmeticLayer> createState() => _RiveCosmeticLayerState();
+}
+
+class _RiveCosmeticLayerState extends State<_RiveCosmeticLayer> {
+  rive.FileLoader? _loader;
+
+  CosmeticRiveAsset? get _asset => widget.definition.riveAsset;
+
+  @override
+  void initState() {
+    super.initState();
+    _setupLoader();
+  }
+
+  @override
+  void didUpdateWidget(covariant _RiveCosmeticLayer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.definition.riveAsset?.asset != _asset?.asset) {
+      _loader?.dispose();
+      _setupLoader();
+    }
+  }
+
+  @override
+  void dispose() {
+    _loader?.dispose();
+    super.dispose();
+  }
+
+  void _setupLoader() {
+    final source = _asset;
+    if (source == null || !source.isValid) {
+      _loader = null;
+      return;
+    }
+    _loader = rive.FileLoader.fromAsset(source.asset, riveFactory: rive.Factory.rive);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final source = _asset;
+    final loader = _loader;
+    final fallback = CustomPaint(
+      painter: _CosmeticStickerPainter(
+        artKey: widget.definition.previewKey ?? cosmeticSlotKey(widget.slot),
+        accent: widget.definition.accent,
+      ),
+      child: const SizedBox.expand(),
+    );
+    if (source == null || loader == null || !source.isValid) {
+      return Positioned.fromRect(rect: widget.rect, child: fallback);
+    }
+    return Positioned(
+      left: widget.rect.left,
+      top: widget.rect.top,
+      width: widget.rect.width,
+      height: widget.rect.height,
+      child: rive.RiveWidgetBuilder(
+        fileLoader: loader,
+        artboardSelector: source.artboardSelector,
+        stateMachineSelector: source.stateMachineSelector,
+        builder: (context, state) => switch (state) {
+          rive.RiveLoaded() => rive.RiveWidget(
+              controller: state.controller,
+              fit: source.fit,
+            ),
+          rive.RiveLoading() => Stack(
+              fit: StackFit.expand,
+              children: [
+                fallback,
+                const Center(
+                  child: SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+              ],
+            ),
+          rive.RiveFailed() => fallback,
+        },
+      ),
+    );
+  }
+}
+
+Rect _petBodyRect(Size size) {
+  final width = size.width == 0 ? 160.0 : size.width;
+  final height = size.height == 0 ? 160.0 : size.height;
+  final center = Offset(width / 2, height / 2);
+  final baseRadius = width * 0.32;
+  return Rect.fromCenter(
+    center: center,
+    width: baseRadius * 2,
+    height: baseRadius * 2.1,
+  );
+}
+
+Rect _slotRectForBody(Rect bodyRect, CosmeticSlot slot) {
+  switch (slot) {
+    case CosmeticSlot.head:
+      return Rect.fromCenter(
+        center: Offset(bodyRect.center.dx, bodyRect.top - bodyRect.height * 0.18),
+        width: bodyRect.width * 0.9,
+        height: bodyRect.height * 0.35,
+      );
+    case CosmeticSlot.face:
+      return Rect.fromCenter(
+        center: Offset(bodyRect.center.dx, bodyRect.center.dy - bodyRect.height * 0.1),
+        width: bodyRect.width * 0.82,
+        height: bodyRect.height * 0.26,
+      );
+    case CosmeticSlot.neck:
+      return Rect.fromCenter(
+        center: Offset(bodyRect.center.dx, bodyRect.bottom - bodyRect.height * 0.22),
+        width: bodyRect.width * 0.88,
+        height: bodyRect.height * 0.24,
+      );
+    case CosmeticSlot.feet:
+      return Rect.fromCenter(
+        center: Offset(bodyRect.center.dx, bodyRect.bottom + bodyRect.height * 0.02),
+        width: bodyRect.width * 0.96,
+        height: bodyRect.height * 0.32,
+      );
+    case CosmeticSlot.back:
+      return Rect.fromCenter(
+        center: Offset(bodyRect.center.dx, bodyRect.center.dy + bodyRect.height * 0.05),
+        width: bodyRect.width * 1.16,
+        height: bodyRect.height * 1.04,
+      );
+  }
+}
+
 extension on Color {
   Color darken([double amount = 0.2]) {
     final hsl = HSLColor.fromColor(this);
     final lightness = (hsl.lightness - amount).clamp(0.0, 1.0);
     return hsl.withLightness(lightness).toColor();
+  }
+}
+
+class _CosmeticStickerPainter extends CustomPainter {
+  _CosmeticStickerPainter({required this.artKey, required this.accent});
+
+  final String artKey;
+  final Color accent;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paddedRect = Rect.fromLTWH(
+      size.width * 0.12,
+      size.height * 0.12,
+      size.width * 0.76,
+      size.height * 0.76,
+    );
+    CosmeticArt.paint(canvas, paddedRect, artKey, accent);
+  }
+
+  @override
+  bool shouldRepaint(covariant _CosmeticStickerPainter oldDelegate) {
+    return oldDelegate.artKey != artKey || oldDelegate.accent != accent;
   }
 }

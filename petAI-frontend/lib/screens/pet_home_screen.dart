@@ -1,22 +1,23 @@
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../models/activity_log.dart';
 import '../models/daily_activity.dart';
 import '../models/interest.dart';
-import '../models/cosmetics.dart';
 import '../models/activity_type.dart';
 import '../models/pet_state.dart';
 import '../models/user_interest.dart';
 import '../models/user_session.dart';
 import '../services/api_service.dart';
-import '../widgets/pet_sprite.dart';
 import '../widgets/xp_progress_bar.dart';
 import 'coin_store_screen.dart';
 import 'friends_screen.dart';
 import 'progression_screen.dart';
 import 'shop_screen.dart';
+import 'styles_sheet.dart';
+import 'package:rive/rive.dart' as rive;
 
 class PetHomeScreen extends StatefulWidget {
   const PetHomeScreen({
@@ -52,8 +53,12 @@ class PetHomeScreen extends StatefulWidget {
 }
 
 class _PetHomeScreenState extends State<PetHomeScreen> {
+  static const String _petRiveAssetPath = "assets/rive/pet_home.riv";
   late PetState _pet;
   late List<UserInterest> _interests;
+  rive.RiveWidgetController? _petRiveController;
+  rive.ViewModelInstance? _petRiveViewModel;
+  rive.RiveWidgetController? _petRiveViewModelController;
   final Map<String, bool> _logging = {};
   List<DailyActivity> _dailyActivities = [];
   bool _loadingDaily = true;
@@ -67,6 +72,9 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
   int? _streakCurrent;
   int? _streakBest;
   double? _xpMultiplier;
+  List<String> _equippedStyleTriggers = const [];
+  bool _loadingEquippedStyleTriggers = false;
+  rive.RiveWidgetController? _equippedStyleControllerAppliedTo;
 
   @override
   void initState() {
@@ -79,6 +87,7 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
     _loadDailyActivities();
     _loadActivities();
     _loadActivityTypes();
+    _loadEquippedStyleTriggers();
   }
 
   @override
@@ -172,12 +181,6 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
                 onBalanceChanged: (balance) {
                   setState(() {
                     _pet = _pet.copyWith(coins: balance);
-                  });
-                  widget.onPetChanged(_pet);
-                },
-                onCosmeticsChanged: (PetCosmeticLoadout loadout) {
-                  setState(() {
-                    _pet = _pet.copyWith(cosmetics: loadout);
                   });
                   widget.onPetChanged(_pet);
                 },
@@ -570,87 +573,310 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
 
   Widget _buildPetHeader(BuildContext context) {
     final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        gradient: LinearGradient(
-          colors: [
-            theme.colorScheme.primary.withValues(alpha: 0.9),
-            theme.colorScheme.secondary,
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      child: Column(
-        children: [
-          SizedBox(
-            height: 180,
-            width: double.infinity,
-            child: PetSprite(
-              stage: _pet.stage,
-              mood: _pet.level,
-              cosmetics: _pet.cosmetics,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            _pet.stage.toUpperCase(),
-            style: theme.textTheme.labelLarge?.copyWith(
-              color: Colors.white70,
-              letterSpacing: 1.2,
-            ),
-          ),
-          Text(
-            "Level ${_pet.level}",
-            style: theme.textTheme.headlineSmall?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 12),
-          XpProgressBar(
-            progress: _pet.progressToNext,
-            xp: _pet.xp,
-            nextXp: _pet.nextEvolutionXp,
-          ),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.monetization_on_outlined,
-                  color: Colors.white,
-                  size: 18,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  "${_pet.coins} coins",
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
+    return Column(
+      children: [
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final maxWidth = constraints.maxWidth.isFinite ? constraints.maxWidth : 240.0;
+            final size = min(maxWidth, 260.0);
+            return Center(
+              child: SizedBox(
+                width: size,
+                height: size,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      _PetRiveAnimation(
+                        assetPath: _petRiveAssetPath,
+                        fallback: ColoredBox(
+                          color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+                        ),
+                        onControllerReady: (controller) {
+                          _petRiveController = controller;
+                          _maybeBindPetViewModel(controller);
+                          _applyEquippedStyleTriggersIfReady();
+                        },
+                      ),
+                    ],
                   ),
                 ),
-              ],
-            ),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 12),
+        Text(
+          _pet.stage.toUpperCase(),
+          style: theme.textTheme.labelLarge?.copyWith(
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+            letterSpacing: 1.2,
           ),
-          const SizedBox(height: 12),
-          Text(
-            "Log quick wins to help your buddy evolve.",
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: Colors.white.withValues(alpha: 0.85),
-            ),
+        ),
+        Text(
+          "Level ${_pet.level}",
+          style: theme.textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.bold,
           ),
-        ],
+        ),
+        const SizedBox(height: 12),
+        XpProgressBar(
+          progress: _pet.progressToNext,
+          xp: _pet.xp,
+          nextXp: _pet.nextEvolutionXp,
+        ),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: _openStylesMenu,
+          icon: const Icon(Icons.checkroom_rounded),
+          label: const Text("Styles"),
+          style: OutlinedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          "Log quick wins to help your buddy evolve.",
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.75),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _openStylesMenu() async {
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => StylesSheet(
+        apiService: widget.apiService,
+        onError: widget.onError,
+        onTrigger: (trigger) {
+          _firePetTrigger(trigger);
+        },
       ),
     );
+  }
+
+  Future<void> _loadEquippedStyleTriggers() async {
+    if (_loadingEquippedStyleTriggers) return;
+    _loadingEquippedStyleTriggers = true;
+    final response = await widget.apiService.fetchEquippedStyleTriggers();
+    _loadingEquippedStyleTriggers = false;
+    if (!mounted) return;
+
+    if (response.isSuccess && response.data != null) {
+      _equippedStyleTriggers = response.data!;
+      _applyEquippedStyleTriggersIfReady();
+      return;
+    }
+
+    if (kDebugMode) {
+      debugPrint(
+        "[style] Failed to load equipped style triggers: ${response.error ?? 'unknown error'}",
+      );
+    }
+  }
+
+  void _applyEquippedStyleTriggersIfReady() {
+    final controller = _petRiveController;
+    if (controller == null) return;
+    if (_equippedStyleTriggers.isEmpty) return;
+    if (_equippedStyleControllerAppliedTo == controller) return;
+
+    for (final trigger in _equippedStyleTriggers) {
+      _firePetTrigger(trigger, showErrors: false);
+    }
+    _equippedStyleControllerAppliedTo = controller;
+  }
+
+  void _maybeBindPetViewModel(rive.RiveWidgetController controller) {
+    if (_petRiveViewModelController == controller) return;
+    _petRiveViewModelController = controller;
+    _petRiveViewModel = null;
+
+    try {
+      _petRiveViewModel = controller.dataBind(const rive.AutoBind());
+      if (kDebugMode) {
+        debugPrint(
+          "[pet_rive] bound view model: ${_petRiveViewModel?.name} (sm=${controller.stateMachine.name})",
+        );
+      }
+    } catch (err) {
+      if (kDebugMode) {
+        debugPrint("[pet_rive] no view model binding (sm=${controller.stateMachine.name}): $err");
+      }
+    }
+  }
+
+  static String _normalizeRiveName(String value) {
+    return value
+        .trim()
+        .toLowerCase()
+        .replaceAll(RegExp(r"[^a-z0-9]"), "");
+  }
+
+  static List<String> _triggerNameCandidates(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return const [];
+
+    final candidates = <String>[trimmed];
+
+    final hatAbbrev = RegExp(r"^h[_-]?(\d+)$", caseSensitive: false).firstMatch(trimmed);
+    if (hatAbbrev != null) {
+      candidates.add("hat_${hatAbbrev.group(1)}");
+    }
+
+    final hatFull = RegExp(r"^hat[_-]?(\d+)$", caseSensitive: false).firstMatch(trimmed);
+    if (hatFull != null) {
+      final id = hatFull.group(1);
+      if (id != null) {
+        candidates.add("hat_$id");
+        candidates.add("h_$id");
+      }
+    }
+
+    final unique = <String>[];
+    for (final candidate in candidates) {
+      if (unique.contains(candidate)) continue;
+      unique.add(candidate);
+    }
+    return unique;
+  }
+
+  static String _describeRiveInputs(rive.StateMachine stateMachine) {
+    final triggers = <String>[];
+    final booleans = <String>[];
+    final numbers = <String>[];
+
+    // ignore: deprecated_member_use
+    for (final input in stateMachine.inputs) {
+      if (input is rive.TriggerInput) {
+        triggers.add(input.name);
+      } else if (input is rive.BooleanInput) {
+        booleans.add(input.name);
+      } else if (input is rive.NumberInput) {
+        numbers.add(input.name);
+      }
+    }
+
+    final parts = <String>[];
+    if (triggers.isNotEmpty) parts.add("triggers=[${triggers.join(", ")}]");
+    if (booleans.isNotEmpty) parts.add("booleans=[${booleans.join(", ")}]");
+    if (numbers.isNotEmpty) parts.add("numbers=[${numbers.join(", ")}]");
+    return parts.isEmpty ? "inputs=[]" : parts.join(" ");
+  }
+
+  void _firePetTrigger(String triggerName, {bool showErrors = true}) {
+    final controller = _petRiveController;
+    final originalName = triggerName.trim();
+    if (originalName.isEmpty) return;
+    if (controller == null) {
+      if (showErrors) {
+        widget.onError("Pet animation not ready yet");
+      } else if (kDebugMode) {
+        debugPrint("[pet_rive] trigger ignored (animation not ready): $originalName");
+      }
+      return;
+    }
+
+    final stateMachine = controller.stateMachine;
+
+    bool tryFire(String name) {
+      // 1) Try state machine trigger input (legacy inputs).
+      // ignore: deprecated_member_use
+      final direct = stateMachine.trigger(name);
+      if (direct != null) {
+        direct.fire();
+        return true;
+      }
+
+      // 2) Try normalized match across inputs (handles case/underscore differences).
+      final normalized = _normalizeRiveName(name);
+      rive.Input? matched;
+      // ignore: deprecated_member_use
+      for (final input in stateMachine.inputs) {
+        if (_normalizeRiveName(input.name) == normalized) {
+          matched = input;
+          break;
+        }
+      }
+
+      if (matched is rive.TriggerInput) {
+        matched.fire();
+        return true;
+      }
+
+      // Some files use booleans/numbers as pseudo-triggers. Pulse them.
+      if (matched is rive.BooleanInput) {
+        final input = matched;
+        input.value = true;
+        Future.delayed(const Duration(milliseconds: 60), () {
+          if (_petRiveController == controller) {
+            input.value = false;
+          }
+        });
+        return true;
+      }
+
+      if (matched is rive.NumberInput) {
+        final input = matched;
+        input.value = 1;
+        Future.delayed(const Duration(milliseconds: 60), () {
+          if (_petRiveController == controller) {
+            input.value = 0;
+          }
+        });
+        return true;
+      }
+
+      // 3) Try data-binding triggers (new Rive workflow).
+      _maybeBindPetViewModel(controller);
+      final viewModel = stateMachine.boundRuntimeViewModelInstance ?? _petRiveViewModel;
+      if (viewModel != null) {
+        final vmTrigger = viewModel.trigger(name);
+        if (vmTrigger != null) {
+          vmTrigger.trigger();
+          return true;
+        }
+
+        final normalizedVm = _normalizeRiveName(name);
+        for (final property in viewModel.properties) {
+          if (property.type != rive.DataType.trigger) continue;
+          if (_normalizeRiveName(property.name) == normalizedVm) {
+            viewModel.trigger(property.name)?.trigger();
+            return true;
+          }
+        }
+      }
+
+      return false;
+    }
+
+    for (final candidate in _triggerNameCandidates(originalName)) {
+      if (!tryFire(candidate)) continue;
+      if (kDebugMode && candidate != originalName) {
+        debugPrint(
+          "[pet_rive] Aliased trigger \"$originalName\" -> \"$candidate\" (sm=${stateMachine.name})",
+        );
+      }
+      return;
+    }
+
+    if (kDebugMode) {
+      debugPrint(
+        "[pet_rive] Unknown input \"$originalName\" on state machine \"${stateMachine.name}\" (${_describeRiveInputs(stateMachine)})",
+      );
+    }
+
+    if (showErrors) {
+      widget.onError('Unknown pet trigger: $originalName (sm="${stateMachine.name}")');
+    }
   }
 
   int _baseXpForLevel(MotivationLevel level) {
@@ -1054,24 +1280,20 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
         unit: loggedAmount?.unit,
       );
       if (!mounted) return;
-      if (response.isSuccess && response.data != null) {
-        final completion = response.data!;
-        final xpEarned = completion.xpAwarded ?? _expectedDailyXp(activity, interest);
-        widget.onPetChanged(completion.pet);
-        setState(() {
-          _pet = completion.pet;
-          _streakCurrent = completion.streakCurrent ?? _streakCurrent;
-          _streakBest = completion.streakBest ?? _streakBest;
-          _xpMultiplier = completion.xpMultiplier ?? _xpMultiplier;
-          if (completion.coinsAwarded != null) {
-            _pet = _pet.copyWith(coins: _pet.coins + completion.coinsAwarded!);
-            widget.onPetChanged(_pet);
-          }
-          _dailyActivities =
-              _dailyActivities.where((a) => a.id != activity.id).toList();
-          _hadDailyToday = true;
-          _completedToday.add(activity.interestId);
-        });
+        if (response.isSuccess && response.data != null) {
+          final completion = response.data!;
+          final xpEarned = completion.xpAwarded ?? _expectedDailyXp(activity, interest);
+          widget.onPetChanged(completion.pet);
+          setState(() {
+            _pet = completion.pet;
+            _streakCurrent = completion.streakCurrent ?? _streakCurrent;
+            _streakBest = completion.streakBest ?? _streakBest;
+            _xpMultiplier = completion.xpMultiplier ?? _xpMultiplier;
+            _dailyActivities =
+                _dailyActivities.where((a) => a.id != activity.id).toList();
+            _hadDailyToday = true;
+            _completedToday.add(activity.interestId);
+          });
         if (xpEarned != null) {
           _startCelebration(activity.interestId, xpEarned);
         }
@@ -1135,10 +1357,6 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
           _streakCurrent = completion.streakCurrent ?? _streakCurrent;
           _streakBest = completion.streakBest ?? _streakBest;
           _xpMultiplier = completion.xpMultiplier ?? _xpMultiplier;
-          if (completion.coinsAwarded != null) {
-            _pet = _pet.copyWith(coins: _pet.coins + completion.coinsAwarded!);
-            widget.onPetChanged(_pet);
-          }
         });
         _startCelebration(completion.interestId, completion.xpAwarded);
         _loadActivities();
@@ -1555,6 +1773,76 @@ class _ActivityTypePickerSheet extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _PetRiveAnimation extends StatefulWidget {
+  const _PetRiveAnimation({
+    required this.assetPath,
+    required this.fallback,
+    this.onControllerReady,
+    this.fit = rive.Fit.cover,
+  });
+
+  final String assetPath;
+  final Widget fallback;
+  final rive.Fit fit;
+  final ValueChanged<rive.RiveWidgetController>? onControllerReady;
+
+  @override
+  State<_PetRiveAnimation> createState() => _PetRiveAnimationState();
+}
+
+class _PetRiveAnimationState extends State<_PetRiveAnimation> {
+  late final rive.FileLoader _fileLoader;
+  rive.RiveWidgetController? _notifiedController;
+
+  @override
+  void initState() {
+    super.initState();
+    _fileLoader = rive.FileLoader.fromAsset(
+      widget.assetPath,
+      riveFactory: rive.Factory.rive,
+    );
+  }
+
+  @override
+  void dispose() {
+    _fileLoader.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return rive.RiveWidgetBuilder(
+      fileLoader: _fileLoader,
+      stateMachineSelector: const rive.StateMachineDefault(),
+      builder: (context, state) => switch (state) {
+        rive.RiveLoading() => Stack(
+            fit: StackFit.expand,
+            children: [
+              widget.fallback,
+              const Center(child: CircularProgressIndicator()),
+            ],
+          ),
+        rive.RiveFailed() => widget.fallback,
+        rive.RiveLoaded() => Builder(
+            builder: (context) {
+              final controller = state.controller;
+              if (widget.onControllerReady != null && _notifiedController != controller) {
+                _notifiedController = controller;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  widget.onControllerReady?.call(controller);
+                });
+              }
+              return rive.RiveWidget(
+                controller: controller,
+                fit: widget.fit,
+              );
+            },
+          ),
+      },
     );
   }
 }

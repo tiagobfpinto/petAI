@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../models/friend_profile.dart';
 import '../services/api_service.dart';
+import '../widgets/pet_sprite.dart';
+import 'friend_profile_screen.dart';
 
 class FriendsScreen extends StatefulWidget {
   const FriendsScreen({
@@ -82,6 +84,15 @@ class _FriendsScreenState extends State<FriendsScreen> {
     } else {
       widget.onError(response.error ?? "Could not accept request");
     }
+  }
+
+  void _openFriendProfile(FriendProfile friend) {
+    if (friend.id <= 0) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => FriendProfileScreen(friend: friend),
+      ),
+    );
   }
 
   @override
@@ -270,71 +281,75 @@ class _FriendsScreenState extends State<FriendsScreen> {
 
   Widget _friendCard(FriendProfile friend) {
     final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 58,
-            height: 58,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                colors: [
-                  theme.colorScheme.primary.withValues(alpha: 0.25),
-                  theme.colorScheme.secondary.withValues(alpha: 0.2),
+    return InkWell(
+      onTap: () => _openFriendProfile(friend),
+      borderRadius: BorderRadius.circular(18),
+      child: Ink(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 58,
+              height: 58,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  colors: [
+                    theme.colorScheme.primary.withValues(alpha: 0.18),
+                    theme.colorScheme.secondary.withValues(alpha: 0.14),
+                  ],
+                ),
+              ),
+              child: ClipOval(
+                child: PetSprite(
+                  stage: friend.petStage,
+                  mood: friend.petLevel,
+                  cosmetics: friend.petCosmetics,
+                ),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    friend.username,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    "Pet stage: ${friend.petStage}",
+                    style: TextStyle(color: Colors.grey.shade700),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      _statPill(Icons.star_rounded, "Level ${friend.petLevel}"),
+                      const SizedBox(width: 8),
+                      _statPill(Icons.bolt_rounded, "${friend.petXp} XP"),
+                    ],
+                  ),
                 ],
               ),
             ),
-            child: Center(
-              child: Text(
-                friend.username.isNotEmpty ? friend.username[0].toUpperCase() : "?",
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: theme.colorScheme.primary,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  friend.username,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  "Pet stage: ${friend.petStage}",
-                  style: TextStyle(color: Colors.grey.shade700),
-                ),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    _statPill(Icons.star_rounded, "Level ${friend.petLevel}"),
-                    const SizedBox(width: 8),
-                    _statPill(Icons.bolt_rounded, "${friend.petXp} XP"),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
+            const SizedBox(width: 8),
+            Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400),
+          ],
+        ),
       ),
     );
   }

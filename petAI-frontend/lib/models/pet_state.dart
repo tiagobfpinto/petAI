@@ -1,4 +1,3 @@
-import '../utils/test_coins.dart';
 import '../data/pet_evolution_data.dart';
 import 'cosmetics.dart';
 
@@ -36,7 +35,7 @@ class PetState {
       stage: json["stage"] as String? ?? "egg",
       nextEvolutionXp: json["next_evolution_xp"] as int? ?? 100,
       petType: json["pet_type"] as String? ?? "sprout",
-      coins: applyTestCoins(json["coins"] as int? ?? 0),
+      coins: _coerceInt(json["coins"]),
       currentSprite: json["current_sprite"] as String?,
       cosmetics: PetCosmeticLoadout.fromJson(json["cosmetics"] as Map<String, dynamic>?),
     );
@@ -77,5 +76,12 @@ class PetState {
     final progress = (xp - floor) / (ceil - floor);
     if (progress.isNaN) return 0.0;
     return progress.clamp(0.0, 1.0);
+  }
+
+  static int _coerceInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value) ?? 0;
+    return 0;
   }
 }

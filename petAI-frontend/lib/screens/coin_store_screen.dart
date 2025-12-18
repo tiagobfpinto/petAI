@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../utils/test_coins.dart';
-
 class CoinPackage {
   const CoinPackage({
     required this.id,
@@ -225,7 +223,6 @@ class CoinStoreScreen extends StatelessWidget {
     );
 
     if (confirmed == true) {
-      addTestCoins(pack.coins);
       onPurchase(pack.coins);
       // ignore: use_build_context_synchronously
       Navigator.of(context).pop();

@@ -42,14 +42,23 @@ class CosmeticCatalog {
     ),
   };
 
+  static final Map<String, CosmeticDefinition> _runtimeDefinitions = {};
+
   static CosmeticDefinition? definitionFor(String? id) {
     if (id == null || id.isEmpty) return null;
-    return _definitions[id];
+    return _runtimeDefinitions[id] ?? _definitions[id];
   }
 
   static Color resolveAccent(String? id, {Color? fallback}) {
     final def = definitionFor(id);
     if (def != null) return def.accent;
     return fallback ?? Colors.grey.shade400;
+  }
+
+  static void registerDefinitions(Iterable<CosmeticDefinition> definitions) {
+    for (final def in definitions) {
+      if (def.id.isEmpty) continue;
+      _runtimeDefinitions[def.id] = def;
+    }
   }
 }
