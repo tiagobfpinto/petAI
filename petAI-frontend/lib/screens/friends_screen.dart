@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../models/friend_profile.dart';
+import '../models/friend_search_result.dart';
 import '../services/api_service.dart';
 import '../widgets/pet_sprite.dart';
 import 'friend_profile_screen.dart';
@@ -24,7 +27,12 @@ class _FriendsScreenState extends State<FriendsScreen> {
   bool _loading = true;
   bool _sending = false;
   int? _acceptingId;
+  int? _removingId;
   final TextEditingController _usernameCtrl = TextEditingController();
+  final List<FriendSearchResult> _searchResults = [];
+  Timer? _searchTimer;
+  bool _searching = false;
+  String _lastQuery = "";
 
   @override
   void initState() {
@@ -34,6 +42,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
 
   @override
   void dispose() {
+    _searchTimer?.cancel();
     _usernameCtrl.dispose();
     super.dispose();
   }
@@ -53,22 +62,54 @@ class _FriendsScreenState extends State<FriendsScreen> {
     }
   }
 
-  Future<void> _sendRequest() async {
-    final username = _usernameCtrl.text.trim();
-    if (username.isEmpty) return;
+  Future<void> _sendRequest({String? username}) async {
+    final resolved = username?.trim() ?? _usernameCtrl.text.trim();
+    if (resolved.isEmpty) return;
     setState(() => _sending = true);
-    final response = await widget.apiService.sendFriendRequest(username);
+    final response = await widget.apiService.sendFriendRequest(resolved);
     if (!mounted) return;
     setState(() => _sending = false);
     if (response.isSuccess) {
       _usernameCtrl.clear();
+      _searchResults.clear();
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Request sent to $username")),
+        SnackBar(content: Text("Request sent to $resolved")),
       );
       _loadFriends();
     } else {
       widget.onError(response.error ?? "Could not send request");
     }
+  }
+
+  void _onSearchChanged(String value) {
+    _searchTimer?.cancel();
+    final query = value.trim();
+    _lastQuery = query;
+    if (query.length < 2) {
+      if (_searchResults.isNotEmpty || _searching) {
+        setState(() {
+          _searchResults.clear();
+          _searching = false;
+        });
+      }
+      return;
+    }
+    _searchTimer = Timer(const Duration(milliseconds: 300), () async {
+      setState(() => _searching = true);
+      final response = await widget.apiService.searchFriends(query);
+      if (!mounted) return;
+      if (_lastQuery != query) return;
+      if (response.isSuccess && response.data != null) {
+        setState(() {
+          _searchResults
+            ..clear()
+            ..addAll(response.data!);
+          _searching = false;
+        });
+      } else {
+        setState(() => _searching = false);
+      }
+    });
   }
 
   Future<void> _acceptRequest(int requestId) async {
@@ -169,7 +210,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
               ),
               const Spacer(),
               TextButton(
-                onPressed: _sending ? null : _sendRequest,
+                onPressed: _sending ? null : () => _sendRequest(),
                 child: _sending
                     ? const SizedBox(
                         width: 16,
@@ -187,7 +228,76 @@ class _FriendsScreenState extends State<FriendsScreen> {
               hintText: "@username",
               prefixIcon: Icon(Icons.alternate_email_rounded),
             ),
+            onChanged: _onSearchChanged,
             onSubmitted: (_) => _sendRequest(),
+          ),
+          if (_searching) ...[
+            const SizedBox(height: 12),
+            const LinearProgressIndicator(minHeight: 2),
+          ],
+          if (_searchResults.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            ..._searchResults.map(_searchResultRow),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _removeFriend(FriendProfile friend) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Remove friend"),
+        content: Text("Remove ${friend.username} from your friends list?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text("Remove"),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    setState(() => _removingId = friend.id);
+    final response = await widget.apiService.removeFriend(friend.id);
+    if (!mounted) return;
+    setState(() => _removingId = null);
+    if (response.isSuccess) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("${friend.username} removed")),
+      );
+      _loadFriends();
+    } else {
+      widget.onError(response.error ?? "Could not remove friend");
+    }
+  }
+
+  Widget _searchResultRow(FriendSearchResult result) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.person_outline_rounded, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              result.username,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+          TextButton(
+            onPressed: _sending ? null : () => _sendRequest(username: result.username),
+            child: const Text("Add"),
           ),
         ],
       ),
@@ -281,6 +391,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
 
   Widget _friendCard(FriendProfile friend) {
     final theme = Theme.of(context);
+    final removing = _removingId == friend.id;
     return InkWell(
       onTap: () => _openFriendProfile(friend),
       borderRadius: BorderRadius.circular(18),
@@ -347,7 +458,17 @@ class _FriendsScreenState extends State<FriendsScreen> {
               ),
             ),
             const SizedBox(width: 8),
-            Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400),
+            IconButton(
+              tooltip: "Remove friend",
+              onPressed: removing ? null : () => _removeFriend(friend),
+              icon: removing
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Icon(Icons.person_remove_rounded, color: Colors.grey.shade600),
+            ),
           ],
         ),
       ),

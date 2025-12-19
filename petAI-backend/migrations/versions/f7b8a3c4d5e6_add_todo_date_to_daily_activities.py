@@ -26,12 +26,27 @@ def upgrade():
     )
 
     conn = op.get_bind()
-    conn.execute(sa.text("UPDATE daily_activities SET todo_date = scheduled_for WHERE todo_date IS NULL"))
+    conn.execute(
+        sa.text(
+            "UPDATE daily_activities SET todo_date = scheduled_for WHERE todo_date IS NULL"
+        )
+    )
 
-    op.alter_column("daily_activities", "todo_date", nullable=False)
+    if conn.dialect.name == "sqlite":
+        with op.batch_alter_table("daily_activities") as batch_op:
+            batch_op.alter_column("todo_date", nullable=False)
+    else:
+        op.alter_column("daily_activities", "todo_date", nullable=False)
 
 
 def downgrade():
-    op.alter_column("daily_activities", "todo_date", nullable=True)
-    op.drop_index(op.f("ix_daily_activities_todo_date"), table_name="daily_activities")
-    op.drop_column("daily_activities", "todo_date")
+    conn = op.get_bind()
+    if conn.dialect.name == "sqlite":
+        with op.batch_alter_table("daily_activities") as batch_op:
+            batch_op.alter_column("todo_date", nullable=True)
+            batch_op.drop_index(op.f("ix_daily_activities_todo_date"))
+            batch_op.drop_column("todo_date")
+    else:
+        op.alter_column("daily_activities", "todo_date", nullable=True)
+        op.drop_index(op.f("ix_daily_activities_todo_date"), table_name="daily_activities")
+        op.drop_column("daily_activities", "todo_date")

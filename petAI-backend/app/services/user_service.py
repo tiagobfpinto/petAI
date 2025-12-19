@@ -15,6 +15,7 @@ from ..services.pet_service import PetService
 class UserService:
     @staticmethod
     def create_user(username: str, email: str, full_name: str | None, password: str) -> tuple[User, dict]:
+        UserService.validate_password(password)
         if UserDAO.user_exists(username, email):
             raise ValueError("User with provided username or email already exists")
 
@@ -26,6 +27,13 @@ class UserService:
         db.session.flush()
 
         return user, PetService.pet_payload(pet)
+
+    @staticmethod
+    def validate_password(password: str) -> None:
+        if not password or len(password) < 8:
+            raise ValueError("Password must be at least 8 characters")
+        if not any(char.isdigit() for char in password):
+            raise ValueError("Password must include at least one number")
 
     @staticmethod
     def create_guest_user() -> User:

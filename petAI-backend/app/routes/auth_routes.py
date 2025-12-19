@@ -27,6 +27,11 @@ def register():
         return error_response("username, email, and password are required", 400)
 
     try:
+        UserService.validate_password(password)
+    except ValueError as exc:
+        return error_response(str(exc), 400)
+
+    try:
         user, _ = UserService.create_user(username, email, full_name, password)
         db.session.commit()
     except ValueError as exc:
@@ -134,6 +139,11 @@ def convert_guest():
     # validações básicas
     if not username or not email or not password:
         return error_response("username, email, and password are required", 400)
+
+    try:
+        UserService.validate_password(password)
+    except ValueError as exc:
+        return error_response(str(exc), 400)
 
     # verificar se já existe user com este email
     if UserDAO.get_by_email(email):

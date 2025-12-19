@@ -72,3 +72,42 @@ def accept_request():
         return error_response(str(exc), 400)
 
     return success_response("Friend request accepted", {"request": fr.to_dict()})
+
+
+@friends_bp.route("/search", methods=["GET"])
+@token_required
+def search_users():
+    user_id = get_current_user_id()
+    if not user_id:
+        return error_response("user_id is required", 400)
+    query = (request.args.get("query") or request.args.get("q") or "").strip()
+    if len(query) < 2:
+        return success_response("Search results", {"matches": []})
+    matches = FriendService.search_users(user_id, query)
+    return success_response("Search results", {"matches": matches})
+
+
+@friends_bp.route("/remove", methods=["POST"])
+@token_required
+def remove_friend():
+    user_id = get_current_user_id()
+    if not user_id:
+        return error_response("user_id is required", 400)
+    payload = request.get_json(silent=True) or {}
+    friend_id = payload.get("friend_id")
+    try:
+        friend_id = int(friend_id)
+    except (TypeError, ValueError):
+        return error_response("friend_id is required", 400)
+
+    try:
+        FriendService.remove_friend(user_id, friend_id)
+        db.session.commit()
+    except LookupError as exc:
+        db.session.rollback()
+        return error_response(str(exc), 404)
+    except ValueError as exc:
+        db.session.rollback()
+        return error_response(str(exc), 400)
+
+    return success_response("Friend removed", {})

@@ -6,6 +6,7 @@ import '../config/api_config.dart';
 import '../models/activity_completion.dart';
 import '../models/activity_log.dart';
 import '../models/friend_profile.dart';
+import '../models/friend_search_result.dart';
 import '../models/goal_suggestion.dart';
 import '../models/pet_state.dart';
 import '../models/progression_snapshot.dart';
@@ -898,6 +899,54 @@ class ApiService {
       }
       return ApiResponse.failure(
         payload["error"] as String? ?? "Failed to accept request",
+        statusCode: response.statusCode,
+      );
+    } catch (err) {
+      return ApiResponse.failure("Network error: $err");
+    }
+  }
+
+  Future<ApiResponse<void>> removeFriend(int friendId) async {
+    await _ensureTokenLoaded();
+    try {
+      final response = await _client.post(
+        _uri("/friends/remove"),
+        headers: _headers,
+        body: jsonEncode({"friend_id": friendId}),
+      );
+      if (response.statusCode == 200) {
+        return ApiResponse.success(null, statusCode: response.statusCode);
+      }
+      final payload = _decode(response.body);
+      return ApiResponse.failure(
+        payload["error"] as String? ?? "Failed to remove friend",
+        statusCode: response.statusCode,
+      );
+    } catch (err) {
+      return ApiResponse.failure("Network error: $err");
+    }
+  }
+
+  Future<ApiResponse<List<FriendSearchResult>>> searchFriends(
+    String query,
+  ) async {
+    await _ensureTokenLoaded();
+    try {
+      final response = await _client.get(
+        _uri("/friends/search").replace(queryParameters: {"query": query}),
+        headers: _headers,
+      );
+      final payload = _decode(response.body);
+      final data = _data(payload);
+      if (response.statusCode == 200) {
+        final matches = (data["matches"] as List<dynamic>? ?? [])
+            .whereType<Map<String, dynamic>>()
+            .map(FriendSearchResult.fromJson)
+            .toList();
+        return ApiResponse.success(matches, statusCode: response.statusCode);
+      }
+      return ApiResponse.failure(
+        payload["error"] as String? ?? "Failed to search friends",
         statusCode: response.statusCode,
       );
     } catch (err) {
