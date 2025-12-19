@@ -139,3 +139,12 @@ class FriendService:
         if username:
             return username
         return f"Guest#{fallback_id or 0}"
+
+    @staticmethod
+    def remove_friend(user_id: int, friend_id: int) -> None:
+        if user_id == friend_id:
+            raise ValueError("You cannot remove yourself")
+        existing = FriendService._request_between(user_id, friend_id)
+        if not existing or existing.status != "accepted":
+            raise LookupError("Friendship not found")
+        db.session.delete(existing)

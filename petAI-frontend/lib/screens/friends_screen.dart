@@ -27,6 +27,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
   bool _loading = true;
   bool _sending = false;
   int? _acceptingId;
+  int? _removingId;
   final TextEditingController _usernameCtrl = TextEditingController();
   final List<FriendSearchResult> _searchResults = [];
   Timer? _searchTimer;
@@ -243,6 +244,39 @@ class _FriendsScreenState extends State<FriendsScreen> {
     );
   }
 
+  Future<void> _removeFriend(FriendProfile friend) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Remove friend"),
+        content: Text("Remove ${friend.username} from your friends list?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text("Remove"),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    setState(() => _removingId = friend.id);
+    final response = await widget.apiService.removeFriend(friend.id);
+    if (!mounted) return;
+    setState(() => _removingId = null);
+    if (response.isSuccess) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("${friend.username} removed")),
+      );
+      _loadFriends();
+    } else {
+      widget.onError(response.error ?? "Could not remove friend");
+    }
+  }
+
   Widget _searchResultRow(FriendSearchResult result) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -357,6 +391,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
 
   Widget _friendCard(FriendProfile friend) {
     final theme = Theme.of(context);
+    final removing = _removingId == friend.id;
     return InkWell(
       onTap: () => _openFriendProfile(friend),
       borderRadius: BorderRadius.circular(18),
@@ -423,7 +458,17 @@ class _FriendsScreenState extends State<FriendsScreen> {
               ),
             ),
             const SizedBox(width: 8),
-            Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400),
+            IconButton(
+              tooltip: "Remove friend",
+              onPressed: removing ? null : () => _removeFriend(friend),
+              icon: removing
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Icon(Icons.person_remove_rounded, color: Colors.grey.shade600),
+            ),
           ],
         ),
       ),

@@ -906,9 +906,31 @@ class ApiService {
     }
   }
 
+  Future<ApiResponse<void>> removeFriend(int friendId) async {
+    await _ensureTokenLoaded();
+    try {
+      final response = await _client.post(
+        _uri("/friends/remove"),
+        headers: _headers,
+        body: jsonEncode({"friend_id": friendId}),
+      );
+      if (response.statusCode == 200) {
+        return ApiResponse.success(null, statusCode: response.statusCode);
+      }
+      final payload = _decode(response.body);
+      return ApiResponse.failure(
+        payload["error"] as String? ?? "Failed to remove friend",
+        statusCode: response.statusCode,
+      );
+    } catch (err) {
+      return ApiResponse.failure("Network error: $err");
+    }
+  }
+
   Future<ApiResponse<List<FriendSearchResult>>> searchFriends(
     String query,
   ) async {
+    await _ensureTokenLoaded();
     try {
       final response = await _client.get(
         _uri("/friends/search").replace(queryParameters: {"query": query}),
