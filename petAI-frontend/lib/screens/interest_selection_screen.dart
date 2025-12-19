@@ -47,7 +47,6 @@ class _InterestSelectionScreenState extends State<InterestSelectionScreen> {
   final List<String> _genderOptions = const [
     "Female",
     "Male",
-    "Non-binary",
     "Prefer not to say",
   ];
 
@@ -116,8 +115,6 @@ class _InterestSelectionScreenState extends State<InterestSelectionScreen> {
     final gender = (_profileGender ?? "").toLowerCase();
     if (gender.startsWith("female")) {
       baseKm *= 0.9;
-    } else if (gender.contains("non")) {
-      baseKm *= 0.95;
     }
     baseKm = double.parse(baseKm.toStringAsFixed(1));
     if (baseKm < 1) baseKm = 1;

@@ -1,11 +1,19 @@
-2025/12/18-14:49:29.798 5b54 Reusing MANIFEST C:\Users\TIAGOP~1\AppData\Local\Temp\flutter_tools.4bf2cf5e\flutter_tools_chrome_device.d297f401\Default\Site Characteristics Database/MANIFEST-000001
-2025/12/18-14:49:29.802 5b54 Recovering log #19
-2025/12/18-14:49:29.803 5b54 Reusing old log C:\Users\TIAGOP~1\AppData\Local\Temp\flutter_tools.4bf2cf5e\flutter_tools_chrome_device.d297f401\Default\Site Characteristics Database/000019.log 
-2025/12/18-14:49:29.804 5b54 Delete type=0 #3
-2025/12/18-14:49:29.804 5b54 Delete type=2 #4
-2025/12/18-14:49:29.804 5b54 Delete type=2 #6
-2025/12/18-14:49:29.804 5b54 Delete type=0 #6
-2025/12/18-14:49:29.804 5b54 Delete type=0 #10
-2025/12/18-14:49:29.804 5b54 Delete type=2 #11
-2025/12/18-14:49:29.804 5b54 Delete type=2 #13
-2025/12/18-14:49:29.805 5b54 Delete type=2 #14
+2025/12/19-12:10:59.405 2094 Reusing MANIFEST C:\Users\UTILIZ~1\AppData\Local\Temp\flutter_tools.f7622d84\flutter_tools_chrome_device.284919eb\Default\Site Characteristics Database/MANIFEST-000001
+2025/12/19-12:10:59.408 2094 Recovering log #3
+2025/12/19-12:10:59.408 2094 Level-0 table #20: started
+2025/12/19-12:10:59.412 2094 Level-0 table #20: 194 bytes OK
+2025/12/19-12:10:59.413 2094 Recovering log #6
+2025/12/19-12:10:59.413 2094 Level-0 table #21: started
+2025/12/19-12:10:59.424 2094 Level-0 table #21: 165 bytes OK
+2025/12/19-12:10:59.424 2094 Recovering log #10
+2025/12/19-12:10:59.424 2094 Level-0 table #22: started
+2025/12/19-12:10:59.427 2094 Level-0 table #22: 254 bytes OK
+2025/12/19-12:10:59.427 2094 Recovering log #17
+2025/12/19-12:10:59.428 2094 Reusing old log C:\Users\UTILIZ~1\AppData\Local\Temp\flutter_tools.f7622d84\flutter_tools_chrome_device.284919eb\Default\Site Characteristics Database/000017.log 
+2025/12/19-12:10:59.430 2094 Delete type=0 #3
+2025/12/19-12:10:59.431 2094 Delete type=2 #4
+2025/12/19-12:10:59.431 2094 Delete type=0 #6
+2025/12/19-12:10:59.431 2094 Delete type=2 #7
+2025/12/19-12:10:59.431 2094 Delete type=2 #8
+2025/12/19-12:10:59.431 2094 Delete type=0 #10
+2025/12/19-12:10:59.431 2094 Delete type=2 #12
