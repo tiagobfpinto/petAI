@@ -72,3 +72,16 @@ def accept_request():
         return error_response(str(exc), 400)
 
     return success_response("Friend request accepted", {"request": fr.to_dict()})
+
+
+@friends_bp.route("/search", methods=["GET"])
+@token_required
+def search_users():
+    user_id = get_current_user_id()
+    if not user_id:
+        return error_response("user_id is required", 400)
+    query = (request.args.get("query") or request.args.get("q") or "").strip()
+    if len(query) < 2:
+        return success_response("Search results", {"matches": []})
+    matches = FriendService.search_users(user_id, query)
+    return success_response("Search results", {"matches": matches})

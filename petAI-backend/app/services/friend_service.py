@@ -104,6 +104,24 @@ class FriendService:
         }
 
     @staticmethod
+    def search_users(user_id: int, query: str, limit: int = 8) -> list[dict]:
+        query = query.strip()
+        if not query:
+            return []
+        users = UserDAO.search_by_username(query, limit=limit)
+        matches = []
+        for user in users:
+            if user.id == user_id:
+                continue
+            matches.append(
+                {
+                    "id": user.id,
+                    "username": FriendService._display_name(user.username, user.id),
+                }
+            )
+        return matches
+
+    @staticmethod
     def _request_between(user_a: int, user_b: int) -> FriendRequest | None:
         return (
             FriendRequest.query.filter(

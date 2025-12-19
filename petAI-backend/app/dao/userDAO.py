@@ -48,6 +48,18 @@ class UserDAO:
             .first()
             is not None
         )
+
+    @staticmethod
+    def search_by_username(query: str, limit: int = 10) -> list[User]:
+        if not query:
+            return []
+        like = f"%{query}%"
+        return (
+            User.query.filter(User.username.isnot(None), User.username.ilike(like))
+            .order_by(User.username.asc())
+            .limit(limit)
+            .all()
+        )
         
     @staticmethod
     def get_coins(user_id: int) -> int | None:

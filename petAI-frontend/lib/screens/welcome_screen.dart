@@ -382,8 +382,17 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                       ),
                     ),
                     validator: (value) {
-                      if (value == null || value.length < 6) {
-                        return "Minimum 6 characters";
+                      if (value == null || value.isEmpty) {
+                        return "Password is required";
+                      }
+                      if (_mode == AuthMode.login) {
+                        return null;
+                      }
+                      if (value.length < 8) {
+                        return "Minimum 8 characters";
+                      }
+                      if (!RegExp(r"\d").hasMatch(value)) {
+                        return "Include at least 1 number";
                       }
                       return null;
                     },
