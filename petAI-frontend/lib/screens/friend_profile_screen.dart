@@ -3,7 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import '../models/friend_profile.dart';
-import '../widgets/pet_sprite.dart';
+import '../widgets/pet_avatar.dart';
 import '../widgets/xp_progress_bar.dart';
 
 class FriendProfileScreen extends StatelessWidget {
@@ -53,10 +53,13 @@ class FriendProfileScreen extends StatelessWidget {
                       ),
                       child: Padding(
                         padding: const EdgeInsets.all(14),
-                        child: PetSprite(
+                        child: PetAvatar(
                           stage: stage,
-                          mood: max(1, friend.petLevel),
+                          level: max(1, friend.petLevel),
+                          petType: friend.petType,
+                          currentSprite: friend.petCurrentSprite,
                           cosmetics: friend.petCosmetics,
+                          styleTriggers: friend.petStyleTriggers,
                         ),
                       ),
                     ),

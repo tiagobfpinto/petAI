@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import '../models/friend_profile.dart';
 import '../models/friend_search_result.dart';
 import '../services/api_service.dart';
-import '../widgets/pet_sprite.dart';
+import '../widgets/pet_avatar.dart';
 import 'friend_profile_screen.dart';
 
 class FriendsScreen extends StatefulWidget {
@@ -168,6 +168,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
           if (overview == null || overview.friends.isEmpty) _emptyStateCard(),
           if (overview != null)
             ...overview.friends.map((friend) => Padding(
+                  key: ValueKey<int>(friend.id),
                   padding: const EdgeInsets.only(bottom: 12),
                   child: _friendCard(friend),
                 )),
@@ -279,6 +280,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
 
   Widget _searchResultRow(FriendSearchResult result) {
     return Container(
+      key: ValueKey<int>(result.id),
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
@@ -296,10 +298,13 @@ class _FriendsScreenState extends State<FriendsScreen> {
               border: Border.all(color: Colors.grey.shade300),
             ),
             child: ClipOval(
-              child: PetSprite(
+              child: PetAvatar(
                 stage: result.petStage,
-                mood: result.petLevel,
+                level: result.petLevel,
+                petType: result.petType,
+                currentSprite: result.petCurrentSprite,
                 cosmetics: result.petCosmetics,
+                styleTriggers: result.petStyleTriggers,
               ),
             ),
           ),
@@ -438,10 +443,13 @@ class _FriendsScreenState extends State<FriendsScreen> {
                 ),
               ),
               child: ClipOval(
-                child: PetSprite(
+                child: PetAvatar(
                   stage: friend.petStage,
-                  mood: friend.petLevel,
+                  level: friend.petLevel,
+                  petType: friend.petType,
+                  currentSprite: friend.petCurrentSprite,
                   cosmetics: friend.petCosmetics,
+                  styleTriggers: friend.petStyleTriggers,
                 ),
               ),
             ),

@@ -32,6 +32,8 @@ migrate_working_dir/
 
 /coverage/
 
+#dont send config
+lib/config/api_config.dart
 # Symbolication related
 app.*.symbols
 

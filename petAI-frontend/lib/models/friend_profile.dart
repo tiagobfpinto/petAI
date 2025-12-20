@@ -11,10 +11,19 @@ class FriendProfile {
     this.petType = 'sprout',
     this.petCurrentSprite,
     this.petCosmetics = const PetCosmeticLoadout.empty(),
+    this.petStyleTriggers = const [],
   });
 
   factory FriendProfile.fromJson(Map<String, dynamic> json) {
     final cosmeticsJson = json['pet_cosmetics'];
+    final styleRaw = json['pet_style_triggers'];
+    final styleTriggers = (styleRaw is List)
+        ? styleRaw
+            .where((entry) => entry != null)
+            .map((entry) => entry.toString().trim())
+            .where((t) => t.isNotEmpty)
+            .toList()
+        : const <String>[];
     return FriendProfile(
       id: json['id'] as int? ?? 0,
       username: json['username'] as String? ?? 'Friend',
@@ -27,6 +36,7 @@ class FriendProfile {
       petCosmetics: (cosmeticsJson is Map<String, dynamic>)
           ? PetCosmeticLoadout.fromJson(cosmeticsJson)
           : const PetCosmeticLoadout.empty(),
+      petStyleTriggers: styleTriggers,
     );
   }
 
@@ -39,6 +49,7 @@ class FriendProfile {
   final String petType;
   final String? petCurrentSprite;
   final PetCosmeticLoadout petCosmetics;
+  final List<String> petStyleTriggers;
 }
 
 class FriendRequestEntry {
