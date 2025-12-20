@@ -287,7 +287,22 @@ class _FriendsScreenState extends State<FriendsScreen> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.person_outline_rounded, size: 18),
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white,
+              border: Border.all(color: Colors.grey.shade300),
+            ),
+            child: ClipOval(
+              child: PetSprite(
+                stage: result.petStage,
+                mood: result.petLevel,
+                cosmetics: result.petCosmetics,
+              ),
+            ),
+          ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
