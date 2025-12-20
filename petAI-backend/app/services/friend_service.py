@@ -4,13 +4,36 @@ from datetime import datetime, timezone
 
 from sqlalchemy import and_, or_
 
+from ..dao.itemsDAO import ItemsDAO
 from ..dao.userDAO import UserDAO
 from ..models import db
 from ..models.friend_request import FriendRequest
+from ..models.petStyle import PetStyle
 from ..services.pet_service import PetService
 
 
 class FriendService:
+    @staticmethod
+    def _style_triggers_for_pet(pet_id: int | None) -> list[str]:
+        if not pet_id:
+            return []
+        pet_style = PetStyle.query.filter_by(pet_id=pet_id).first()
+        if not pet_style:
+            pet_style = PetStyle(pet_id=pet_id)
+            db.session.add(pet_style)
+            db.session.flush()
+
+        triggers: list[str] = []
+        for item_id in (pet_style.hat_id, pet_style.sunglasses_id, pet_style.color_id):
+            if not item_id:
+                continue
+            item = ItemsDAO.get_item_by_id(item_id)
+            trigger = (item.trigger if item else None) or ""
+            trigger = str(trigger).strip()
+            if trigger:
+                triggers.append(trigger)
+        return triggers
+
     @staticmethod
     def send_request(user_id: int, target_username: str) -> FriendRequest:
         target = UserDAO.get_by_username(target_username.strip())
@@ -66,6 +89,7 @@ class FriendService:
             if other is None:
                 continue
             pet = PetService.get_pet_by_user(other.id) or PetService.create_pet(other.id)
+            db.session.flush()
             friends.append(
                 {
                     "id": other.id,
@@ -77,6 +101,7 @@ class FriendService:
                     "pet_type": pet.pet_type,
                     "pet_current_sprite": pet.current_sprite,
                     "pet_cosmetics": PetService.cosmetic_payload(pet.user_id),
+                    "pet_style_triggers": FriendService._style_triggers_for_pet(pet.id),
                 }
             )
 
@@ -114,6 +139,7 @@ class FriendService:
             if user.id == user_id:
                 continue
             pet = PetService.get_pet_by_user(user.id) or PetService.create_pet(user.id)
+            db.session.flush()
             matches.append(
                 {
                     "id": user.id,
@@ -121,6 +147,9 @@ class FriendService:
                     "pet_stage": pet.stage,
                     "pet_level": pet.level,
                     "pet_cosmetics": PetService.cosmetic_payload(user.id),
+                    "pet_type": pet.pet_type,
+                    "pet_current_sprite": pet.current_sprite,
+                    "pet_style_triggers": FriendService._style_triggers_for_pet(pet.id),
                 }
             )
         return matches
