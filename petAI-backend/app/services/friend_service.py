@@ -113,10 +113,14 @@ class FriendService:
         for user in users:
             if user.id == user_id:
                 continue
+            pet = PetService.get_pet_by_user(user.id) or PetService.create_pet(user.id)
             matches.append(
                 {
                     "id": user.id,
                     "username": FriendService._display_name(user.username, user.id),
+                    "pet_stage": pet.stage,
+                    "pet_level": pet.level,
+                    "pet_cosmetics": PetService.cosmetic_payload(user.id),
                 }
             )
         return matches

@@ -354,15 +354,20 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                   TextFormField(
                     controller: _emailCtrl,
                     keyboardType: TextInputType.emailAddress,
-                    decoration: const InputDecoration(
-                      labelText: "Email",
-                      hintText: "you@email.com",
+                    decoration: InputDecoration(
+                      labelText:
+                          _mode == AuthMode.login ? "Email or username" : "Email",
+                      hintText: _mode == AuthMode.login
+                          ? "you@email.com or username"
+                          : "you@email.com",
                     ),
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
-                        return "Email is required";
+                        return _mode == AuthMode.login
+                            ? "Email or username is required"
+                            : "Email is required";
                       }
-                      if (!value.contains("@")) {
+                      if (_mode == AuthMode.convert && !value.contains("@")) {
                         return "Enter a valid email";
                       }
                       return null;
