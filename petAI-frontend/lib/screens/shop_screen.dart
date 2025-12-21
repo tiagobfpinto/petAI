@@ -1,22 +1,38 @@
 import 'package:flutter/material.dart';
 
+import '../models/pet_state.dart';
 import '../models/store_listing.dart';
 import '../services/api_service.dart';
 import '../widgets/item_asset_preview.dart';
+import '../widgets/pet_avatar.dart';
+
+Color _rarityAccent(String? rarity) {
+  switch ((rarity ?? "").trim().toLowerCase()) {
+    case "rare":
+      return Colors.blue;
+    case "epic":
+      return Colors.deepPurple;
+    case "legendary":
+      return Colors.orange;
+    case "common":
+    default:
+      return Colors.grey;
+  }
+}
 
 class ShopScreen extends StatefulWidget {
   const ShopScreen({
     super.key,
     required this.apiService,
     required this.onError,
+    required this.pet,
     this.onBalanceChanged,
-    this.petCoins,
   });
 
   final ApiService apiService;
   final void Function(String message) onError;
+  final PetState pet;
   final void Function(int balance)? onBalanceChanged;
-  final int? petCoins;
 
   @override
   State<ShopScreen> createState() => _ShopScreenState();
@@ -32,15 +48,15 @@ class _ShopScreenState extends State<ShopScreen> {
   @override
   void initState() {
     super.initState();
-    _balance = widget.petCoins;
+    _balance = widget.pet.coins;
     _loadStore();
   }
 
   @override
   void didUpdateWidget(covariant ShopScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.petCoins != null && widget.petCoins != _balance) {
-      setState(() => _balance = widget.petCoins);
+    if (oldWidget.pet.coins != widget.pet.coins && widget.pet.coins != _balance) {
+      setState(() => _balance = widget.pet.coins);
     }
   }
 
@@ -107,6 +123,18 @@ class _ShopScreenState extends State<ShopScreen> {
     }
   }
 
+  Future<void> _preview(StoreListing listing) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _ItemPreviewSheet(
+        pet: widget.pet,
+        listing: listing,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -137,8 +165,10 @@ class _ShopScreenState extends State<ShopScreen> {
                   final listing = _listings[index];
                   return _StoreListingCard(
                     listing: listing,
+                    pet: widget.pet,
                     buying: _buyingListingId == listing.id,
                     onBuy: () => _buy(listing),
+                    onPreview: () => _preview(listing),
                   );
                 },
                 childCount: _listings.length,
@@ -162,7 +192,7 @@ class _ShopScreenState extends State<ShopScreen> {
 
   Widget _header(BuildContext context) {
     final theme = Theme.of(context);
-    final balance = _balance ?? widget.petCoins;
+    final balance = _balance ?? widget.pet.coins;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
       child: Column(
@@ -190,7 +220,7 @@ class _ShopScreenState extends State<ShopScreen> {
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      "${balance ?? 0} coins",
+                      "$balance",
                       style: TextStyle(
                         color: theme.colorScheme.primary,
                         fontWeight: FontWeight.w800,
@@ -243,21 +273,25 @@ class _ShopScreenState extends State<ShopScreen> {
 class _StoreListingCard extends StatelessWidget {
   const _StoreListingCard({
     required this.listing,
+    required this.pet,
     required this.onBuy,
+    required this.onPreview,
     this.buying = false,
   });
 
   final StoreListing listing;
+  final PetState pet;
   final VoidCallback onBuy;
+  final VoidCallback onPreview;
   final bool buying;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final item = listing.item;
-    final stockLabel =
-        listing.stock == null ? "∞" : (listing.stock! <= 0 ? "0" : "${listing.stock}");
+    final isCoinCurrency = listing.currency.trim().toLowerCase() == "coins";
     final disabled = buying || !listing.canBuy;
+    final owned = listing.isMaxed;
 
     final maxQuantity = item.maxQuantity;
     final ownedQuantity = listing.ownedQuantity;
@@ -265,10 +299,10 @@ class _StoreListingCard extends StatelessWidget {
     String buttonLabel;
     if (buying) {
       buttonLabel = "Buying...";
+    } else if (owned) {
+      buttonLabel = "Owned";
     } else if (!listing.isInStock) {
       buttonLabel = "Sold out";
-    } else if (listing.isMaxed) {
-      buttonLabel = "Max owned";
     } else {
       buttonLabel = "Buy";
     }
@@ -278,7 +312,7 @@ class _StoreListingCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(18),
       child: Ink(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: owned ? Colors.grey.shade100 : Colors.white,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
           boxShadow: [
@@ -289,128 +323,264 @@ class _StoreListingCard extends StatelessWidget {
             ),
           ],
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    _assetPreview(item),
-                    if (buying)
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.75),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: const Center(
-                          child: SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                item.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                item.description.isNotEmpty ? item.description : (item.type.isNotEmpty ? item.type : "Item"),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.w600, fontSize: 12),
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Text(
-                    "${listing.price}",
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color: theme.colorScheme.primary,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    listing.currency,
-                    style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.w700, fontSize: 12),
-                  ),
-                  const Spacer(),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 4,
-                    alignment: WrapAlignment.end,
+        child: Opacity(
+          opacity: owned ? 0.6 : 1.0,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Stack(
+                    fit: StackFit.expand,
                     children: [
-                      if (maxQuantity != null)
+                      ItemAssetPreview(
+                        assetPath: item.assetPath,
+                        assetType: item.assetType,
+                        placeholderIcon: Icons.shopping_bag_rounded,
+                        placeholderIconSize: 40,
+                      ),
+                      if (buying)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                            color: listing.isMaxed
-                                ? theme.colorScheme.primary.withValues(alpha: 0.12)
-                                : Colors.black.withValues(alpha: 0.04),
-                            borderRadius: BorderRadius.circular(999),
+                            color: Colors.white.withValues(alpha: 0.75),
+                            borderRadius: BorderRadius.circular(16),
                           ),
-                          child: Text(
-                            "Owned $ownedQuantity/$maxQuantity",
-                            style: TextStyle(
-                              color: listing.isMaxed ? theme.colorScheme.primary : Colors.grey.shade700,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 11,
+                          child: const Center(
+                            child: SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
                             ),
                           ),
                         ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.04),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text(
-                          "Stock $stockLabel",
-                          style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.w800, fontSize: 11),
-                        ),
-                      ),
                     ],
                   ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: disabled ? null : onBuy,
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.92),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  ),
-                  child: Text(buttonLabel),
                 ),
-              ),
-            ],
+                const SizedBox(height: 10),
+                Text(
+                  item.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  item.description.isNotEmpty ? item.description : (item.type.isNotEmpty ? item.type : "Item"),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.w600, fontSize: 12),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    if (isCoinCurrency) ...[
+                      Icon(
+                        Icons.monetization_on_outlined,
+                        color: theme.colorScheme.primary,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 4),
+                    ],
+                    Text(
+                      "${listing.price}",
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: theme.colorScheme.primary,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    if (!isCoinCurrency) ...[
+                      const SizedBox(width: 4),
+                      Text(
+                        listing.currency,
+                        style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.w700, fontSize: 12),
+                      ),
+                    ],
+                    const Spacer(),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      alignment: WrapAlignment.end,
+                      children: [
+                        if (maxQuantity != null && maxQuantity > 1)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: listing.isMaxed
+                                  ? theme.colorScheme.primary.withValues(alpha: 0.12)
+                                  : Colors.black.withValues(alpha: 0.04),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              "Owned $ownedQuantity/$maxQuantity",
+                              style: TextStyle(
+                                color: listing.isMaxed ? theme.colorScheme.primary : Colors.grey.shade700,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ),
+                        if (listing.stock != null)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.04),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              "Stock ${listing.stock}",
+                              style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.w800, fontSize: 11),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: onPreview,
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    child: const Text("Preview"),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: disabled ? null : onBuy,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.92),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    child: Text(buttonLabel),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
+}
 
-  Widget _assetPreview(StoreItem item) {
-    return ItemAssetPreview(
-      assetPath: item.assetPath,
-      assetType: item.assetType,
-      placeholderIcon: Icons.shopping_bag_rounded,
-      placeholderIconSize: 40,
+class _ItemPreviewSheet extends StatelessWidget {
+  const _ItemPreviewSheet({
+    required this.pet,
+    required this.listing,
+  });
+
+  final PetState pet;
+  final StoreListing listing;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final item = listing.item;
+    final trigger = (item.trigger ?? "").trim();
+    final accent = _rarityAccent(item.rarity);
+    final maxHeight = MediaQuery.sizeOf(context).height * 0.72;
+
+    return SafeArea(
+      top: false,
+      child: Container(
+        constraints: BoxConstraints(maxHeight: maxHeight),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    "Preview",
+                    style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.of(context).maybePop(),
+                  icon: const Icon(Icons.close_rounded),
+                ),
+              ],
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                item.name,
+                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(22),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        accent.withValues(alpha: 0.16),
+                        accent.withValues(alpha: 0.08),
+                        Colors.white,
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: trigger.isEmpty
+                        ? ItemAssetPreview(
+                            assetPath: item.assetPath,
+                            assetType: item.assetType,
+                            placeholderIcon: Icons.shopping_bag_rounded,
+                          )
+                        : PetAvatar(
+                            stage: pet.stage,
+                            level: pet.level,
+                            petType: pet.petType,
+                            currentSprite: pet.currentSprite,
+                            styleTriggers: [trigger],
+                            showCosmetics: false,
+                          ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              trigger.isEmpty
+                  ? "No pet preview available for this item."
+                  : "This is just a preview — it won't equip the item.",
+              style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: () => Navigator.of(context).maybePop(),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                child: const Text("Close"),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

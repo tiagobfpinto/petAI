@@ -21,6 +21,19 @@ class PetRive extends StatefulWidget {
 }
 
 class _PetRiveState extends State<PetRive> {
+  static final Map<String, rive.FileLoader> _sharedLoaders = {};
+
+  static rive.FileLoader _sharedLoaderFor(String assetPath) {
+    final existing = _sharedLoaders[assetPath];
+    if (existing != null) return existing;
+    final loader = rive.FileLoader.fromAsset(
+      assetPath,
+      riveFactory: rive.Factory.rive,
+    );
+    _sharedLoaders[assetPath] = loader;
+    return loader;
+  }
+
   late rive.FileLoader _fileLoader;
   rive.RiveWidgetController? _controller;
   rive.ViewModelInstance? _viewModel;
@@ -30,21 +43,14 @@ class _PetRiveState extends State<PetRive> {
   @override
   void initState() {
     super.initState();
-    _fileLoader = rive.FileLoader.fromAsset(
-      widget.assetPath,
-      riveFactory: rive.Factory.rive,
-    );
+    _fileLoader = _sharedLoaderFor(widget.assetPath);
   }
 
   @override
   void didUpdateWidget(covariant PetRive oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.assetPath != widget.assetPath) {
-      _fileLoader.dispose();
-      _fileLoader = rive.FileLoader.fromAsset(
-        widget.assetPath,
-        riveFactory: rive.Factory.rive,
-      );
+      _fileLoader = _sharedLoaderFor(widget.assetPath);
       _controller = null;
       _viewModel = null;
       _viewModelController = null;
@@ -60,7 +66,6 @@ class _PetRiveState extends State<PetRive> {
 
   @override
   void dispose() {
-    _fileLoader.dispose();
     super.dispose();
   }
 
@@ -294,4 +299,3 @@ class _PetRiveState extends State<PetRive> {
     );
   }
 }
-
