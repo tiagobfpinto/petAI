@@ -88,5 +88,18 @@ class ActivityTypeDAO:
         )
 
     @staticmethod
+    def list_for_interest(user_id: int, interest_id: int) -> list[ActivityType]:
+        return (
+            ActivityType.query.filter(
+                and_(
+                    ActivityType.user_id == user_id,
+                    ActivityType.interest_id == interest_id,
+                )
+            )
+            .order_by(ActivityType.id.asc())
+            .all()
+        )
+
+    @staticmethod
     def get_by_id(activity_type_id: int) -> ActivityType | None:
         return ActivityType.query.filter(ActivityType.id == activity_type_id).first()

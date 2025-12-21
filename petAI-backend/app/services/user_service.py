@@ -73,7 +73,12 @@ class UserService:
     @staticmethod
     def save_user_interests(user_id: int, entries: Sequence[dict]) -> list[dict]:
         InterestService.validate_interest_entries(entries)
-        interests = InterestService.save_user_interests(user_id, entries)
+        InterestService.save_user_interests(user_id, entries)
+
+        from ..services.default_activity_service import DefaultActivityService
+
+        DefaultActivityService.bootstrap_defaults(user_id)
+        interests = InterestService.list_user_interests(user_id)
         return [interest.to_dict() for interest in interests]
 
     @staticmethod

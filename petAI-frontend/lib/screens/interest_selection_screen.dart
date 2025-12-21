@@ -62,16 +62,18 @@ class _InterestSelectionScreenState extends State<InterestSelectionScreen> {
     );
     _drafts.addAll(
       widget.existingInterests
+          .where((interest) => !interest.isSystem)
           .map(
             (interest) => _InterestDraft(
               name: interest.name,
               level: interest.level,
               goal: interest.goal ?? "",
               plan:
-                  interest.plan != null &&
-                      interest.name.toLowerCase() == "running"
-                  ? RunningPlanDraft.fromPlan(interest.plan!)
-                  : null,
+                  _isRunningName(interest.name)
+                      ? (interest.plan != null
+                          ? RunningPlanDraft.fromPlan(interest.plan!)
+                          : _suggestRunningPlanDraft(interest.level))
+                      : null,
               isCustom: !isKnownInterestName(interest.name),
             ),
           )
@@ -88,6 +90,13 @@ class _InterestSelectionScreenState extends State<InterestSelectionScreen> {
 
   bool get _profileComplete =>
       (_profileAge ?? 0) > 0 && (_profileGender ?? "").isNotEmpty;
+
+  bool _isRunningName(String name) {
+    final normalized = name.trim().toLowerCase();
+    return normalized == "running" ||
+        normalized.contains("running") ||
+        normalized.contains("cardio");
+  }
 
   RunningPlanDraft _suggestRunningPlanDraft(MotivationLevel level) {
     double baseKm;
@@ -405,21 +414,12 @@ class _InterestSelectionScreenState extends State<InterestSelectionScreen> {
               subtitle: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    draft.level.label,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
                   if (draft.plan != null &&
                       resolveInterestBlueprint(draft.name).id.toLowerCase() ==
                           "running")
                     Text(
                       "Weekly: ${draft.plan!.weeklyGoalValue.toStringAsFixed(1)} ${draft.plan!.unit} • ${draft.plan!.formattedDays()} (${draft.plan!.perDayGoal().toStringAsFixed(1)} ${draft.plan!.unit}/day)",
                       style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                  if (draft.goal.isNotEmpty)
-                    Text(
-                      draft.goal,
-                      style: TextStyle(color: Colors.grey.shade700),
                     ),
                 ],
               ),
@@ -466,7 +466,7 @@ class _InterestSelectionScreenState extends State<InterestSelectionScreen> {
       return;
     }
     final resolved = blueprint ?? resolveInterestBlueprint(name);
-    final plan = resolved.id.toLowerCase() == "running"
+    final plan = _isRunningName(resolved.name)
         ? _suggestRunningPlanDraft(MotivationLevel.sometimes)
         : null;
     setState(() {
@@ -651,7 +651,6 @@ class _InterestDraftSheetState extends State<_InterestDraftSheet> {
         ? widget.initial.name
         : _nameCtrl.text.trim();
     final blueprint = resolveInterestBlueprint(name);
-    final preset = blueprint.presetFor(_level);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -1493,12 +1492,10 @@ class _InterestDraft {
     String backendName, {
     RunningPlanDraft? plan,
   }) {
-    final blueprint = resolveInterestBlueprint(backendName);
-    final preset = blueprint.presetFor(MotivationLevel.sometimes);
     return _InterestDraft(
       name: backendName,
       level: MotivationLevel.sometimes,
-      goal: preset.suggestion,
+      goal: "",
       plan: plan,
       isCustom: !isKnownInterestName(backendName),
     );

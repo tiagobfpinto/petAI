@@ -4,6 +4,41 @@ import '../models/interest.dart';
 
 final List<InterestBlueprint> interestCatalog = [
   InterestBlueprint(
+    id: "daily-basics",
+    name: "Daily Basics",
+    description: "Tiny habits that keep you feeling good.",
+    accentColor: const Color(0xFF4AC2F7),
+    icon: Icons.water_drop_rounded,
+    suggestedActivities: [
+      "Drink a glass of water",
+      "Step outside for 5 minutes",
+      "Stretch for 2 minutes",
+      "Take a deep breath",
+    ],
+    goalPresets: {
+      MotivationLevel.never: const GoalPreset(
+        title: "Start tiny",
+        description: "The goal is consistency, not intensity.",
+        suggestion: "Drink water once today.",
+      ),
+      MotivationLevel.sometimes: const GoalPreset(
+        title: "Keep it easy",
+        description: "Small actions that compound.",
+        suggestion: "Drink water and take a short walk outside.",
+      ),
+      MotivationLevel.usually: const GoalPreset(
+        title: "Build rhythm",
+        description: "Do the basics without thinking about it.",
+        suggestion: "Aim for two short breaks + hydration check-ins.",
+      ),
+      MotivationLevel.always: const GoalPreset(
+        title: "Stay balanced",
+        description: "Keep energy stable throughout the day.",
+        suggestion: "Hydrate, walk, and add a quick stretch.",
+      ),
+    },
+  ),
+  InterestBlueprint(
     id: "running",
     name: "Running & Cardio",
     description:

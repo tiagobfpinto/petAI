@@ -96,52 +96,58 @@ class DailyActivityService:
         interests = AreaDAO.list_for_user(user_id)
         existing_for_day = DailyActivityDAO.list_for_user_on_date(user_id, target_date)
         for interest in interests:
-            activity_type = ActivityTypeDAO.primary_for_area(user_id, interest.id) or ActivityTypeDAO.get_or_create(
-                user_id, interest.id, interest.name
-            )
-            plan = cls._plan_details(activity_type) if activity_type else None
-            days = plan["days"] if plan else []
-            if days and day_key not in days:
-                continue
-            title_base = (activity_type.goal or "").strip() if activity_type else ""
-            if not title_base:
-                title_base = interest.name
-            per_day_title = title_base
-            if plan and plan.get("per_day"):
-                amount_text = cls._format_amount(plan["per_day"])
-                if amount_text:
-                    unit = (plan.get("unit") or "").strip()
-                    day_label = cls._day_label(day_key)
-                    parts = [title_base, "for", amount_text]
-                    if unit:
-                        parts.append(unit)
-                    if day_label:
-                        parts.append(day_label)
-                    per_day_title = " ".join(parts)
+            activity_types = ActivityTypeDAO.list_for_interest(user_id, interest.id)
+            if not activity_types:
+                activity_types = [ActivityTypeDAO.get_or_create(user_id, interest.id, interest.name)]
 
-            activity_type_id = activity_type.id if activity_type else cls.ensure_activity_type(user_id, interest.id, interest.name)
-            amount = plan.get("weekly_value") if plan else None
-            unit = plan.get("unit") if plan else None
-            goal = cls.ensure_goal(user_id, activity_type_id, title=title_base, amount=amount, unit=unit)
-            # avoid duplicates
-            existing = [
-                a
-                for a in existing_for_day
-                if a.activity_type_id == activity_type_id and a.title == per_day_title
-            ]
-            if existing:
-                continue
-            existing_for_day.append(
-                DailyActivityDAO.create(
-                    user_id=user_id,
-                    interest_id=interest.id,
-                    activity_type_id=activity_type_id,
-                    goal_id=goal.id if goal else None,
-                    title=per_day_title,
-                    scheduled_for=target_date,
-                    todo_date=target_date,
+            for activity_type in activity_types:
+                plan = cls._plan_details(activity_type) if activity_type else None
+                days = plan["days"] if plan else []
+                if days and day_key not in days:
+                    continue
+
+                title_base = (activity_type.goal or "").strip() if activity_type else ""
+                if not title_base:
+                    title_base = (activity_type.name or "").strip() if activity_type else ""
+                if not title_base:
+                    title_base = interest.name
+
+                per_day_title = title_base
+                if plan and plan.get("per_day"):
+                    amount_text = cls._format_amount(plan["per_day"])
+                    if amount_text:
+                        unit = (plan.get("unit") or "").strip()
+                        day_label = cls._day_label(day_key)
+                        parts = [title_base, "for", amount_text]
+                        if unit:
+                            parts.append(unit)
+                        if day_label:
+                            parts.append(day_label)
+                        per_day_title = " ".join(parts)
+
+                activity_type_id = activity_type.id if activity_type else cls.ensure_activity_type(user_id, interest.id, interest.name)
+                amount = plan.get("weekly_value") if plan else None
+                unit = plan.get("unit") if plan else None
+                goal = cls.ensure_goal(user_id, activity_type_id, title=title_base, amount=amount, unit=unit)
+                # avoid duplicates
+                existing = [
+                    a
+                    for a in existing_for_day
+                    if a.activity_type_id == activity_type_id and a.title == per_day_title
+                ]
+                if existing:
+                    continue
+                existing_for_day.append(
+                    DailyActivityDAO.create(
+                        user_id=user_id,
+                        interest_id=interest.id,
+                        activity_type_id=activity_type_id,
+                        goal_id=goal.id if goal else None,
+                        title=per_day_title,
+                        scheduled_for=target_date,
+                        todo_date=target_date,
+                    )
                 )
-            )
         return DailyActivityDAO.list_for_user_on_date(user_id, target_date)
 
     @classmethod
@@ -154,7 +160,7 @@ class DailyActivityService:
     @classmethod
     def list_today(cls, user_id: int) -> list[DailyActivity]:
         today = cls._today()
-        return DailyActivityDAO.list_for_user_on_date(user_id, today)
+        return cls.ensure_for_date(user_id, today)
 
     @classmethod
     def complete_daily_activity(

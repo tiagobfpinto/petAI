@@ -7,6 +7,7 @@ class UserInterest {
     required this.id,
     required this.name,
     required this.level,
+    this.isSystem = false,
     this.goal,
     this.plan,
   });
@@ -14,6 +15,7 @@ class UserInterest {
   final int? id;
   final String name;
   final MotivationLevel level;
+  final bool isSystem;
   final String? goal;
   final ActivityPlan? plan;
 
@@ -24,6 +26,7 @@ class UserInterest {
       id: json["id"] as int?,
       name: json["name"] as String? ?? "",
       level: motivationLevelFromKey(json["level"] as String?),
+      isSystem: json["is_system"] as bool? ?? false,
       goal: json["goal"] as String?,
       plan: json["plan"] is Map<String, dynamic>
           ? ActivityPlan.fromJson(json["plan"] as Map<String, dynamic>)
@@ -50,6 +53,7 @@ class UserInterest {
     int? id,
     String? name,
     MotivationLevel? level,
+    bool? isSystem,
     String? goal,
     ActivityPlan? plan,
   }) {
@@ -57,6 +61,7 @@ class UserInterest {
       id: id ?? this.id,
       name: name ?? this.name,
       level: level ?? this.level,
+      isSystem: isSystem ?? this.isSystem,
       goal: goal ?? this.goal,
       plan: plan ?? this.plan,
     );

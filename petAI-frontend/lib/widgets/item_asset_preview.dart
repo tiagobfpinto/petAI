@@ -11,8 +11,9 @@ class ItemAssetPreview extends StatelessWidget {
     required this.placeholderIcon,
     this.borderRadius = 16,
     this.placeholderIconSize = 40,
-    this.imageFit = BoxFit.cover,
-    this.riveFit = rive.Fit.cover,
+    this.imageFit = BoxFit.contain,
+    this.riveFit = rive.Fit.contain,
+    this.backgroundColor,
   });
 
   final String? assetPath;
@@ -22,6 +23,7 @@ class ItemAssetPreview extends StatelessWidget {
   final double placeholderIconSize;
   final BoxFit imageFit;
   final rive.Fit riveFit;
+  final Color? backgroundColor;
 
   @override
   Widget build(BuildContext context) {
@@ -32,11 +34,14 @@ class ItemAssetPreview extends StatelessWidget {
     if (ref.kind == ItemAssetKind.rive) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(borderRadius),
-        child: _RivePreview(
-          path: ref.path,
-          isNetwork: ref.isNetwork,
-          fit: riveFit,
-          fallback: fallback,
+        child: ColoredBox(
+          color: backgroundColor ?? Colors.black.withValues(alpha: 0.04),
+          child: _RivePreview(
+            path: ref.path,
+            isNetwork: ref.isNetwork,
+            fit: riveFit,
+            fallback: fallback,
+          ),
         ),
       );
     }
@@ -44,22 +49,28 @@ class ItemAssetPreview extends StatelessWidget {
     if (ref.isNetwork) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(borderRadius),
-        child: Image.network(
-          ref.path,
-          fit: imageFit,
-          errorBuilder: (_, __, ___) =>
-              const Center(child: Icon(Icons.broken_image_rounded)),
+        child: ColoredBox(
+          color: backgroundColor ?? Colors.black.withValues(alpha: 0.04),
+          child: Image.network(
+            ref.path,
+            fit: imageFit,
+            errorBuilder: (_, __, ___) =>
+                const Center(child: Icon(Icons.broken_image_rounded)),
+          ),
         ),
       );
     }
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(borderRadius),
-      child: Image.asset(
-        ref.path,
-        fit: imageFit,
-        errorBuilder: (_, __, ___) =>
-            const Center(child: Icon(Icons.image_not_supported_rounded)),
+      child: ColoredBox(
+        color: backgroundColor ?? Colors.black.withValues(alpha: 0.04),
+        child: Image.asset(
+          ref.path,
+          fit: imageFit,
+          errorBuilder: (_, __, ___) =>
+              const Center(child: Icon(Icons.image_not_supported_rounded)),
+        ),
       ),
     );
   }

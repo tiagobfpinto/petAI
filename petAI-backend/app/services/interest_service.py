@@ -12,6 +12,7 @@ from ..models.areas import Area
 
 class InterestService:
     _DAY_KEYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+    _SYSTEM_INTEREST_NAMES = {"daily basics"}
     _DAY_ALIASES = {
         "monday": "mon",
         "mon": "mon",
@@ -64,7 +65,8 @@ class InterestService:
 
             plan = entry.get("plan")
             if InterestService._is_running_name(normalized):
-                InterestService._validate_running_plan(plan)
+                if plan:
+                    InterestService._validate_running_plan(plan)
             elif plan:
                 # Allow plans for other activities when provided explicitly.
                 InterestService._validate_running_plan(plan)
@@ -121,6 +123,8 @@ class InterestService:
 
         for normalized, interest in existing.items():
             if normalized not in incoming_names:
+                if InterestService._is_system_interest(interest.name):
+                    continue
                 db.session.delete(interest)
 
         db.session.flush()
@@ -190,3 +194,7 @@ class InterestService:
     def _is_running_name(name: str) -> bool:
         normalized = name.strip().lower()
         return "running" in normalized or "cardio" in normalized
+
+    @staticmethod
+    def _is_system_interest(name: str) -> bool:
+        return name.strip().lower() in InterestService._SYSTEM_INTEREST_NAMES

@@ -9,6 +9,9 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+_SYSTEM_INTEREST_NAMES = {"daily basics"}
+
+
 class Area(db.Model):
     __tablename__ = "areas"
 
@@ -36,6 +39,7 @@ class Area(db.Model):
             "id": self.id,
             "user_id": self.user_id,
             "name": self.name,
+            "is_system": self.name.strip().lower() in _SYSTEM_INTEREST_NAMES,
             "level": activity_type.level if activity_type else None,
             "goal": activity_type.goal if activity_type else None,
             "plan": activity_type._plan_dict() if activity_type else None,

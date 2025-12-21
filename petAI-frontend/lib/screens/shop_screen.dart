@@ -156,7 +156,7 @@ class _ShopScreenState extends State<ShopScreen> {
             sliver: SliverGrid(
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
-                childAspectRatio: 0.78,
+                childAspectRatio: 0.64,
                 crossAxisSpacing: 12,
                 mainAxisSpacing: 12,
               ),
@@ -309,6 +309,7 @@ class _StoreListingCard extends StatelessWidget {
 
     return InkWell(
       onTap: disabled ? null : onBuy,
+      onLongPress: onPreview,
       borderRadius: BorderRadius.circular(18),
       child: Ink(
         decoration: BoxDecoration(
@@ -357,7 +358,7 @@ class _StoreListingCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 Text(
                   item.name,
                   maxLines: 1,
@@ -367,11 +368,11 @@ class _StoreListingCard extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   item.description.isNotEmpty ? item.description : (item.type.isNotEmpty ? item.type : "Item"),
-                  maxLines: 2,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.w600, fontSize: 12),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 Row(
                   children: [
                     if (isCoinCurrency) ...[
@@ -437,30 +438,32 @@ class _StoreListingCard extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 10),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton(
-                    onPressed: onPreview,
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: onPreview,
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                        child: const Text("Preview"),
+                      ),
                     ),
-                    child: const Text("Preview"),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: disabled ? null : onBuy,
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.92),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: disabled ? null : onBuy,
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.92),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                        child: Text(buttonLabel),
+                      ),
                     ),
-                    child: Text(buttonLabel),
-                  ),
+                  ],
                 ),
               ],
             ),
