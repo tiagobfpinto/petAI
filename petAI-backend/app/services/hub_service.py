@@ -92,6 +92,13 @@ class HubService:
         },
     ]
 
+    _COIN_PACKS: dict[str, int] = {
+        "pack_small": 260,
+        "pack_medium": 550,
+        "pack_large": 1200,
+        "pack_mega": 2500,
+    }
+
     _user_owned_items: defaultdict[int, set[str]] = defaultdict(set)
 
     @classmethod
@@ -149,6 +156,18 @@ class HubService:
         PetService.add_xp(pet, 5)
 
         return cls.shop_state(user_id)
+
+    @classmethod
+    def purchase_coin_pack(cls, user_id: int, pack_id: str) -> dict:
+        user = UserDAO.get_by_id(user_id)
+        if not user:
+            raise LookupError("User not found")
+        pack_id = pack_id.strip()
+        amount = cls._COIN_PACKS.get(pack_id)
+        if amount is None:
+            raise LookupError("Coin pack not found")
+        UserService.add_coins(user, amount)
+        return {"balance": user.coins or 0, "pack_id": pack_id, "coins_added": amount}
 
     @classmethod
     def friends_feed(cls, user_id: int) -> list[dict]:
