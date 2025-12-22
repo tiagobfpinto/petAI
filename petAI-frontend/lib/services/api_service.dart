@@ -696,6 +696,35 @@ class ApiService {
     }
   }
 
+  Future<ApiResponse<int>> purchaseCoinPack(String packId) async {
+    await _ensureTokenLoaded();
+    try {
+      final response = await _client.post(
+        _uri("/hub/coins/purchase"),
+        headers: _headers,
+        body: jsonEncode({"pack_id": packId}),
+      );
+      final payload = _decode(response.body);
+      final data = _data(payload);
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        final balance = data["balance"];
+        if (balance is num) {
+          return ApiResponse.success(balance.toInt(), statusCode: response.statusCode);
+        }
+        return ApiResponse.failure(
+          "Unexpected response",
+          statusCode: response.statusCode,
+        );
+      }
+      return ApiResponse.failure(
+        payload["error"] as String? ?? "Failed to purchase coins",
+        statusCode: response.statusCode,
+      );
+    } catch (err) {
+      return ApiResponse.failure("Network error: $err");
+    }
+  }
+
   Future<ApiResponse<List<StyleInventoryItem>>> fetchStyleInventory() async {
     await _ensureTokenLoaded();
     try {

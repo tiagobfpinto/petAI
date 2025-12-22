@@ -1591,9 +1591,10 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => CoinStoreScreen(
+          apiService: widget.apiService,
           currentBalance: _pet.coins,
-          onPurchase: (coinsAdded) {
-            final updated = _pet.copyWith(coins: _pet.coins + coinsAdded);
+          onBalanceUpdated: (newBalance) {
+            final updated = _pet.copyWith(coins: newBalance);
             setState(() => _pet = updated);
             widget.onPetChanged(updated);
           },

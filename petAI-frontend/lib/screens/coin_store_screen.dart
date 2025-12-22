@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../services/api_service.dart';
+
 class CoinPackage {
   const CoinPackage({
     required this.id,
@@ -16,15 +18,17 @@ class CoinPackage {
   final bool highlight;
 }
 
-class CoinStoreScreen extends StatelessWidget {
+class CoinStoreScreen extends StatefulWidget {
   const CoinStoreScreen({
     super.key,
+    required this.apiService,
     required this.currentBalance,
-    required this.onPurchase,
+    required this.onBalanceUpdated,
   });
 
+  final ApiService apiService;
   final int currentBalance;
-  final void Function(int coinsAdded) onPurchase;
+  final void Function(int newBalance) onBalanceUpdated;
 
   static final List<CoinPackage> _packages = [
     const CoinPackage(id: "pack_small", coins: 260, priceLabel: "€2.49"),
@@ -45,6 +49,13 @@ class CoinStoreScreen extends StatelessWidget {
   ];
 
   @override
+  State<CoinStoreScreen> createState() => _CoinStoreScreenState();
+}
+
+class _CoinStoreScreenState extends State<CoinStoreScreen> {
+  bool _processing = false;
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
@@ -56,7 +67,7 @@ class CoinStoreScreen extends StatelessWidget {
         children: [
           _balanceCard(theme),
           const SizedBox(height: 16),
-          ..._packages.map((pack) => _packageTile(context, pack)),
+          ...CoinStoreScreen._packages.map((pack) => _packageTile(context, pack)),
           const SizedBox(height: 12),
           Text(
             "Purchases are mocked for now. Hook up to your payment provider when ready.",
@@ -112,7 +123,7 @@ class CoinStoreScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  "$currentBalance coins",
+                  "${widget.currentBalance} coins",
                   style: theme.textTheme.titleLarge?.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.w800,
@@ -195,7 +206,7 @@ class CoinStoreScreen extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           ElevatedButton(
-            onPressed: () => _confirmPurchase(context, pack),
+            onPressed: _processing ? null : () => _confirmPurchase(context, pack),
             child: const Text("Buy"),
           ),
         ],
@@ -223,13 +234,25 @@ class CoinStoreScreen extends StatelessWidget {
     );
 
     if (confirmed == true) {
-      onPurchase(pack.coins);
-      // ignore: use_build_context_synchronously
-      Navigator.of(context).pop();
-      // ignore: use_build_context_synchronously
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("+${pack.coins} coins added to your wallet")),
-      );
+      if (!mounted) return;
+      setState(() => _processing = true);
+      final response = await widget.apiService.purchaseCoinPack(pack.id);
+      if (!mounted) return;
+      setState(() => _processing = false);
+      if (response.isSuccess && response.data != null) {
+        widget.onBalanceUpdated(response.data!);
+        // ignore: use_build_context_synchronously
+        Navigator.of(context).pop();
+        // ignore: use_build_context_synchronously
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("+${pack.coins} coins added to your wallet")),
+        );
+      } else {
+        // ignore: use_build_context_synchronously
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(response.error ?? "Purchase failed")),
+        );
+      }
     }
   }
 }

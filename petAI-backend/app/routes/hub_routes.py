@@ -47,6 +47,30 @@ def purchase_item():
     return success_response("Purchase completed", state, 201)
 
 
+@hub_bp.route("/coins/purchase", methods=["POST"])
+@token_required
+def purchase_coins():
+    user_id = get_current_user_id()
+    if not user_id:
+        return error_response("user_id is required", 400)
+    payload = request.get_json(silent=True) or {}
+    pack_id = (payload.get("pack_id") or "").strip()
+    if not pack_id:
+        return error_response("pack_id is required", 400)
+
+    try:
+        state = HubService.purchase_coin_pack(user_id, pack_id)
+        db.session.commit()
+    except LookupError as exc:
+        db.session.rollback()
+        return error_response(str(exc), 404)
+    except ValueError as exc:
+        db.session.rollback()
+        return error_response(str(exc), 400)
+
+    return success_response("Coin pack purchased", state, 201)
+
+
 @hub_bp.route("/friends", methods=["GET"])
 @token_required
 def friends_feed():
