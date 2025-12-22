@@ -72,17 +72,6 @@ class DefaultActivityService:
                 if not (activity_type.goal or "").strip():
                     activity_type.goal = "Run"
 
-                has_schedule = bool((activity_type.weekly_schedule or "").strip())
-                if activity_type.weekly_goal_value is None or activity_type.weekly_goal_unit is None or not has_schedule:
-                    weekly_goal_value, weekly_goal_unit, weekly_schedule = cls._suggest_running_plan(
-                        (activity_type.level or "sometimes").strip().lower(),
-                        age=age,
-                        gender=gender,
-                    )
-                    activity_type.weekly_goal_value = weekly_goal_value
-                    activity_type.weekly_goal_unit = weekly_goal_unit
-                    activity_type.weekly_schedule = weekly_schedule
-
         db.session.flush()
 
     @staticmethod

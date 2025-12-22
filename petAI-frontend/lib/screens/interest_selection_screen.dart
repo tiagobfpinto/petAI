@@ -68,12 +68,9 @@ class _InterestSelectionScreenState extends State<InterestSelectionScreen> {
               name: interest.name,
               level: interest.level,
               goal: interest.goal ?? "",
-              plan:
-                  _isRunningName(interest.name)
-                      ? (interest.plan != null
-                          ? RunningPlanDraft.fromPlan(interest.plan!)
-                          : _suggestRunningPlanDraft(interest.level))
-                      : null,
+              plan: interest.plan != null
+                  ? RunningPlanDraft.fromPlan(interest.plan!)
+                  : null,
               isCustom: !isKnownInterestName(interest.name),
             ),
           )
@@ -466,14 +463,10 @@ class _InterestSelectionScreenState extends State<InterestSelectionScreen> {
       return;
     }
     final resolved = blueprint ?? resolveInterestBlueprint(name);
-    final plan = _isRunningName(resolved.name)
-        ? _suggestRunningPlanDraft(MotivationLevel.sometimes)
-        : null;
     setState(() {
       _drafts.add(
         _InterestDraft.suggested(
           resolved.name,
-          plan: plan,
         ),
       );
     });
@@ -535,8 +528,16 @@ class _InterestSelectionScreenState extends State<InterestSelectionScreen> {
     setState(() => _savingProfile = false);
     if (!profileOk) return;
 
-    setState(() => _saving = true);
-    final payload = _drafts.map((draft) => draft.toPayload()).toList();
+    final updatedDrafts = await _collectWeeklyGoals();
+    if (!mounted || updatedDrafts == null) return;
+
+    setState(() {
+      _drafts
+        ..clear()
+        ..addAll(updatedDrafts);
+      _saving = true;
+    });
+    final payload = updatedDrafts.map((draft) => draft.toPayload()).toList();
     final response = await widget.apiService.saveUserInterests(payload);
     if (!mounted) return;
     setState(() => _saving = false);
@@ -548,6 +549,20 @@ class _InterestSelectionScreenState extends State<InterestSelectionScreen> {
     } else {
       _showSnack(response.error ?? "Failed to save interests");
     }
+  }
+
+  Future<List<_InterestDraft>?> _collectWeeklyGoals() async {
+    final drafts = _drafts.map((draft) => draft.copyWith()).toList();
+    return Navigator.of(context).push<List<_InterestDraft>>(
+      MaterialPageRoute(
+        builder: (_) => _WeeklyGoalSetupScreen(
+          drafts: drafts,
+          apiService: widget.apiService,
+          profileAge: _profileAge,
+          profileGender: _profileGender,
+        ),
+      ),
+    );
   }
 
   Future<bool> _saveProfileIfNeeded() async {
@@ -575,6 +590,420 @@ class _InterestSelectionScreenState extends State<InterestSelectionScreen> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+}
+
+class _WeeklyGoalSetupScreen extends StatefulWidget {
+  const _WeeklyGoalSetupScreen({
+    required this.drafts,
+    required this.apiService,
+    required this.profileAge,
+    required this.profileGender,
+  });
+
+  final List<_InterestDraft> drafts;
+  final ApiService apiService;
+  final int? profileAge;
+  final String? profileGender;
+
+  @override
+  State<_WeeklyGoalSetupScreen> createState() => _WeeklyGoalSetupScreenState();
+}
+
+class _WeeklyGoalSetupScreenState extends State<_WeeklyGoalSetupScreen> {
+  static const List<_WeekDay> _weekDays = [
+    _WeekDay(key: "mon", label: "Mon"),
+    _WeekDay(key: "tue", label: "Tue"),
+    _WeekDay(key: "wed", label: "Wed"),
+    _WeekDay(key: "thu", label: "Thu"),
+    _WeekDay(key: "fri", label: "Fri"),
+    _WeekDay(key: "sat", label: "Sat"),
+    _WeekDay(key: "sun", label: "Sun"),
+  ];
+
+  late final List<_WeeklyGoalEntry> _entries;
+
+  @override
+  void initState() {
+    super.initState();
+    _entries = widget.drafts.map((draft) {
+      final isRunning = _isRunningName(draft.name);
+      final plan = draft.plan;
+      final unit = plan?.unit ?? _defaultUnitFor(draft.name);
+      final days = plan?.days.toSet() ?? _defaultDaysFor(draft.name);
+      return _WeeklyGoalEntry(
+        draft: draft,
+        enabled: plan != null,
+        unit: unit,
+        amount: plan?.weeklyGoalValue,
+        days: days,
+        aiSupported: isRunning,
+      );
+    }).toList();
+  }
+
+  @override
+  void dispose() {
+    for (final entry in _entries) {
+      entry.dispose();
+    }
+    super.dispose();
+  }
+
+  bool _isRunningName(String name) {
+    final normalized = name.trim().toLowerCase();
+    return normalized == "running" ||
+        normalized.contains("running") ||
+        normalized.contains("cardio");
+  }
+
+  String _defaultUnitFor(String name) {
+    return _isRunningName(name) ? "km" : "sessions";
+  }
+
+  Set<String> _defaultDaysFor(String name) {
+    if (_isRunningName(name)) {
+      return {"mon", "wed", "sat"};
+    }
+    return {"mon", "thu"};
+  }
+
+  String _formatAmount(double value) {
+    if (value >= 10) return value.toStringAsFixed(0);
+    if ((value * 10).roundToDouble() == value * 10) {
+      return value.toStringAsFixed(1);
+    }
+    return value.toStringAsFixed(2);
+  }
+
+  List<String> _orderedDays(Set<String> days) {
+    final order = {for (var i = 0; i < _weekDays.length; i++) _weekDays[i].key: i};
+    final list = days.toList();
+    list.sort((a, b) => (order[a] ?? 0).compareTo(order[b] ?? 0));
+    return list;
+  }
+
+  Future<void> _applySuggestion(_WeeklyGoalEntry entry) async {
+    if (!entry.aiSupported) return;
+    if (widget.profileAge == null || (widget.profileGender ?? "").isEmpty) {
+      setState(() {
+        entry.suggestionError = "Add age and gender on the previous step first.";
+      });
+      return;
+    }
+    final lastValue = double.tryParse(
+      entry.amountCtrl.text.trim().replaceAll(",", "."),
+    );
+    final lastUnit = entry.unitCtrl.text.trim();
+    setState(() {
+      entry.isSuggesting = true;
+      entry.suggestionError = null;
+    });
+    final response = await widget.apiService.fetchWeeklyGoalSuggestion(
+      age: widget.profileAge,
+      gender: widget.profileGender,
+      activity: entry.draft.name,
+      lastGoalValue: lastValue,
+      lastGoalUnit: lastUnit.isEmpty ? null : lastUnit,
+      interestName: "running",
+    );
+    if (!mounted) return;
+    if (response.isSuccess && response.data != null) {
+      final suggestion = response.data!;
+      final amount = suggestion.amount;
+      final unit = (suggestion.unit ?? lastUnit).trim();
+      setState(() {
+        entry.isSuggesting = false;
+        entry.suggestionError = null;
+        if (amount != null && amount > 0) {
+          entry.amountCtrl.text = _formatAmount(amount);
+        }
+        if (unit.isNotEmpty) {
+          entry.unitCtrl.text = unit;
+        }
+        if (entry.days.isEmpty) {
+          entry.days = _defaultDaysFor(entry.draft.name);
+        }
+      });
+      return;
+    }
+    setState(() {
+      entry.isSuggesting = false;
+      entry.suggestionError = response.error ?? "Failed to fetch suggestion";
+    });
+  }
+
+  void _submit() {
+    var hasError = false;
+    final updated = <_InterestDraft>[];
+    for (final entry in _entries) {
+      var entryHasError = false;
+      entry.amountError = null;
+      entry.dayError = null;
+      if (!entry.enabled) {
+        updated.add(entry.draft.copyWith(plan: null));
+        continue;
+      }
+      final parsed = double.tryParse(
+        entry.amountCtrl.text.trim().replaceAll(",", "."),
+      );
+      if (parsed == null || parsed <= 0) {
+        entry.amountError = "Enter a weekly goal amount.";
+        entryHasError = true;
+      }
+      final unit = entry.unitCtrl.text.trim();
+      if (unit.isEmpty) {
+        entry.amountError ??= "Enter a unit for the weekly goal.";
+        entryHasError = true;
+      }
+      if (entry.days.isEmpty) {
+        entry.dayError = "Pick at least one day.";
+        entryHasError = true;
+      }
+      if (entryHasError) {
+        hasError = true;
+        updated.add(entry.draft);
+        continue;
+      }
+      updated.add(
+        entry.draft.copyWith(
+          plan: RunningPlanDraft(
+            weeklyGoalValue: parsed!,
+            unit: unit,
+            days: _orderedDays(entry.days),
+          ),
+        ),
+      );
+    }
+    if (hasError) {
+      setState(() {});
+      return;
+    }
+    Navigator.of(context).pop(updated);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("Weekly goals"),
+      ),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+          children: [
+            Text(
+              "Add weekly goals for the interests you want to track. Skip any you do not want to plan yet.",
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 16),
+            ..._entries.map(_buildEntryCard),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _submit,
+                child: const Text("Save interests"),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEntryCard(_WeeklyGoalEntry entry) {
+    final blueprint = resolveInterestBlueprint(entry.draft.name);
+    final theme = Theme.of(context);
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: blueprint.accentColor.withValues(alpha: 0.18),
+                  child: Icon(blueprint.icon, color: blueprint.accentColor),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    blueprint.name,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                Switch(
+                  value: entry.enabled,
+                  onChanged: (value) {
+                    setState(() {
+                      entry.enabled = value;
+                      entry.amountError = null;
+                      entry.dayError = null;
+                      entry.suggestionError = null;
+                      if (value && entry.unitCtrl.text.trim().isEmpty) {
+                        entry.unitCtrl.text = _defaultUnitFor(entry.draft.name);
+                      }
+                      if (value && entry.days.isEmpty) {
+                        entry.days = _defaultDaysFor(entry.draft.name);
+                      }
+                    });
+                  },
+                ),
+              ],
+            ),
+            if (entry.enabled) ...[
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: entry.amountCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: "Weekly goal amount",
+                        hintText: "e.g. 3",
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: entry.unitCtrl,
+                      decoration: const InputDecoration(
+                        labelText: "Unit",
+                        hintText: "km, minutes, sessions",
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              if (entry.amountError != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    entry.amountError!,
+                    style: const TextStyle(color: Colors.redAccent),
+                  ),
+                ),
+              const SizedBox(height: 12),
+              Text(
+                "Days",
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _weekDays
+                    .map(
+                      (day) => FilterChip(
+                        label: Text(day.label),
+                        selected: entry.days.contains(day.key),
+                        onSelected: (value) {
+                          setState(() {
+                            if (value) {
+                              entry.days.add(day.key);
+                            } else {
+                              entry.days.remove(day.key);
+                            }
+                            entry.dayError = null;
+                          });
+                        },
+                      ),
+                    )
+                    .toList(),
+              ),
+              if (entry.dayError != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    entry.dayError!,
+                    style: const TextStyle(color: Colors.redAccent),
+                  ),
+                ),
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton.icon(
+                  onPressed: entry.aiSupported
+                      ? (entry.isSuggesting ? null : () => _applySuggestion(entry))
+                      : null,
+                  icon: entry.isSuggesting
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.auto_awesome_rounded, size: 18),
+                  label: Text(
+                    entry.isSuggesting ? "Suggesting..." : "Suggest with AI",
+                  ),
+                ),
+              ),
+              if (!entry.aiSupported)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    "AI suggestions are available for running only.",
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                ),
+              if (entry.suggestionError != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    entry.suggestionError!,
+                    style: const TextStyle(color: Colors.redAccent),
+                  ),
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _WeeklyGoalEntry {
+  _WeeklyGoalEntry({
+    required this.draft,
+    required this.enabled,
+    required String unit,
+    double? amount,
+    Set<String>? days,
+    required this.aiSupported,
+  })  : amountCtrl = TextEditingController(
+          text: amount != null ? amount.toString() : "",
+        ),
+        unitCtrl = TextEditingController(text: unit),
+        days = days ?? <String>{};
+
+  final _InterestDraft draft;
+  bool enabled;
+  final bool aiSupported;
+  final TextEditingController amountCtrl;
+  final TextEditingController unitCtrl;
+  Set<String> days;
+  bool isSuggesting = false;
+  String? amountError;
+  String? dayError;
+  String? suggestionError;
+
+  void dispose() {
+    amountCtrl.dispose();
+    unitCtrl.dispose();
   }
 }
 

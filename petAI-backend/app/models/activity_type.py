@@ -52,6 +52,7 @@ class ActivityType(db.Model):
     def _plan_dict(self) -> dict | None:
         if (
             self.weekly_goal_value is None
+            or self.weekly_goal_value <= 0
             or self.weekly_goal_unit is None
             or not self.weekly_schedule
         ):

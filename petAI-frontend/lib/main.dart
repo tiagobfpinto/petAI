@@ -46,7 +46,7 @@ class _PetAiAppState extends State<PetAiApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: "petAI",
+      title: "Nuru",
       debugShowCheckedModeBanner: false,
       theme: AppTheme.build(),
       scaffoldMessengerKey: _messengerKey,

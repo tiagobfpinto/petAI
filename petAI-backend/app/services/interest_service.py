@@ -109,7 +109,7 @@ class InterestService:
             saved.append(interest)
 
             db.session.flush()
-            ActivityTypeDAO.get_or_create(
+            activity_type = ActivityTypeDAO.get_or_create(
                 user_id,
                 interest.id,
                 name,
@@ -120,6 +120,10 @@ class InterestService:
                 weekly_goal_unit=weekly_goal_unit,
                 weekly_schedule=weekly_schedule,
             )
+            if plan is None:
+                activity_type.weekly_goal_value = None
+                activity_type.weekly_goal_unit = None
+                activity_type.weekly_schedule = None
 
         for normalized, interest in existing.items():
             if normalized not in incoming_names:

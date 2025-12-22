@@ -1,4 +1,7 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
+import 'package:rive/rive.dart' as rive;
 
 import '../models/session_bootstrap.dart';
 import '../services/api_service.dart';
@@ -6,11 +9,7 @@ import '../services/api_service.dart';
 enum AuthMode { login, convert }
 
 extension AuthModeLabel on AuthMode {
-  String get label => this == AuthMode.login ? "Log in" : "Create account";
-
-  String get subtitle => this == AuthMode.login
-      ? "Access an existing account"
-      : "Upgrade this guest to keep progress";
+  String get title => this == AuthMode.login ? "SIGN IN" : "SIGN UP";
 }
 
 class WelcomeScreen extends StatefulWidget {
@@ -20,12 +19,14 @@ class WelcomeScreen extends StatefulWidget {
     required this.onAuthenticated,
     this.isGuestSession = true,
     this.initialMode = AuthMode.login,
+    this.enableAuthAnimation = true,
   });
 
   final ApiService apiService;
   final void Function(SessionBootstrap bootstrap) onAuthenticated;
   final bool isGuestSession;
   final AuthMode initialMode;
+  final bool enableAuthAnimation;
 
   @override
   State<WelcomeScreen> createState() => _WelcomeScreenState();
@@ -37,6 +38,10 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   final _passwordCtrl = TextEditingController();
   final _usernameCtrl = TextEditingController();
 
+  rive.FileLoader? _authRiveLoader;
+  rive.RiveWidgetController? _authRiveController;
+  AuthMode _riveMode = AuthMode.login;
+
   late AuthMode _mode;
   bool _obscure = true;
   bool _isLoading = false;
@@ -45,10 +50,17 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   void initState() {
     super.initState();
     _mode = widget.initialMode;
+    if (_shouldLoadAuthAnimation()) {
+      _authRiveLoader = rive.FileLoader.fromAsset(
+        "assets/rive/login_anim.riv",
+        riveFactory: rive.Factory.rive,
+      );
+    }
   }
 
   @override
   void dispose() {
+    _authRiveLoader?.dispose();
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
     _usernameCtrl.dispose();
@@ -58,391 +70,437 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final isWide = constraints.maxWidth > 880;
-            return SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 1200),
-                child: Center(
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeOut,
-                    child: isWide
-                        ? Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(child: _buildStoryPanel(context)),
-                              const SizedBox(width: 32),
-                              Expanded(child: _buildFormCard(context)),
-                            ],
-                          )
-                        : Column(
-                            children: [
-                              _buildStoryPanel(context),
-                              const SizedBox(height: 24),
-                              _buildFormCard(context),
-                            ],
-                          ),
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStoryPanel(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final colorScheme = Theme.of(context).colorScheme;
-
-    const featurePoints = [
-      (
-        "Curated onboarding",
-        "Tell PetAI what you want to improve and we build the playbook.",
-      ),
-      (
-        "Adaptive goals",
-        "Every interest comes with a level-based starter goal you can tweak.",
-      ),
-      (
-        "Tap to complete",
-        "Daily suggestions stay in sync with what you select.",
-      ),
-    ];
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            colorScheme.primary.withValues(alpha: 0.95),
-            colorScheme.secondary,
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      body: Stack(
+        fit: StackFit.expand,
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.18),
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: const Text(
-              "petAI beta",
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.4,
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            "Coach yourself with\nAI-crafted routines.",
-            style: textTheme.headlineSmall?.copyWith(
-              fontSize: 26,
-              color: Colors.white,
-              height: 1.1,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            "Log habits, pick interests, and let PetAI surface the next micro-action.",
-            style: textTheme.titleSmall?.copyWith(
-              color: Colors.white.withValues(alpha: 0.85),
-            ),
-          ),
-          const SizedBox(height: 18),
-          Column(
-            children: featurePoints
-                .map(
-                  (tuple) => Padding(
-                    padding: const EdgeInsets.only(bottom: 14),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          height: 28,
-                          width: 28,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.18),
-                            borderRadius: BorderRadius.circular(9),
-                          ),
-                          child: const Icon(
-                            Icons.auto_awesome,
-                            size: 16,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                tuple.$1,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 13,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                tuple.$2,
-                                style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.8),
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-                .toList(),
-          ),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.auto_graph_rounded,
-                  color: Colors.white.withValues(alpha: 0.8),
-                  size: 18,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    "Pick interests first, goals next. PetAI then suggests daily actions you can check off.",
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.85),
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+          _buildAuthBackground(context),
+          _buildAuthBackgroundScrim(),
+          SafeArea(child: _buildAuthForeground(context)),
         ],
       ),
     );
   }
 
-  Widget _buildFormCard(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final isLogin = _mode == AuthMode.login;
+  Widget _buildAuthForeground(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final topPadding = constraints.maxHeight < 720 ? 24.0 : 56.0;
+        return Align(
+          alignment: Alignment.topCenter,
+          child: SingleChildScrollView(
+            padding: EdgeInsets.fromLTRB(24, topPadding, 24, 24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: _buildAuthCard(context),
+            ),
+          ),
+        );
+      },
+    );
+  }
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              isLogin ? "Welcome back" : "Create your account",
-              style: Theme.of(
-                context,
-              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+  Widget _buildAuthCard(BuildContext context) {
+    final theme = Theme.of(context);
+    final isLogin = _mode == AuthMode.login;
+    final colorScheme = theme.colorScheme;
+    final borderRadius = BorderRadius.circular(28);
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: borderRadius,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 30,
+            offset: const Offset(0, 18),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: borderRadius,
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.84),
+              borderRadius: borderRadius,
+              border: Border.all(color: Colors.white.withValues(alpha: 0.7)),
             ),
-            const SizedBox(height: 6),
-            Text(
-              isLogin
-                  ? "Log in to sync your pet, goals, and streaks."
-                  : "Convert this guest profile to keep progress on reinstall.",
-              style: TextStyle(color: Colors.grey.shade600),
-            ),
-            const SizedBox(height: 24),
-            SegmentedButton<AuthMode>(
-              style: SegmentedButton.styleFrom(
-                backgroundColor: Colors.grey.shade100,
-                selectedBackgroundColor: colorScheme.primary.withValues(
-                  alpha: 0.12,
-                ),
-                selectedForegroundColor: colorScheme.primary,
-                foregroundColor: Colors.grey.shade800,
-              ),
-              segments: const [
-                ButtonSegment(
-                  value: AuthMode.login,
-                  label: Text("Log in"),
-                  icon: Icon(Icons.login_rounded),
-                ),
-                ButtonSegment(
-                  value: AuthMode.convert,
-                  label: Text("Create account"),
-                  icon: Icon(Icons.person_add_alt_1_rounded),
-                ),
-              ],
-              selected: {_mode},
-              onSelectionChanged: (value) {
-                setState(() {
-                  _mode = value.first;
-                });
-              },
-            ),
-            const SizedBox(height: 12),
-            if (widget.isGuestSession)
-              Container(
-                width: double.infinity,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                decoration: BoxDecoration(
-                  color: Colors.blueGrey.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.key_rounded,
-                      color: colorScheme.primary,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        "Create an account to keep your pet on all devices.",
-                        style: TextStyle(color: Colors.grey.shade800),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            const SizedBox(height: 24),
-            Form(
-              key: _formKey,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(22, 20, 22, 18),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (_mode == AuthMode.convert) ...[
-                    TextFormField(
-                      controller: _usernameCtrl,
-                      decoration: const InputDecoration(
-                        labelText: "Username",
-                        hintText: "Choose your public handle",
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
                       ),
-                      validator: (value) {
-                        if (_mode != AuthMode.convert) return null;
-                        if (value == null || value.trim().isEmpty) {
-                          return "Username is required";
-                        }
-                        if (value.trim().length < 3) {
-                          return "Use at least 3 characters";
-                        }
-                        return null;
-                      },
+                      decoration: BoxDecoration(
+                        color: colorScheme.primary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        "Nuru beta",
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: colorScheme.primary,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
                     ),
-                    const SizedBox(height: 16),
-                  ],
-                  TextFormField(
-                    controller: _emailCtrl,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: InputDecoration(
-                      labelText:
-                          _mode == AuthMode.login ? "Email or username" : "Email",
-                      hintText: _mode == AuthMode.login
-                          ? "you@email.com or username"
-                          : "you@email.com",
-                    ),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return _mode == AuthMode.login
-                            ? "Email or username is required"
-                            : "Email is required";
-                      }
-                      if (_mode == AuthMode.convert && !value.contains("@")) {
-                        return "Enter a valid email";
-                      }
-                      return null;
-                    },
                   ),
                   const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _passwordCtrl,
-                    obscureText: _obscure,
-                    decoration: InputDecoration(
-                      labelText: "Password",
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscure ? Icons.visibility_off : Icons.visibility,
+                  Text(
+                    _mode.title,
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    isLogin
+                        ? "Sign in to sync your pet, goals, and streaks."
+                        : "Create an account to keep Nuru on all devices.",
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  Form(
+                    key: _formKey,
+                    child: Column(
+                      children: [
+                        if (_mode == AuthMode.convert) ...[
+                          TextFormField(
+                            controller: _usernameCtrl,
+                            decoration: const InputDecoration(
+                              hintText: "Username",
+                              prefixIcon: Icon(Icons.person_outline_rounded),
+                              floatingLabelBehavior:
+                                  FloatingLabelBehavior.never,
+                            ),
+                            validator: (value) {
+                              if (_mode != AuthMode.convert) return null;
+                              if (value == null || value.trim().isEmpty) {
+                                return "Username is required";
+                              }
+                              if (value.trim().length < 3) {
+                                return "Use at least 3 characters";
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 14),
+                        ],
+                        TextFormField(
+                          controller: _emailCtrl,
+                          keyboardType: TextInputType.emailAddress,
+                          decoration: InputDecoration(
+                            hintText: isLogin ? "Email or username" : "Email",
+                            prefixIcon: Icon(
+                              isLogin
+                                  ? Icons.person_outline_rounded
+                                  : Icons.email_outlined,
+                            ),
+                            floatingLabelBehavior:
+                                FloatingLabelBehavior.never,
+                          ),
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return isLogin
+                                  ? "Email or username is required"
+                                  : "Email is required";
+                            }
+                            if (!isLogin && !value.contains("@")) {
+                              return "Enter a valid email";
+                            }
+                            return null;
+                          },
                         ),
-                        onPressed: () => setState(() => _obscure = !_obscure),
+                        const SizedBox(height: 14),
+                        TextFormField(
+                          controller: _passwordCtrl,
+                          obscureText: _obscure,
+                          decoration: InputDecoration(
+                            hintText: "Password",
+                            prefixIcon: const Icon(Icons.lock_outline_rounded),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _obscure
+                                    ? Icons.visibility_off_rounded
+                                    : Icons.visibility_rounded,
+                              ),
+                              onPressed:
+                                  () => setState(() => _obscure = !_obscure),
+                            ),
+                            floatingLabelBehavior:
+                                FloatingLabelBehavior.never,
+                          ),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return "Password is required";
+                            }
+                            if (isLogin) {
+                              return null;
+                            }
+                            if (value.length < 8) {
+                              return "Minimum 8 characters";
+                            }
+                            if (!RegExp(r"\d").hasMatch(value)) {
+                              return "Include at least 1 number";
+                            }
+                            return null;
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  SizedBox(
+                    height: 52,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        shape: const StadiumBorder(),
+                      ),
+                      onPressed: _isLoading ? null : _handleSubmit,
+                      child: _isLoading
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation(
+                                  Colors.white,
+                                ),
+                              ),
+                            )
+                          : Text(_mode.title),
+                    ),
+                  ),
+                  if (isLogin) ...[
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: _isLoading ? null : _handleForgotPassword,
+                        child: const Text("Forgot password?"),
                       ),
                     ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return "Password is required";
-                      }
-                      if (_mode == AuthMode.login) {
-                        return null;
-                      }
-                      if (value.length < 8) {
-                        return "Minimum 8 characters";
-                      }
-                      if (!RegExp(r"\d").hasMatch(value)) {
-                        return "Include at least 1 number";
-                      }
-                      return null;
-                    },
-                  ),
+                  ],
+                  const SizedBox(height: 6),
+                  _buildModeSwitchRow(context),
+                  if (isLogin && widget.isGuestSession) ...[
+                    const SizedBox(height: 8),
+                    Center(
+                      child: TextButton.icon(
+                        onPressed: _isLoading ? null : _continueAsGuest,
+                        icon: const Icon(Icons.explore_rounded, size: 18),
+                        label: const Text("Continue as guest"),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                icon: _isLoading
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation(Colors.white),
-                        ),
-                      )
-                    : Icon(
-                        _mode == AuthMode.login
-                            ? Icons.login_rounded
-                            : Icons.arrow_forward_rounded,
-                      ),
-                label: Text(_mode.label),
-                onPressed: _isLoading ? null : _handleSubmit,
-              ),
-            ),
-            if (_mode == AuthMode.login) ...[
-              const SizedBox(height: 16),
-              OutlinedButton.icon(
-                icon: const Icon(Icons.explore_rounded),
-                label: const Text("Stay as guest for now"),
-                onPressed: () {
-                  setState(() {
-                    _mode = AuthMode.convert;
-                  });
-                },
-              ),
-            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModeSwitchRow(BuildContext context) {
+    final theme = Theme.of(context);
+    final isLogin = _mode == AuthMode.login;
+
+    return Wrap(
+      alignment: WrapAlignment.center,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 4,
+      children: [
+        Text(
+          isLogin ? "Don't have an account?" : "Already have an account?",
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: Colors.grey.shade700,
+          ),
+        ),
+        TextButton(
+          onPressed: _isLoading
+              ? null
+              : () => _setMode(isLogin ? AuthMode.convert : AuthMode.login),
+          child: Text(isLogin ? "SIGN UP" : "SIGN IN"),
+        ),
+      ],
+    );
+  }
+
+  bool _shouldLoadAuthAnimation() {
+    if (!widget.enableAuthAnimation) return false;
+    return !_isTestBinding;
+  }
+
+  bool get _isTestBinding {
+    final bindingName = WidgetsBinding.instance.runtimeType.toString();
+    return bindingName.contains("TestWidgetsFlutterBinding");
+  }
+
+  Widget _buildAuthBackground(BuildContext context) {
+    final authRiveLoader = _authRiveLoader;
+    if (authRiveLoader == null) {
+      return _buildAuthBackgroundPlaceholder(context);
+    }
+
+    return rive.RiveWidgetBuilder(
+      fileLoader: authRiveLoader,
+      stateMachineSelector: const rive.StateMachineDefault(),
+      builder: (context, state) => switch (state) {
+        rive.RiveLoading() => _buildAuthBackgroundPlaceholder(context),
+        rive.RiveFailed() => _buildAuthBackgroundPlaceholder(context),
+        rive.RiveLoaded() => Builder(
+            builder: (context) {
+              final controller = state.controller;
+              if (_authRiveController != controller) {
+                _authRiveController = controller;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) {
+                    _syncAuthAnimation();
+                  }
+                });
+              }
+              return rive.RiveWidget(
+                controller: controller,
+                fit: rive.Fit.cover,
+              );
+            },
+          ),
+      },
+    );
+  }
+
+  Widget _buildAuthBackgroundScrim() {
+    return const DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Color(0xB3FFFFFF),
+            Color(0xCCFFFFFF),
+            Color(0xE6FFFFFF),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildAuthBackgroundPlaceholder(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final topColor = colorScheme.primary.withValues(alpha: 0.14);
+    final bottomColor = colorScheme.secondary.withValues(alpha: 0.10);
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                topColor,
+                const Color(0xFFFFFFFF),
+                bottomColor,
+              ],
+            ),
+          ),
+        ),
+        Positioned(
+          top: -90,
+          right: -70,
+          child: _buildBackgroundBlob(
+            colorScheme.primary.withValues(alpha: 0.18),
+            260,
+          ),
+        ),
+        Positioned(
+          bottom: -120,
+          left: -90,
+          child: _buildBackgroundBlob(
+            colorScheme.primary.withValues(alpha: 0.12),
+            320,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBackgroundBlob(Color color, double size) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+    );
+  }
+
+  void _setMode(AuthMode nextMode) {
+    if (_mode == nextMode) return;
+    setState(() => _mode = nextMode);
+    _syncAuthAnimation();
+  }
+
+  void _continueAsGuest() {
+    Navigator.of(context).maybePop();
+  }
+
+  void _handleForgotPassword() {
+    _showSnack("Password reset isn't available yet.");
+  }
+
+  void _syncAuthAnimation() {
+    if (_authRiveController == null) return;
+    if (_riveMode == _mode) return;
+
+    if (_mode == AuthMode.convert) {
+      if (_fireAuthTrigger("left")) {
+        _riveMode = AuthMode.convert;
+      }
+    } else {
+      if (_fireAuthTrigger("right")) {
+        _riveMode = AuthMode.login;
+      }
+    }
+  }
+
+  bool _fireAuthTrigger(String triggerName) {
+    final controller = _authRiveController;
+    if (controller == null) return false;
+    final stateMachine = controller.stateMachine;
+
+    // ignore: deprecated_member_use
+    final direct = stateMachine.trigger(triggerName);
+    if (direct != null) {
+      direct.fire();
+      return true;
+    }
+
+    final normalized = _normalizeRiveName(triggerName);
+    // ignore: deprecated_member_use
+    for (final input in stateMachine.inputs) {
+      if (input is! rive.TriggerInput) continue;
+      if (_normalizeRiveName(input.name) == normalized) {
+        input.fire();
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  static String _normalizeRiveName(String value) {
+    return value.toLowerCase().replaceAll(RegExp(r"[^a-z0-9]+"), "");
   }
 
   Future<void> _handleSubmit() async {
@@ -488,9 +546,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   }
 
   void _showSnack(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   String _deriveUsername(String email) {
@@ -500,7 +556,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
         .replaceAll(RegExp(r"_+"), "_");
     sanitized = sanitized.replaceAll(RegExp(r"^_+|_+\$"), "");
     if (sanitized.isEmpty) {
-      sanitized = "petai_user";
+      sanitized = "nuru_user";
     }
     return sanitized;
   }

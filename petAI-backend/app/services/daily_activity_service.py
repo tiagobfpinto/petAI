@@ -29,11 +29,29 @@ class DailyActivityService:
 
     @classmethod
     def ensure_goal(cls, user_id: int, activity_type_id: int, *, title: str | None, amount: float | None, unit: str | None):
+        if amount is None:
+            return None
+        try:
+            normalized_amount = float(amount)
+        except (TypeError, ValueError):
+            return None
+        if normalized_amount <= 0:
+            return None
+        normalized_unit = (unit or "").strip() or None
+        if normalized_unit is None:
+            return None
         existing = GoalDAO.latest_active(user_id, activity_type_id)
-        if existing:
+        if existing and existing.amount and existing.amount > 0:
             return existing
         expires_at = datetime.now(timezone.utc) + timedelta(days=7)
-        return GoalDAO.create(user_id, activity_type_id, title, amount, unit, expires_at)
+        return GoalDAO.create(
+            user_id,
+            activity_type_id,
+            title,
+            normalized_amount,
+            normalized_unit,
+            expires_at,
+        )
 
     @classmethod
     def _plan_days(cls, activity_type) -> list[str]:
@@ -128,7 +146,19 @@ class DailyActivityService:
                 activity_type_id = activity_type.id if activity_type else cls.ensure_activity_type(user_id, interest.id, interest.name)
                 amount = plan.get("weekly_value") if plan else None
                 unit = plan.get("unit") if plan else None
-                goal = cls.ensure_goal(user_id, activity_type_id, title=title_base, amount=amount, unit=unit)
+                if plan is None and activity_type:
+                    amount = activity_type.weekly_goal_value
+                    unit = activity_type.weekly_goal_unit
+                unit = (unit or "").strip() or None
+                goal = None
+                if amount is not None and unit:
+                    goal = cls.ensure_goal(
+                        user_id,
+                        activity_type_id,
+                        title=title_base,
+                        amount=amount,
+                        unit=unit,
+                    )
                 # avoid duplicates
                 existing = [
                     a

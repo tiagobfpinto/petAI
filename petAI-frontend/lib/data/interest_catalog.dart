@@ -374,12 +374,12 @@ InterestBlueprint _buildCustomBlueprint(String rawName) {
     return InterestBlueprint(
       id: "custom-${_slugify(cacheKey)}",
       name: normalized,
-      description: "Your personalized track in PetAI.",
+      description: "Your personalized track in Nuru.",
       accentColor: color,
       icon: Icons.auto_awesome_rounded,
       suggestedActivities: [
         "Brainstorm a tiny win",
-        "Ask PetAI for inspiration",
+        "Ask Nuru for inspiration",
         "Reflect for 2 minutes",
       ],
       goalPresets: _genericPresets(normalized),

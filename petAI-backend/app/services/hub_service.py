@@ -244,13 +244,18 @@ class HubService:
                 plan = activity_type._plan_dict() if activity_type else None
                 goal = GoalDAO.latest_active(user_id, activity_type.id) if activity_type else None
 
-                # If we have no saved plan and no active goal, skip this activity type.
-                if plan is None and goal is None:
-                    continue
-
-                if plan is None and goal is not None:
+                if plan is None:
+                    if (
+                        goal is None
+                        or goal.amount is None
+                        or goal.amount <= 0
+                        or activity_type is None
+                        or activity_type.weekly_goal_value is None
+                        or activity_type.weekly_goal_value <= 0
+                    ):
+                        continue
                     plan = {
-                        "weekly_goal_value": goal.amount or 0,
+                        "weekly_goal_value": float(goal.amount),
                         "weekly_goal_unit": goal.unit or "units",
                         "days": [],
                         "per_day_goal_value": None,
