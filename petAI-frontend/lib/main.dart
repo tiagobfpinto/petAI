@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'models/pet_state.dart';
@@ -9,7 +10,9 @@ import 'screens/pet_home_screen.dart';
 import 'screens/splash_screen.dart';
 import 'screens/welcome_screen.dart';
 import 'services/api_service.dart';
+import 'services/cookie_consent_storage.dart';
 import 'theme/app_theme.dart';
+import 'widgets/cookie_consent_banner.dart';
 
 void main() {
   
@@ -28,6 +31,8 @@ class _PetAiAppState extends State<PetAiApp> {
   final GlobalKey<ScaffoldMessengerState> _messengerKey =
       GlobalKey<ScaffoldMessengerState>();
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
+  final CookieConsentStorage _cookieConsentStorage =
+      const CookieConsentStorage();
 
   UserSession? _session;
   PetState? _pet;
@@ -36,11 +41,14 @@ class _PetAiAppState extends State<PetAiApp> {
   bool _isSyncing = false;
   bool _isBooting = true;
   String? _bootError;
+  bool? _cookieConsent;
+  bool _cookieConsentLoaded = false;
 
   @override
   void initState() {
     super.initState();
     _startBootstrap();
+    _loadCookieConsent();
   }
 
   @override
@@ -51,6 +59,19 @@ class _PetAiAppState extends State<PetAiApp> {
       theme: AppTheme.build(),
       scaffoldMessengerKey: _messengerKey,
       navigatorKey: _navigatorKey,
+      builder: (context, child) {
+        final body = child ?? const SizedBox.shrink();
+        return Stack(
+          children: [
+            body,
+            if (_shouldShowCookieBanner)
+              CookieConsentBanner(
+                onAccept: () => _handleCookieConsent(true),
+                onDecline: () => _handleCookieConsent(false),
+              ),
+          ],
+        );
+      },
       home: _buildFlow(),
     );
   }
@@ -145,6 +166,35 @@ class _PetAiAppState extends State<PetAiApp> {
         _isBooting = false;
       });
     }
+  }
+
+  Future<void> _loadCookieConsent() async {
+    if (!kIsWeb) {
+      _cookieConsent = true;
+      _cookieConsentLoaded = true;
+      return;
+    }
+    final consent = await _cookieConsentStorage.readConsent();
+    if (!mounted) return;
+    setState(() {
+      _cookieConsent = consent;
+      _cookieConsentLoaded = true;
+    });
+  }
+
+  bool get _shouldShowCookieBanner {
+    return kIsWeb && _cookieConsentLoaded && _cookieConsent == null;
+  }
+
+  Future<void> _handleCookieConsent(bool accepted) async {
+    await _cookieConsentStorage.writeConsent(accepted);
+    if (accepted) {
+      await _apiService.persistCurrentToken();
+    } else {
+      await _apiService.clearStoredToken();
+    }
+    if (!mounted) return;
+    setState(() => _cookieConsent = accepted);
   }
 
   void _applyBootstrap(SessionBootstrap bootstrap) {

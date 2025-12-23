@@ -45,7 +45,7 @@ class ApiService {
             "PETAI_API",
             defaultValue: defaultApiUrl,
           ),
-      _tokenStorage = tokenStorage ?? const TokenStorage();
+      _tokenStorage = tokenStorage ?? TokenStorage();
 
   final http.Client _client;
   final String _baseUrl;
@@ -59,6 +59,16 @@ class ApiService {
 
   Future<void> clearToken() {
     return _persistToken(null);
+  }
+
+  Future<void> persistCurrentToken() async {
+    final token = _token;
+    if (token == null || token.isEmpty) return;
+    await _tokenStorage.writeToken(token);
+  }
+
+  Future<void> clearStoredToken() async {
+    await _tokenStorage.deleteToken();
   }
 
   Future<void> syncToken(String? token) async {
