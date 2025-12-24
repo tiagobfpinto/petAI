@@ -96539,7 +96539,7 @@ ad(){var s,r,q=null
 A.aUt()
 s=new A.uI(A.b([],t.O))
 r=new A.apQ(B.k7)
-return new A.Ik(new A.a5s(s,"http://localhost:5000",r),new A.bq(q,t.VL),new A.bq(q,t.fG),A.b([],t.X8))}}
+return new A.Ik(new A.a5s(s,"https://petai-z8it.onrender.com",r),new A.bq(q,t.VL),new A.bq(q,t.fG),A.b([],t.X8))}}
 A.Ik.prototype={
 aq(){this.aK()
 this.lL()

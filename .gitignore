@@ -5,3 +5,4 @@ venv/
 __pycache__/
 *.pyc
 .DS_Store
+petAI-frontend/lib/config/api_config.dart
