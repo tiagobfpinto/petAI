@@ -231,6 +231,7 @@ class DailyActivityService:
             effort_value=logged_amount,
             target_value=per_day_target,
             effort_unit=normalized_unit,
+            increment_goal=False,
         )
         DailyActivityDAO.mark_completed(activity, xp_awarded=result.get("xp_awarded"))
         goal_progress = 0.0

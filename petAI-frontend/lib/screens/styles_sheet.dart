@@ -10,11 +10,13 @@ class StylesSheet extends StatefulWidget {
     required this.apiService,
     required this.onError,
     this.onTrigger,
+    this.onEquipped,
   });
 
   final ApiService apiService;
   final void Function(String message) onError;
   final void Function(String trigger)? onTrigger;
+  final VoidCallback? onEquipped;
 
   @override
   State<StylesSheet> createState() => _StylesSheetState();
@@ -64,6 +66,7 @@ class _StylesSheetState extends State<StylesSheet> {
       if (trigger.isNotEmpty) {
         widget.onTrigger?.call(trigger);
       }
+      widget.onEquipped?.call();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Equipped ${item.name}')),
       );

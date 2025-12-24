@@ -9,6 +9,7 @@ import '../models/interest.dart';
 import '../models/user_interest.dart';
 import '../models/user_session.dart';
 import '../services/api_service.dart';
+import '../utils/number_rounding.dart';
 
 class InterestSelectionScreen extends StatefulWidget {
   const InterestSelectionScreen({
@@ -1725,9 +1726,7 @@ class _InterestDraftSheetState extends State<_InterestDraftSheet> {
 
   double _perDayGoal() {
     if (_selectedDays.isEmpty) return 0;
-    return double.parse(
-      (_weeklyGoalValue / _selectedDays.length).toStringAsFixed(2),
-    );
+    return roundToHalf(_weeklyGoalValue / _selectedDays.length);
   }
 
   String _formattedDays() {
@@ -2001,7 +2000,7 @@ class RunningPlanDraft {
 
   double perDayGoal() {
     if (days.isEmpty) return 0;
-    return weeklyGoalValue / days.length;
+    return roundToHalf(weeklyGoalValue / days.length);
   }
 
   String formattedDays() {

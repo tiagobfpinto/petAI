@@ -11,6 +11,7 @@ import '../models/pet_state.dart';
 import '../models/user_interest.dart';
 import '../models/user_session.dart';
 import '../services/api_service.dart';
+import '../utils/number_rounding.dart';
 import '../widgets/xp_progress_bar.dart';
 import 'coin_store_screen.dart';
 import 'friends_screen.dart';
@@ -659,6 +660,9 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
         onTrigger: (trigger) {
           _firePetTrigger(trigger);
         },
+        onEquipped: () {
+          _loadEquippedStyleTriggers();
+        },
       ),
     );
   }
@@ -914,11 +918,8 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
   }
 
   String _formatAmount(double value) {
-    if (value >= 10) return value.toStringAsFixed(0);
-    if ((value * 10).roundToDouble() == value * 10) {
-      return value.toStringAsFixed(1);
-    }
-    return value.toStringAsFixed(2);
+    final rounded = roundToHalf(value);
+    return rounded.toStringAsFixed(1);
   }
 
   int? _expectedDailyXp(DailyActivity activity, UserInterest interest) {

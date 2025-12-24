@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../models/progression_snapshot.dart';
 import '../services/api_service.dart';
+import '../utils/number_rounding.dart';
 
 class ProgressionScreen extends StatefulWidget {
   const ProgressionScreen({
@@ -223,7 +224,9 @@ class _ProgressionScreenState extends State<ProgressionScreen> {
         ? "${plan!.weeklyGoalValue.toStringAsFixed(plan.weeklyGoalValue >= 10 ? 0 : 1)} ${plan.weeklyGoalUnit}"
         : "Not set";
     final days = hasPlan && plan!.days.isNotEmpty ? plan.days.join(", ").toUpperCase() : "Flexible";
-    final perDay = hasPlan && plan!.perDayGoal() > 0 ? plan.perDayGoal().toStringAsFixed(1) : null;
+    final perDay = hasPlan && plan!.perDayGoal() > 0
+        ? roundToHalf(plan.perDayGoal()).toStringAsFixed(1)
+        : null;
     final progressTarget = goal.progressTarget ?? plan?.weeklyGoalValue ?? 0;
     final progressValue = goal.progressValue ?? 0;
     final progress = (goal.progress ?? (progressTarget > 0 ? progressValue / progressTarget : 0))

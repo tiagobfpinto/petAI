@@ -26,6 +26,7 @@ class ActivityService:
         effort_value: float | None = None,
         target_value: float | None = None,
         effort_unit: str | None = None,
+        increment_goal: bool = True,
     ) -> dict:
         user = UserDAO.get_by_id(user_id)
         if not user:
@@ -98,6 +99,30 @@ class ActivityService:
             xp_earned=xp_amount,
             activity_name=activity_title,
         )
+
+        if increment_goal and activity_type:
+            goal = GoalDAO.latest_active(user_id, activity_type.id)
+            if goal and goal.amount and goal.amount > 0:
+                increment = None
+                if effort_value is not None and effort_value > 0:
+                    increment = effort_value
+                elif target_value is not None and target_value > 0:
+                    increment = target_value
+                else:
+                    days = []
+                    if getattr(activity_type, "_plan_dict", None):
+                        try:
+                            plan = activity_type._plan_dict()
+                        except Exception:
+                            plan = None
+                        if plan:
+                            days = [d for d in plan.get("days", []) if isinstance(d, str) and d]
+                    divisor = len(days) if days else 7.0
+                    try:
+                        increment = max(float(goal.amount) / divisor, 1.0)
+                    except Exception:
+                        increment = 1.0
+                GoalDAO.increment_progress(goal, float(increment or 0.0))
 
         pet = PetService.get_pet_by_user(user_id) or PetService.create_pet(user_id)
         evolution_result = PetService.add_xp(pet, xp_amount)
