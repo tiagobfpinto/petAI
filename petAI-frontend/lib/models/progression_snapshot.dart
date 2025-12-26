@@ -59,6 +59,9 @@ class ProgressionMilestone {
     required this.progress,
     required this.achieved,
     required this.reward,
+    required this.rewardXp,
+    required this.rewardCoins,
+    required this.redeemed,
   });
 
   factory ProgressionMilestone.fromJson(Map<String, dynamic> json) {
@@ -68,6 +71,9 @@ class ProgressionMilestone {
       progress: (json['progress'] as num?)?.toDouble() ?? 0,
       achieved: json['achieved'] as bool? ?? false,
       reward: json['reward'] as String? ?? '',
+      rewardXp: (json['reward_xp'] as num?)?.toInt() ?? 0,
+      rewardCoins: (json['reward_coins'] as num?)?.toInt() ?? 0,
+      redeemed: json['redeemed'] as bool? ?? false,
     );
   }
 
@@ -76,6 +82,9 @@ class ProgressionMilestone {
   final double progress;
   final bool achieved;
   final String reward;
+  final int rewardXp;
+  final int rewardCoins;
+  final bool redeemed;
 }
 
 class ProgressionDay {
@@ -107,6 +116,11 @@ class ProgressionWeeklyGoal {
     this.progress,
     this.progressValue,
     this.progressTarget,
+    this.goalId,
+    this.completed = false,
+    this.redeemed = false,
+    this.rewardXp = 0,
+    this.rewardCoins = 0,
   });
 
   factory ProgressionWeeklyGoal.fromJson(Map<String, dynamic> json) {
@@ -118,6 +132,15 @@ class ProgressionWeeklyGoal {
       final ratio = (progressValue ?? 0) / progressTarget;
       progress = ratio.isFinite ? ratio : 0;
     }
+    int? goalId;
+    final rawGoalId = json['goal_id'];
+    if (rawGoalId is int) {
+      goalId = rawGoalId;
+    } else if (rawGoalId is num) {
+      goalId = rawGoalId.toInt();
+    } else if (rawGoalId is String) {
+      goalId = int.tryParse(rawGoalId);
+    }
     return ProgressionWeeklyGoal(
       interest: json['interest'] as String? ?? '',
       goal: json['goal'] as String?,
@@ -127,6 +150,11 @@ class ProgressionWeeklyGoal {
       progress: progress,
       progressValue: progressValue,
       progressTarget: progressTarget,
+      goalId: goalId,
+      completed: json['completed'] as bool? ?? false,
+      redeemed: json['redeemed'] as bool? ?? false,
+      rewardXp: (json['reward_xp'] as num?)?.toInt() ?? 0,
+      rewardCoins: (json['reward_coins'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -136,6 +164,98 @@ class ProgressionWeeklyGoal {
   final double? progress;
   final double? progressValue;
   final double? progressTarget;
+  final int? goalId;
+  final bool completed;
+  final bool redeemed;
+  final int rewardXp;
+  final int rewardCoins;
+}
+
+class ProgressionCompletedGoal {
+  ProgressionCompletedGoal({
+    required this.goalId,
+    required this.interest,
+    this.activity,
+    this.title,
+    this.amount,
+    this.unit,
+    this.progressValue,
+    this.completedAt,
+    this.redeemedAt,
+  });
+
+  factory ProgressionCompletedGoal.fromJson(Map<String, dynamic> json) {
+    DateTime? parseDate(dynamic raw) {
+      if (raw is String && raw.isNotEmpty) {
+        return DateTime.tryParse(raw);
+      }
+      return null;
+    }
+
+    int goalId = 0;
+    final rawGoalId = json['goal_id'];
+    if (rawGoalId is int) {
+      goalId = rawGoalId;
+    } else if (rawGoalId is num) {
+      goalId = rawGoalId.toInt();
+    } else if (rawGoalId is String) {
+      goalId = int.tryParse(rawGoalId) ?? 0;
+    }
+
+    return ProgressionCompletedGoal(
+      goalId: goalId,
+      interest: json['interest'] as String? ?? '',
+      activity: json['activity'] as String?,
+      title: json['title'] as String?,
+      amount: (json['amount'] as num?)?.toDouble(),
+      unit: json['unit'] as String?,
+      progressValue: (json['progress_value'] as num?)?.toDouble(),
+      completedAt: parseDate(json['completed_at']),
+      redeemedAt: parseDate(json['redeemed_at']),
+    );
+  }
+
+  final int goalId;
+  final String interest;
+  final String? activity;
+  final String? title;
+  final double? amount;
+  final String? unit;
+  final double? progressValue;
+  final DateTime? completedAt;
+  final DateTime? redeemedAt;
+
+  DateTime? get displayDate => redeemedAt ?? completedAt;
+}
+
+class ProgressionCompletedGoals {
+  ProgressionCompletedGoals({
+    required this.week,
+    required this.month,
+    required this.year,
+  });
+
+  factory ProgressionCompletedGoals.fromJson(Map<String, dynamic> json) {
+    List<ProgressionCompletedGoal> parseList(dynamic raw) {
+      if (raw is List) {
+        return raw
+            .whereType<Map<String, dynamic>>()
+            .map(ProgressionCompletedGoal.fromJson)
+            .toList();
+      }
+      return const [];
+    }
+
+    return ProgressionCompletedGoals(
+      week: parseList(json['week']),
+      month: parseList(json['month']),
+      year: parseList(json['year']),
+    );
+  }
+
+  final List<ProgressionCompletedGoal> week;
+  final List<ProgressionCompletedGoal> month;
+  final List<ProgressionCompletedGoal> year;
 }
 
 class ProgressionSnapshot {
@@ -145,6 +265,8 @@ class ProgressionSnapshot {
     required this.weeklyXp,
     required this.milestones,
     required this.weeklyGoals,
+    required this.completedGoals,
+    required this.pendingRewards,
   });
 
   factory ProgressionSnapshot.fromJson(Map<String, dynamic> json) {
@@ -160,6 +282,9 @@ class ProgressionSnapshot {
         .whereType<Map<String, dynamic>>()
         .map(ProgressionWeeklyGoal.fromJson)
         .toList();
+    final completedGoals = ProgressionCompletedGoals.fromJson(
+      json['completed_goals'] as Map<String, dynamic>? ?? {},
+    );
     return ProgressionSnapshot(
       summary: ProgressionSummary.fromJson(
         json['summary'] as Map<String, dynamic>? ?? {},
@@ -170,6 +295,8 @@ class ProgressionSnapshot {
       weeklyXp: weekly,
       milestones: milestones,
       weeklyGoals: goals,
+      completedGoals: completedGoals,
+      pendingRewards: (json['pending_rewards'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -178,4 +305,6 @@ class ProgressionSnapshot {
   final List<ProgressionDay> weeklyXp;
   final List<ProgressionMilestone> milestones;
   final List<ProgressionWeeklyGoal> weeklyGoals;
+  final ProgressionCompletedGoals completedGoals;
+  final int pendingRewards;
 }

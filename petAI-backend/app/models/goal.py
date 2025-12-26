@@ -19,6 +19,8 @@ class Goal(db.Model):
     amount = db.Column(db.Float)
     unit = db.Column(db.String(32))
     progress_value = db.Column(db.Float, default=0)
+    completed_at = db.Column(db.DateTime(timezone=True))
+    redeemed_at = db.Column(db.DateTime(timezone=True))
     expires_at = db.Column(db.DateTime(timezone=True), nullable=False)
     created_at = db.Column(db.DateTime(timezone=True), default=_utcnow, nullable=False)
     updated_at = db.Column(db.DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False)
@@ -34,5 +36,7 @@ class Goal(db.Model):
             "amount": self.amount,
             "unit": self.unit,
             "progress_value": self.progress_value,
+            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "redeemed_at": self.redeemed_at.isoformat() if self.redeemed_at else None,
             "expires_at": self.expires_at.isoformat() if self.expires_at else None,
         }
