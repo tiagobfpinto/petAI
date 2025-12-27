@@ -140,6 +140,7 @@ class ActivityService:
         if activity_count % ChestService.CHEST_INTERVAL == 0:
             chest_reward = ChestService.open_chest(user=user, pet=pet)
             if chest_reward:
+                chest_tier = chest_reward.get("chest_tier") or chest_reward.get("tier") or "common"
                 reward_type = chest_reward.get("type")
                 if reward_type == "xp":
                     pet = chest_reward.get("pet") or pet
@@ -147,16 +148,19 @@ class ActivityService:
                     chest_payload = {
                         "type": "xp",
                         "xp": chest_reward.get("xp"),
+                        "chest_tier": chest_tier,
                     }
                 elif reward_type == "coins":
                     chest_payload = {
                         "type": "coins",
                         "coins": chest_reward.get("coins"),
+                        "chest_tier": chest_tier,
                     }
                 elif reward_type == "item":
                     chest_payload = {
                         "type": "item",
                         "item": chest_reward.get("item"),
+                        "chest_tier": chest_tier,
                     }
 
         next_chest_in = ChestService.CHEST_INTERVAL - (activity_count % ChestService.CHEST_INTERVAL)
