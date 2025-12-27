@@ -735,6 +735,58 @@ class ApiService {
     }
   }
 
+  Future<ApiResponse<void>> registerPushToken({
+    required String token,
+    required String platform,
+    String? deviceId,
+  }) async {
+    await _ensureTokenLoaded();
+    try {
+      final response = await _client.post(
+        _uri("/push/register"),
+        headers: _headers,
+        body: jsonEncode({
+          "token": token,
+          "platform": platform,
+          "device_id": deviceId,
+        }),
+      );
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        return ApiResponse.success(null, statusCode: response.statusCode);
+      }
+      final payload = _decode(response.body);
+      return ApiResponse.failure(
+        payload["error"] as String? ?? "Failed to register push token",
+        statusCode: response.statusCode,
+      );
+    } catch (err) {
+      return ApiResponse.failure("Network error: $err");
+    }
+  }
+
+  Future<ApiResponse<void>> unregisterPushToken({
+    required String token,
+  }) async {
+    await _ensureTokenLoaded();
+    try {
+      final response = await _client.post(
+        _uri("/push/unregister"),
+        headers: _headers,
+        body: jsonEncode({"token": token}),
+      );
+      if (response.statusCode == 200) {
+        return ApiResponse.success(null, statusCode: response.statusCode);
+      }
+      final payload = _decode(response.body);
+      return ApiResponse.failure(
+        payload["error"] as String? ?? "Failed to unregister push token",
+        statusCode: response.statusCode,
+      );
+    } catch (err) {
+      return ApiResponse.failure("Network error: $err");
+    }
+  }
+
   Future<ApiResponse<List<StyleInventoryItem>>> fetchStyleInventory() async {
     await _ensureTokenLoaded();
     try {
