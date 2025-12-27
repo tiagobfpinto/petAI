@@ -1,3 +1,3 @@
-const String defaultApiUrl = "https://petai-z8it.onrender.com";
+//const String defaultApiUrl = "https://petai-z8it.onrender.com";
 //trocar para local host quando for testar localmente, frade burro da merda
-//const String defaultApiUrl = "http://localhost:5000";   
+const String defaultApiUrl = "http://localhost:5000";   

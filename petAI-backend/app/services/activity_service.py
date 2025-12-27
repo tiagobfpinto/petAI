@@ -14,6 +14,7 @@ from ..models import db
 from ..models.activity import ActivityLog
 from ..services.pet_service import PetService
 from ..services.user_service import UserService
+from ..services.chest_service import ChestService
 
 
 class ActivityService:
@@ -100,8 +101,11 @@ class ActivityService:
             activity_name=activity_title,
         )
 
+        activity_count = (user.activity_count or 0) + 1
+        user.activity_count = activity_count
+
         if increment_goal and activity_type:
-            goal = GoalDAO.latest_active(user_id, activity_type.id)
+            goal = GoalDAO.latest_active(user_id, activity_type.id, include_redeemed=False)
             if goal and goal.amount and goal.amount > 0:
                 increment = None
                 if effort_value is not None and effort_value > 0:
@@ -126,18 +130,48 @@ class ActivityService:
 
         pet = PetService.get_pet_by_user(user_id) or PetService.create_pet(user_id)
         evolution_result = PetService.add_xp(pet, xp_amount)
+        pet = evolution_result["pet"]
         coins_awarded = max(5, xp_amount)
         UserService.add_coins(user, coins_awarded)
+
+        chest_reward = None
+        chest_payload = None
+        chest_evolved = False
+        if activity_count % ChestService.CHEST_INTERVAL == 0:
+            chest_reward = ChestService.open_chest(user=user, pet=pet)
+            if chest_reward:
+                reward_type = chest_reward.get("type")
+                if reward_type == "xp":
+                    pet = chest_reward.get("pet") or pet
+                    chest_evolved = bool(chest_reward.get("evolved"))
+                    chest_payload = {
+                        "type": "xp",
+                        "xp": chest_reward.get("xp"),
+                    }
+                elif reward_type == "coins":
+                    chest_payload = {
+                        "type": "coins",
+                        "coins": chest_reward.get("coins"),
+                    }
+                elif reward_type == "item":
+                    chest_payload = {
+                        "type": "item",
+                        "item": chest_reward.get("item"),
+                    }
+
+        next_chest_in = ChestService.CHEST_INTERVAL - (activity_count % ChestService.CHEST_INTERVAL)
+        if next_chest_in == ChestService.CHEST_INTERVAL:
+            next_chest_in = 0
 
         db.session.flush()
 
         return {
             "activity": activity,
-            "pet": evolution_result["pet"],
+            "pet": pet,
             "xp_awarded": xp_amount,
             "coins_awarded": coins_awarded,
             "coins_balance": user.coins,
-            "evolved": evolution_result["evolved"],
+            "evolved": evolution_result["evolved"] or chest_evolved,
             "interest_id": area.id,
             "streak_current": user.streak_current,
             "streak_best": user.streak_best,
@@ -146,6 +180,8 @@ class ActivityService:
             "effort_target": target_value,
             "effort_unit": effort_unit,
             "effort_boost": effort_boost,
+            "chest": chest_payload,
+            "next_chest_in": next_chest_in,
         }
 
     @staticmethod
@@ -215,17 +251,27 @@ class ActivityService:
             if value <= 0:
                 raise ValueError("weekly_goal_value must be greater than zero")
             unit = (normalized_unit or "minutes").strip() or "minutes"
-            from datetime import timedelta
-
-            expires_at = datetime.now(timezone.utc) + timedelta(days=30)
-            goal = GoalDAO.create(
-                user_id,
-                activity_type.id,
-                title=activity_name.strip(),
-                amount=value,
-                unit=unit,
-                expires_at=expires_at,
-            )
+            existing_goal = GoalDAO.latest_active(user_id, activity_type.id)
+            skip_goal_creation = False
+            if existing_goal and existing_goal.amount and existing_goal.unit:
+                if (
+                    abs(float(existing_goal.amount) - value) <= 0.0001
+                    and existing_goal.unit.strip().lower() == unit.lower()
+                ):
+                    if existing_goal.redeemed_at:
+                        skip_goal_creation = True
+                    else:
+                        goal = existing_goal
+            if goal is None and not skip_goal_creation:
+                expires_at = datetime.now(timezone.utc) + timedelta(days=30)
+                goal = GoalDAO.create(
+                    user_id,
+                    activity_type.id,
+                    title=activity_name.strip(),
+                    amount=value,
+                    unit=unit,
+                    expires_at=expires_at,
+                )
 
         if rrule:
             ActivityService._create_daily_tasks_from_rrule(
@@ -317,15 +363,27 @@ class ActivityService:
             if value <= 0:
                 raise ValueError("weekly_goal_value must be greater than zero")
             unit = (normalized_unit or "minutes").strip() or "minutes"
-            expires_at = datetime.now(timezone.utc) + timedelta(days=30)
-            goal = GoalDAO.create(
-                user_id,
-                activity_type.id,
-                title=activity_name.strip(),
-                amount=value,
-                unit=unit,
-                expires_at=expires_at,
-            )
+            existing_goal = GoalDAO.latest_active(user_id, activity_type.id)
+            skip_goal_creation = False
+            if existing_goal and existing_goal.amount and existing_goal.unit:
+                if (
+                    abs(float(existing_goal.amount) - value) <= 0.0001
+                    and existing_goal.unit.strip().lower() == unit.lower()
+                ):
+                    if existing_goal.redeemed_at:
+                        skip_goal_creation = True
+                    else:
+                        goal = existing_goal
+            if goal is None and not skip_goal_creation:
+                expires_at = datetime.now(timezone.utc) + timedelta(days=30)
+                goal = GoalDAO.create(
+                    user_id,
+                    activity_type.id,
+                    title=activity_name.strip(),
+                    amount=value,
+                    unit=unit,
+                    expires_at=expires_at,
+                )
 
         # Refresh pending daily tasks for this activity type from today onward.
         today = date.today()

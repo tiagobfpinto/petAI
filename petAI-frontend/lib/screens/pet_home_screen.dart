@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../models/activity_log.dart';
+import '../models/activity_completion.dart';
 import '../models/daily_activity.dart';
 import '../models/interest.dart';
 import '../models/activity_type.dart';
@@ -68,6 +69,8 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
   bool _loadingActivityTypes = false;
   List<ActivityLogEntry> _activities = [];
   bool _loadingActivities = true;
+  int _progressionBadgeCount = 0;
+  bool _loadingProgressionBadge = false;
   Set<int> _completedToday = {};
   final Map<int, int> _celebrations = {};
   int? _streakCurrent;
@@ -89,6 +92,7 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
     _loadActivities();
     _loadActivityTypes();
     _loadEquippedStyleTriggers();
+    _loadProgressionBadge();
   }
 
   @override
@@ -193,6 +197,17 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
               ProgressionScreen(
                 apiService: widget.apiService,
                 onError: widget.onError,
+                onPendingRewardsChanged: (count) {
+                  setState(() {
+                    _progressionBadgeCount = count;
+                  });
+                },
+                onPetChanged: (pet) {
+                  setState(() {
+                    _pet = pet;
+                  });
+                  widget.onPetChanged(_pet);
+                },
               ),
             ],
           ),
@@ -209,6 +224,36 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
 
   Widget _buildNavBar(BuildContext context) {
     final theme = Theme.of(context);
+    Widget badgeIcon(IconData icon, int count) {
+      if (count <= 0) return Icon(icon);
+      final label = count > 9 ? "9+" : "$count";
+      return Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Icon(icon),
+          Positioned(
+            right: -6,
+            top: -4,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+              constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+              decoration: BoxDecoration(
+                color: Colors.redAccent,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       decoration: BoxDecoration(
@@ -240,19 +285,22 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
-          ],
-        ),
-        labelColor: Colors.white,
-        unselectedLabelColor: Colors.grey.shade700,
-        tabs: const [
-          Tab(icon: Icon(Icons.pets_rounded), text: "Home"),
-          Tab(icon: Icon(Icons.store_mall_directory_rounded), text: "Shop"),
-          Tab(icon: Icon(Icons.people_alt_rounded), text: "Friends"),
-          Tab(icon: Icon(Icons.auto_graph_rounded), text: "Progression"),
         ],
       ),
-    );
-  }
+      labelColor: Colors.white,
+      unselectedLabelColor: Colors.grey.shade700,
+      tabs: [
+        const Tab(icon: Icon(Icons.pets_rounded), text: "Home"),
+        const Tab(icon: Icon(Icons.store_mall_directory_rounded), text: "Shop"),
+        const Tab(icon: Icon(Icons.people_alt_rounded), text: "Friends"),
+        Tab(
+          icon: badgeIcon(Icons.auto_graph_rounded, _progressionBadgeCount),
+          text: "Progression",
+        ),
+      ],
+    ),
+  );
+}
 
   Widget _buildHomeTab(BuildContext context) {
     return RefreshIndicator(
@@ -378,6 +426,21 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
     } else {
       setState(() => _loadingActivityTypes = false);
       widget.onError(response.error ?? "Failed to load activity types");
+    }
+  }
+
+  Future<void> _loadProgressionBadge() async {
+    if (_loadingProgressionBadge) return;
+    setState(() => _loadingProgressionBadge = true);
+    final response = await widget.apiService.fetchProgression();
+    if (!mounted) return;
+    if (response.isSuccess && response.data != null) {
+      setState(() {
+        _progressionBadgeCount = response.data!.pendingRewards;
+        _loadingProgressionBadge = false;
+      });
+    } else {
+      setState(() => _loadingProgressionBadge = false);
     }
   }
 
@@ -1233,6 +1296,7 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
       _loadDailyActivities(),
       _loadActivities(),
       _loadActivityTypes(),
+      _loadProgressionBadge(),
       widget.onRefreshInterests(),
       _refreshPetState(),
     ]);
@@ -1306,6 +1370,11 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
           ),
         );
         _loadActivities();
+        _loadProgressionBadge();
+        final chest = completion.chest;
+        if (chest != null) {
+          await _showChestReward(chest);
+        }
       } else {
         widget.onError(response.error ?? "Failed to complete activity");
       }
@@ -1361,6 +1430,7 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
         });
         _startCelebration(completion.interestId, completion.xpAwarded);
         _loadActivities();
+        _loadProgressionBadge();
         final coins = completion.coinsAwarded ?? 0;
         final coinsText = coins > 0 ? " and +$coins coins" : "";
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1370,6 +1440,10 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
             ),
           ),
         );
+        final chest = completion.chest;
+        if (chest != null) {
+          await _showChestReward(chest);
+        }
       } else {
         if (response.statusCode == 403) {
           _showUpgradeDialog();
@@ -1403,6 +1477,64 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
               widget.onManageAccount();
             },
             child: const Text("Upgrade"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showChestReward(ChestReward reward) async {
+    if (!mounted) return;
+    final theme = Theme.of(context);
+    String title = "Chest opened!";
+    String message = "You received a reward.";
+    IconData icon = Icons.redeem_rounded;
+    Color accent = theme.colorScheme.primary;
+
+    if (reward.type == "item") {
+      final itemName = reward.item?.name ?? "New item";
+      message = "You found: $itemName";
+      icon = Icons.card_giftcard_rounded;
+      accent = Colors.deepPurple;
+    } else if (reward.type == "xp") {
+      final amount = reward.xp ?? 0;
+      message = "+$amount XP";
+      icon = Icons.bolt_rounded;
+      accent = Colors.deepOrange;
+    } else if (reward.type == "coins") {
+      final amount = reward.coins ?? 0;
+      message = "+$amount coins";
+      icon = Icons.monetization_on_rounded;
+      accent = Colors.amber.shade700;
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: accent),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text("Nice!"),
           ),
         ],
       ),

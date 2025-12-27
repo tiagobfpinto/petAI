@@ -41,8 +41,15 @@ class DailyActivityService:
         if normalized_unit is None:
             return None
         existing = GoalDAO.latest_active(user_id, activity_type_id)
-        if existing and existing.amount and existing.amount > 0:
-            return existing
+        if existing and existing.amount and existing.amount > 0 and existing.unit:
+            matches = (
+                abs(float(existing.amount) - normalized_amount) <= 0.0001
+                and existing.unit.strip().lower() == normalized_unit.lower()
+            )
+            if matches:
+                if existing.redeemed_at:
+                    return None
+                return existing
         expires_at = datetime.now(timezone.utc) + timedelta(days=7)
         return GoalDAO.create(
             user_id,
@@ -235,21 +242,24 @@ class DailyActivityService:
         )
         DailyActivityDAO.mark_completed(activity, xp_awarded=result.get("xp_awarded"))
         goal_progress = 0.0
-        if activity.goal:
+        goal = activity.goal
+        if goal is None and activity_type and (activity_type.weekly_goal_value or 0) > 0:
+            goal = GoalDAO.latest_active(user_id, activity_type.id, include_redeemed=False)
+        if goal and not goal.redeemed_at:
             increment: float | None = None
             if logged_amount is not None and logged_amount > 0:
                 increment = logged_amount
             elif per_day_target is not None and per_day_target > 0:
                 increment = per_day_target
-            elif activity.goal.amount:
+            elif goal.amount:
                 days = cls._plan_days(activity_type) if activity_type else []
                 divisor = len(days) if days else 7.0
                 try:
-                    increment = max(activity.goal.amount / divisor, 1.0)
+                    increment = max(goal.amount / divisor, 1.0)
                 except Exception:
                     increment = 1.0
             goal_progress = float(increment or 0.0)
-            GoalDAO.increment_progress(activity.goal, goal_progress if goal_progress else 0.0)
+            GoalDAO.increment_progress(goal, goal_progress if goal_progress else 0.0)
 
         activity_payload = None
         activity_obj = result.get("activity")
@@ -272,6 +282,8 @@ class DailyActivityService:
                 "effort_target": result.get("effort_target"),
                 "effort_unit": result.get("effort_unit"),
                 "effort_boost": result.get("effort_boost"),
+                "chest": result.get("chest"),
+                "next_chest_in": result.get("next_chest_in"),
             },
             "daily_activity": activity.to_dict(),
             "goal_progress_increment": goal_progress,
