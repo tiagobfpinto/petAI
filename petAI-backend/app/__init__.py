@@ -10,6 +10,7 @@ from .routes.auth_routes import auth_bp
 from .routes.hub_routes import hub_bp
 from .routes.friend_routes import friends_bp
 from .routes.goal_routes import goal_bp
+from .routes.iap_routes import iap_bp
 from .routes.daily_routes import daily_bp
 from .routes.pet_routes import pet_bp
 from .routes.styles_routes import style_bp
@@ -48,6 +49,7 @@ def create_app(config_class: type[Config] = Config) -> Flask:
     app.register_blueprint(daily_bp)
     app.register_blueprint(store_bp)
     app.register_blueprint(style_bp)
+    app.register_blueprint(iap_bp)
 
     @app.after_request
     def apply_cors(response):
