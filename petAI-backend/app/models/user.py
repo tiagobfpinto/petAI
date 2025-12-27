@@ -38,6 +38,7 @@ class User(db.Model):
     age = db.Column(db.Integer)
     gender = db.Column(db.String(32))
     coins = db.Column(db.Integer, default=0, nullable=False)
+    activity_count = db.Column(db.Integer, default=0, nullable=False)
 
     created_at = db.Column(db.DateTime(timezone=True), default=_utcnow, nullable=False)
     plan = db.Column(PgEnum(PlanType, name="plan_type_enum"), default=PlanType.FREE, nullable=False)
@@ -83,4 +84,5 @@ class User(db.Model):
             "streak_best": self.streak_best,
             "last_activity_at": self.last_activity_at.isoformat() if self.last_activity_at else None,
             "coins": self.coins,
+            "activity_count": self.activity_count,
         }

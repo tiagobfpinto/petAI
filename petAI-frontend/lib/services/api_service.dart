@@ -10,6 +10,7 @@ import '../models/friend_search_result.dart';
 import '../models/goal_suggestion.dart';
 import '../models/pet_state.dart';
 import '../models/progression_snapshot.dart';
+import '../models/progression_redeem_result.dart';
 import '../models/daily_activity.dart';
 import '../models/session_bootstrap.dart';
 import '../models/activity_type.dart';
@@ -1010,6 +1011,40 @@ class ApiService {
       }
       return ApiResponse.failure(
         payload["error"] as String? ?? "Failed to load progression",
+        statusCode: response.statusCode,
+      );
+    } catch (err) {
+      return ApiResponse.failure("Network error: $err");
+    }
+  }
+
+  Future<ApiResponse<ProgressionRedeemResult>> redeemProgressionReward({
+    required String type,
+    int? goalId,
+    String? milestoneId,
+  }) async {
+    await _ensureTokenLoaded();
+    try {
+      final payload = <String, dynamic>{"type": type};
+      if (goalId != null) payload["goal_id"] = goalId;
+      if (milestoneId != null && milestoneId.isNotEmpty) {
+        payload["milestone_id"] = milestoneId;
+      }
+      final response = await _client.post(
+        _uri("/hub/progression/redeem"),
+        headers: _headers,
+        body: jsonEncode(payload),
+      );
+      final decoded = _decode(response.body);
+      final data = _data(decoded);
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return ApiResponse.success(
+          ProgressionRedeemResult.fromJson(data),
+          statusCode: response.statusCode,
+        );
+      }
+      return ApiResponse.failure(
+        decoded["error"] as String? ?? "Failed to redeem reward",
         statusCode: response.statusCode,
       );
     } catch (err) {

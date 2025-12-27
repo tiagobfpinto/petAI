@@ -163,6 +163,8 @@ def complete_activity():
             "streak_current": result.get("streak_current"),
             "streak_best": result.get("streak_best"),
             "xp_multiplier": result.get("xp_multiplier"),
+            "chest": result.get("chest"),
+            "next_chest_in": result.get("next_chest_in"),
         },
         201,
     )

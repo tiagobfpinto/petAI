@@ -11,6 +11,10 @@ class ItemsDAO:
     @staticmethod
     def get_item_by_id(item_id: int) -> Item | None:
         return Item.query.filter_by(id=item_id).first()
+
+    @staticmethod
+    def list_items() -> list[Item]:
+        return Item.query.order_by(Item.id.asc()).all()
     
     @staticmethod
     def get_store_listing_by_id(store_listing_id: int) -> StoreListing | None:

@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from ..dao.activityDAO import ActivityDAO
 from ..dao.activity_typeDAO import ActivityTypeDAO
 from ..dao.goalDAO import GoalDAO
+from ..dao.milestone_redemptionDAO import MilestoneRedemptionDAO
 from ..dao.userDAO import UserDAO
 from ..services.interest_service import InterestService
 from ..services.pet_service import PetService
@@ -99,6 +100,14 @@ class HubService:
         "pack_mega": 2500,
     }
 
+    _WEEKLY_GOAL_REWARD_XP = 50
+    _WEEKLY_GOAL_REWARD_COINS = 75
+    _MILESTONE_REWARDS: dict[str, tuple[int, int]] = {
+        "streak-3": (20, 25),
+        "week-5": (30, 40),
+        "level-5": (50, 60),
+    }
+
     _user_owned_items: defaultdict[int, set[str]] = defaultdict(set)
 
     @classmethod
@@ -169,6 +178,198 @@ class HubService:
         UserService.add_coins(user, amount)
         return {"balance": user.coins or 0, "pack_id": pack_id, "coins_added": amount}
 
+    @staticmethod
+    def _reward_label(xp: int, coins: int) -> str:
+        parts: list[str] = []
+        if xp > 0:
+            parts.append(f"+{xp} XP")
+        if coins > 0:
+            parts.append(f"+{coins} coins")
+        return " ".join(parts)
+
+    @classmethod
+    def _weekly_goal_reward(cls) -> tuple[int, int]:
+        return cls._WEEKLY_GOAL_REWARD_XP, cls._WEEKLY_GOAL_REWARD_COINS
+
+    @classmethod
+    def _milestone_entries(
+        cls,
+        *,
+        user_id: int,
+        streak_current: int,
+        weekly_count: int,
+        pet_level: int,
+    ) -> list[dict]:
+        redeemed_ids = MilestoneRedemptionDAO.redeemed_ids(user_id)
+        definitions = [
+            {
+                "id": "streak-3",
+                "label": "Keep a 3 day streak",
+                "progress": min(streak_current / 3, 1.0),
+                "achieved": streak_current >= 3,
+            },
+            {
+                "id": "week-5",
+                "label": "Log 5 wins this week",
+                "progress": min(weekly_count / 5, 1.0),
+                "achieved": weekly_count >= 5,
+            },
+            {
+                "id": "level-5",
+                "label": "Reach level 5",
+                "progress": min(pet_level / 5, 1.0),
+                "achieved": pet_level >= 5,
+            },
+        ]
+
+        entries: list[dict] = []
+        for definition in definitions:
+            milestone_id = definition["id"]
+            if milestone_id in redeemed_ids:
+                continue
+            reward_xp, reward_coins = cls._MILESTONE_REWARDS.get(milestone_id, (0, 0))
+            entries.append(
+                {
+                    "id": milestone_id,
+                    "label": definition["label"],
+                    "progress": definition["progress"],
+                    "achieved": definition["achieved"],
+                    "reward": cls._reward_label(reward_xp, reward_coins),
+                    "reward_xp": reward_xp,
+                    "reward_coins": reward_coins,
+                    "redeemed": False,
+                }
+            )
+        return entries
+
+    @classmethod
+    def _completed_goal_entries(
+        cls,
+        user_id: int,
+        start: datetime,
+        end: datetime,
+    ) -> list[dict]:
+        goals = GoalDAO.list_redeemed_between(user_id, start, end)
+        entries: list[dict] = []
+        for goal in goals:
+            activity_type = goal.activity_type
+            area = getattr(activity_type, "area", None) if activity_type else None
+            interest_name = area.name if area else ""
+            activity_name = activity_type.name if activity_type else None
+            title = (goal.title or "").strip() or None
+            entries.append(
+                {
+                    "goal_id": goal.id,
+                    "interest": interest_name or (activity_name or ""),
+                    "activity": activity_name,
+                    "title": title,
+                    "amount": float(goal.amount) if goal.amount is not None else None,
+                    "unit": goal.unit,
+                    "progress_value": float(goal.progress_value)
+                    if goal.progress_value is not None
+                    else None,
+                    "completed_at": goal.completed_at.isoformat()
+                    if goal.completed_at
+                    else None,
+                    "redeemed_at": goal.redeemed_at.isoformat()
+                    if goal.redeemed_at
+                    else None,
+                }
+            )
+        return entries
+
+    @classmethod
+    def redeem_progression_reward(
+        cls,
+        user_id: int,
+        *,
+        reward_type: str,
+        goal_id: int | None = None,
+        milestone_id: str | None = None,
+    ) -> dict:
+        user = UserDAO.get_by_id(user_id)
+        if not user:
+            raise LookupError("User not found")
+
+        reward_type = reward_type.strip().lower()
+        if reward_type == "weekly_goal":
+            if goal_id is None:
+                raise ValueError("goal_id is required")
+            goal = GoalDAO.get_by_id(goal_id)
+            if not goal or goal.user_id != user_id:
+                raise LookupError("Goal not found")
+            if goal.redeemed_at:
+                raise ValueError("Goal already redeemed")
+            target = float(goal.amount or 0)
+            progress_value = float(goal.progress_value or 0)
+            is_completed = bool(goal.completed_at) or (target > 0 and progress_value >= target)
+            if not is_completed:
+                raise ValueError("Goal not completed yet")
+
+            reward_xp, reward_coins = cls._weekly_goal_reward()
+            GoalDAO.mark_redeemed(goal)
+
+            pet = cls._ensure_pet(user_id)
+            PetService.add_xp(pet, reward_xp)
+            UserService.add_coins(user, reward_coins)
+
+            pending = cls.progression_snapshot(user_id).get("pending_rewards", 0)
+            return {
+                "reward_xp": reward_xp,
+                "reward_coins": reward_coins,
+                "pending_rewards": pending,
+                "pet": PetService.pet_payload(pet),
+                "goal_id": goal.id,
+            }
+
+        if reward_type == "milestone":
+            if not milestone_id:
+                raise ValueError("milestone_id is required")
+            milestone_id = milestone_id.strip()
+            reward_xp, reward_coins = cls._MILESTONE_REWARDS.get(milestone_id, (0, 0))
+            if reward_xp == 0 and reward_coins == 0:
+                raise LookupError("Milestone not found")
+            existing = MilestoneRedemptionDAO.get(user_id, milestone_id)
+            if existing:
+                raise ValueError("Milestone already redeemed")
+
+            pet = cls._ensure_pet(user_id)
+            now = datetime.now(timezone.utc)
+            weekly_count = len(
+                ActivityDAO.list_for_user_between(
+                    user_id,
+                    now.replace(hour=0, minute=0, second=0, microsecond=0)
+                    - timedelta(days=6),
+                    now,
+                )
+            )
+            streak_current = user.streak_current or 0
+            pet_level = pet.level
+            milestones = cls._milestone_entries(
+                user_id=user_id,
+                streak_current=streak_current,
+                weekly_count=weekly_count,
+                pet_level=pet_level,
+            )
+            milestone = next((entry for entry in milestones if entry["id"] == milestone_id), None)
+            if not milestone or not milestone.get("achieved"):
+                raise ValueError("Milestone not achieved yet")
+
+            MilestoneRedemptionDAO.create(user_id, milestone_id)
+            PetService.add_xp(pet, reward_xp)
+            UserService.add_coins(user, reward_coins)
+
+            pending = cls.progression_snapshot(user_id).get("pending_rewards", 0)
+            return {
+                "reward_xp": reward_xp,
+                "reward_coins": reward_coins,
+                "pending_rewards": pending,
+                "pet": PetService.pet_payload(pet),
+                "milestone_id": milestone_id,
+            }
+
+        raise ValueError("Invalid reward type")
+
     @classmethod
     def friends_feed(cls, user_id: int) -> list[dict]:
         payload = FriendService.friends_payload(user_id)
@@ -185,6 +386,8 @@ class HubService:
 
         now = datetime.now(timezone.utc)
         start_week = now.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=6)
+        start_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        start_year = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
         weekly = ActivityDAO.list_for_user_between(user_id, start_week, now)
         today_logs = ActivityDAO.list_for_user_today(user_id)
 
@@ -204,29 +407,12 @@ class HubService:
 
         streak_current = user.streak_current or 0
         streak_best = user.streak_best or 0
-        milestones = [
-            {
-                "id": "streak-3",
-                "label": "Keep a 3 day streak",
-                "progress": min(streak_current / 3, 1.0),
-                "achieved": streak_current >= 3,
-                "reward": "+10% XP boost",
-            },
-            {
-                "id": "week-5",
-                "label": "Log 5 wins this week",
-                "progress": min(len(weekly) / 5, 1.0),
-                "achieved": len(weekly) >= 5,
-                "reward": "Bonus shop coins",
-            },
-            {
-                "id": "level-5",
-                "label": "Reach level 5",
-                "progress": min(pet.level / 5, 1.0),
-                "achieved": pet.level >= 5,
-                "reward": "Pet evolution gift",
-            },
-        ]
+        milestones = cls._milestone_entries(
+            user_id=user_id,
+            streak_current=streak_current,
+            weekly_count=len(weekly),
+            pet_level=pet.level,
+        )
 
         summary = {
             "level": pet.level,
@@ -261,7 +447,15 @@ class HubService:
 
             for activity_type in activity_types:
                 plan = activity_type._plan_dict() if activity_type else None
-                goal = GoalDAO.latest_active(user_id, activity_type.id) if activity_type else None
+                goal = (
+                    GoalDAO.latest_active(user_id, activity_type.id, include_redeemed=False)
+                    if activity_type
+                    else None
+                )
+                if goal is None and activity_type:
+                    latest_goal = GoalDAO.latest_for_activity(user_id, activity_type.id)
+                    if latest_goal and latest_goal.redeemed_at:
+                        continue
 
                 if plan is None:
                     if (
@@ -289,16 +483,31 @@ class HubService:
                     except Exception:
                         progress = 0.0
 
+                completed = False
+                if goal is not None:
+                    completed = bool(goal.completed_at) or (
+                        progress_target > 0 and progress_value >= progress_target
+                    )
+                reward_xp, reward_coins = cls._weekly_goal_reward()
                 weekly_goals.append(
                     {
+                        "goal_id": goal.id if goal else None,
                         "interest": interest.name,
                         "goal": (goal.title if goal else None) or (activity_type.goal if activity_type else None),
                         "plan": plan,
                         "progress": progress,
                         "progress_value": progress_value,
                         "progress_target": progress_target,
+                        "completed": completed,
+                        "redeemed": bool(goal.redeemed_at) if goal else False,
+                        "reward_xp": reward_xp,
+                        "reward_coins": reward_coins,
                     }
                 )
+
+        pending_rewards = sum(
+            1 for goal in weekly_goals if goal.get("completed") and goal.get("goal_id")
+        ) + sum(1 for milestone in milestones if milestone.get("achieved"))
 
         return {
             "summary": summary,
@@ -306,4 +515,10 @@ class HubService:
             "weekly_xp": weekly_payload,
             "milestones": milestones,
             "weekly_goals": weekly_goals,
+            "completed_goals": {
+                "week": cls._completed_goal_entries(user_id, start_week, now),
+                "month": cls._completed_goal_entries(user_id, start_month, now),
+                "year": cls._completed_goal_entries(user_id, start_year, now),
+            },
+            "pending_rewards": pending_rewards,
         }
