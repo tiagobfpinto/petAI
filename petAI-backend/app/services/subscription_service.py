@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
+from ..models import db
 from ..models.subscription import Subscription
 
 
@@ -35,3 +36,29 @@ class SubscriptionService:
             "started_at": sub.started_at.isoformat() if sub.started_at else None,
         }
         return payload
+
+    @staticmethod
+    def set_mock_subscription(user_id: int, active: bool) -> Subscription:
+        now = datetime.now(timezone.utc)
+        sub = Subscription.query.filter_by(user_id=user_id, provider="mock").first()
+        if not sub:
+            sub = Subscription(
+                user_id=user_id,
+                provider="mock",
+                product_id="mock_premium",
+                status="active" if active else "canceled",
+                is_trial=False,
+                started_at=now,
+                expires_at=now + timedelta(days=30) if active else now,
+                latest_transaction_id="mock",
+                original_transaction_id="mock",
+            )
+        else:
+            sub.status = "active" if active else "canceled"
+            sub.expires_at = now + timedelta(days=30) if active else now
+            sub.latest_transaction_id = "mock"
+            sub.original_transaction_id = sub.original_transaction_id or "mock"
+            if not sub.started_at:
+                sub.started_at = now
+        db.session.add(sub)
+        return sub
