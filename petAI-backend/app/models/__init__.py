@@ -23,6 +23,7 @@ from .admin_user import Admin_Users  # noqa: E402,F401
 from .petStyle import PetStyle  # noqa: E402,F401
 from .subscription import Subscription  # noqa: E402,F401
 from .milestone_redemption import MilestoneRedemption  # noqa: E402,F401
+from .push_token import PushToken  # noqa: E402,F401
 
 __all__ = [
     "db",
@@ -41,4 +42,5 @@ __all__ = [
     "ItemTransaction","StoreListing","Admin_Users","PetStyle",
     "Subscription",
     "MilestoneRedemption",
+    "PushToken",
 ]
