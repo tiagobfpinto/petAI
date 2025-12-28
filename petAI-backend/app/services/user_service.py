@@ -106,8 +106,8 @@ class UserService:
 
     @staticmethod
     def _trial_days_left(user: User, trial_length_days: int = 3) -> int:
-        """Return remaining trial days from guest creation."""
-        if not user.is_guest or not user.created_at:
+        """Return remaining trial days from account creation."""
+        if not user.created_at:
             return 0
         now = datetime.now(timezone.utc)
         created_at = user.created_at
