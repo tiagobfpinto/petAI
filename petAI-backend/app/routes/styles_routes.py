@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from flask import Blueprint, request
 
-from ..auth import get_current_user_id, token_required
+from ..auth import get_current_user_id, premium_required, token_required
 from ..dao.itemsDAO import ItemOwnershipDAO, ItemsDAO
 from ..models import db
 from ..models.petStyle import PetStyle
@@ -22,6 +22,7 @@ def _resolve_user_id() -> int | None:
 
 @style_bp.route("", methods=["GET"])
 @token_required
+@premium_required
 def get_inventory_items():
     user_id = _resolve_user_id()
     if not user_id:
@@ -54,6 +55,7 @@ def get_inventory_items():
 
 @style_bp.route("/equipped", methods=["GET"])
 @token_required
+@premium_required
 def get_equipped_style():
     user_id = _resolve_user_id()
     if not user_id:
@@ -96,6 +98,7 @@ def get_equipped_style():
 
 @style_bp.route("/equip/<int:item_id>", methods=["POST"])
 @token_required
+@premium_required
 def equip_item(item_id: int):
     user_id = _resolve_user_id()
     if not user_id:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from flask import Blueprint, request
 
-from ..auth import get_current_user_id, token_required
+from ..auth import get_current_user_id, premium_required, token_required
 from ..routes import error_response, success_response
 from ..services.daily_activity_service import DailyActivityService
 from ..models import db
@@ -12,6 +12,7 @@ daily_bp = Blueprint("daily", __name__, url_prefix="/daily")
 
 @daily_bp.route("/activities", methods=["GET"])
 @token_required
+@premium_required
 def list_daily_activities():
     user_id = get_current_user_id()
     if not user_id:
@@ -26,6 +27,7 @@ def list_daily_activities():
 
 @daily_bp.route("/activities/complete", methods=["POST"])
 @token_required
+@premium_required
 def complete_daily_activity():
     user_id = get_current_user_id()
     if not user_id:

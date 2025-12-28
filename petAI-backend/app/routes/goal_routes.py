@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from flask import Blueprint, request
 
-from ..auth import get_current_user_id, token_required
+from ..auth import get_current_user_id, premium_required, token_required
 from ..dao.activityDAO import ActivityDAO
 from ..dao.activity_typeDAO import ActivityTypeDAO
 from ..dao.areaDAO import AreaDAO
@@ -28,6 +28,7 @@ def _find_running_interest(user_id: int | None):
 
 @goal_bp.route("/suggested", methods=["GET"])
 @token_required
+@premium_required
 def suggested_goal():
     user_id = get_current_user_id()
     if not user_id:
@@ -90,6 +91,7 @@ def suggested_goal():
 
 @goal_bp.route("/weekly", methods=["GET"])
 @token_required
+@premium_required
 def weekly_goal():
     user_id = get_current_user_id()
     if not user_id:

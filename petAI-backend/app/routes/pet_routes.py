@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from flask import Blueprint, request
 
-from ..auth import get_current_user_id, token_required
+from ..auth import get_current_user_id, premium_required, token_required
 from ..models import db
 from ..routes import error_response, success_response
 from ..services.pet_service import PetService
@@ -20,6 +20,7 @@ def _resolve_user_id() -> int | None:
 
 @pet_bp.route("", methods=["GET"])
 @token_required
+@premium_required
 def get_pet():
     user_id = _resolve_user_id()
     if not user_id:
@@ -32,6 +33,7 @@ def get_pet():
 
 @pet_bp.route("/reset", methods=["POST"])
 @token_required
+@premium_required
 def reset_pet():
     user_id = _resolve_user_id()
     if not user_id:
@@ -46,6 +48,7 @@ def reset_pet():
 
 @pet_bp.route("/evolve", methods=["POST"])
 @token_required
+@premium_required
 def evolve_pet():
     user_id = _resolve_user_id()
     if not user_id:

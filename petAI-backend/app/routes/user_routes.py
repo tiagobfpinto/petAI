@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from flask import Blueprint, request
 
-from ..auth import get_current_user_id, token_required
+from ..auth import get_current_user_id, premium_required, token_required
 from ..dao.userDAO import UserDAO
 from ..models import db
 from ..routes import error_response, success_response
@@ -38,6 +38,7 @@ def get_default_interests():
 
 @user_bp.route("/interests", methods=["GET"])
 @token_required
+@premium_required
 def get_user_interests():
     user_id = _resolve_user_id()
     if not user_id:
@@ -86,6 +87,7 @@ def _persist_interests(user_id: int, entries: list[dict]):
 
 @user_bp.route("/interests", methods=["POST"])
 @token_required
+@premium_required
 def save_user_interests():
     payload = request.get_json(silent=True) or {}
     user_id = _resolve_user_id(payload)
@@ -95,6 +97,7 @@ def save_user_interests():
 
 @user_bp.route("/profile", methods=["POST"])
 @token_required
+@premium_required
 def update_profile():
     payload = request.get_json(silent=True) or {}
     user_id = _resolve_user_id(payload)
@@ -123,6 +126,7 @@ def update_profile():
 @interests_bp.route("", methods=["POST"])
 @interests_bp.route("/", methods=["POST"])
 @token_required
+@premium_required
 def legacy_save_interests():
     """Backwards-compatible alias for POST /user/interests."""
     payload = request.get_json(silent=True) or {}
