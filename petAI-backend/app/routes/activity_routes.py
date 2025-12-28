@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from flask import Blueprint, request
 
-from ..auth import active_user_required, get_current_user_id, token_required
+from ..auth import active_user_required, get_current_user_id, premium_required, token_required
 from ..models import db
 from ..routes import error_response, success_response
 from ..services.activity_service import ActivityService
@@ -23,6 +23,7 @@ def _resolve_user_id() -> int | None:
 
 @activity_bp.route("/types", methods=["GET"])
 @token_required
+@premium_required
 def list_activity_types():
     user_id = _resolve_user_id()
     if not user_id:
@@ -48,6 +49,7 @@ def options_activity_types():
 
 @activity_bp.route("/types/<int:activity_type_id>", methods=["PUT"])
 @token_required
+@premium_required
 @active_user_required
 def update_activity_type(activity_type_id: int):
     payload = request.get_json(silent=True) or {}
@@ -91,6 +93,7 @@ def update_activity_type(activity_type_id: int):
 
 @activity_bp.route("/types/<int:activity_type_id>", methods=["DELETE"])
 @token_required
+@premium_required
 @active_user_required
 def delete_activity_type(activity_type_id: int):
     user_id = _resolve_user_id()
@@ -115,6 +118,7 @@ def options_activity_type_detail(activity_type_id: int):  # noqa: ARG001
 
 @activity_bp.route("/complete", methods=["POST"])
 @token_required
+@premium_required
 @active_user_required
 def complete_activity():
     payload = request.get_json(silent=True) or {}
@@ -172,6 +176,7 @@ def complete_activity():
 
 @activity_bp.route("", methods=["POST"])
 @token_required
+@premium_required
 @active_user_required
 def create_activity():
     payload = request.get_json(silent=True) or {}
@@ -214,6 +219,7 @@ def create_activity():
 
 @activity_bp.route("/interest/<int:interest_id>", methods=["POST"])
 @token_required
+@premium_required
 @active_user_required
 def create_activity_for_interest(interest_id: int):
     payload = request.get_json(silent=True) or {}
@@ -252,6 +258,7 @@ def create_activity_for_interest(interest_id: int):
 
 @activity_bp.route("/today", methods=["GET"])
 @token_required
+@premium_required
 def today_activities():
     user_id = _resolve_user_id()
     if not user_id:
