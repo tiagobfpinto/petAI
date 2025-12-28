@@ -49,6 +49,7 @@ class User(db.Model):
     tokens = db.relationship("AuthToken", back_populates="user", cascade="all, delete-orphan")
     subscriptions = db.relationship("Subscription", back_populates="user", cascade="all, delete-orphan")
     push_tokens = db.relationship("PushToken", back_populates="user", cascade="all, delete-orphan")
+    event_logs = db.relationship("EventLog", back_populates="user", cascade="all, delete-orphan")
 
     __table_args__ = (
         db.CheckConstraint("coins >= 0", name="ck_user_coins_non_negative"),
