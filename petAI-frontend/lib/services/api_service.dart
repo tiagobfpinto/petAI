@@ -789,6 +789,30 @@ class ApiService {
     }
   }
 
+  Future<ApiResponse<void>> logEvent(
+    String event, {
+    Map<String, dynamic>? payload,
+  }) async {
+    await _ensureTokenLoaded();
+    try {
+      final response = await _client.post(
+        _uri("/events/log"),
+        headers: _headers,
+        body: jsonEncode({"event": event, "payload": payload}),
+      );
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        return ApiResponse.success(null, statusCode: response.statusCode);
+      }
+      final decoded = _decode(response.body);
+      return ApiResponse.failure(
+        decoded["error"] as String? ?? "Failed to log event",
+        statusCode: response.statusCode,
+      );
+    } catch (err) {
+      return ApiResponse.failure("Network error: $err");
+    }
+  }
+
   Future<ApiResponse<List<StyleInventoryItem>>> fetchStyleInventory() async {
     await _ensureTokenLoaded();
     try {

@@ -13,6 +13,7 @@ from .routes.goal_routes import goal_bp
 from .routes.iap_routes import iap_bp
 from .routes.push_routes import push_bp
 from .routes.daily_routes import daily_bp
+from .routes.event_routes import events_bp
 from .routes.pet_routes import pet_bp
 from .routes.styles_routes import style_bp
 from .routes.user_routes import interests_bp, user_bp
@@ -48,6 +49,7 @@ def create_app(config_class: type[Config] = Config) -> Flask:
     app.register_blueprint(hub_bp)
     app.register_blueprint(goal_bp)
     app.register_blueprint(daily_bp)
+    app.register_blueprint(events_bp)
     app.register_blueprint(store_bp)
     app.register_blueprint(style_bp)
     app.register_blueprint(iap_bp)

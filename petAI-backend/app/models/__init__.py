@@ -24,6 +24,7 @@ from .petStyle import PetStyle  # noqa: E402,F401
 from .subscription import Subscription  # noqa: E402,F401
 from .milestone_redemption import MilestoneRedemption  # noqa: E402,F401
 from .push_token import PushToken  # noqa: E402,F401
+from .event_log import EventLog  # noqa: E402,F401
 
 __all__ = [
     "db",
@@ -43,4 +44,5 @@ __all__ = [
     "Subscription",
     "MilestoneRedemption",
     "PushToken",
+    "EventLog",
 ]
