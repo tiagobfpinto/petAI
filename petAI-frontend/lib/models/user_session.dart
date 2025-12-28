@@ -4,6 +4,7 @@ class UserSession {
     required this.username,
     required this.email,
     required this.isGuest,
+    required this.isActive,
     this.createdAt,
     this.fullName,
     this.plan,
@@ -22,6 +23,7 @@ class UserSession {
   final String? fullName;
   final String? plan;
   final bool isGuest;
+  final bool isActive;
   final DateTime? createdAt;
   final int? trialDaysLeft;
   final int? streakCurrent;
@@ -48,6 +50,7 @@ class UserSession {
       username: json["username"] as String? ?? "",
       email: json["email"] as String? ?? "",
       isGuest: json["is_guest"] as bool? ?? false,
+      isActive: json["is_active"] as bool? ?? true,
       createdAt: _parseDate(json["created_at"] as String?),
       fullName: json["full_name"] as String?,
       plan: json["plan"] as String?,

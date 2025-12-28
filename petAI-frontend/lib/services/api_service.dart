@@ -13,6 +13,7 @@ import '../models/progression_snapshot.dart';
 import '../models/progression_redeem_result.dart';
 import '../models/daily_activity.dart';
 import '../models/session_bootstrap.dart';
+import '../models/subscription_status.dart';
 import '../models/activity_type.dart';
 import '../models/user_interest.dart';
 import '../models/user_session.dart';
@@ -1092,11 +1093,16 @@ class ApiService {
     if (trial != null) {
       userJson["trial_days_left"] = trial;
     }
+    final subscriptionJson = data["subscription"];
     final petJson = data["pet"] as Map<String, dynamic>? ?? {};
     return SessionBootstrap(
       user: UserSession.fromJson(userJson),
       pet: PetState.fromJson(petJson),
       needInterestsSetup: data["need_interests_setup"] as bool? ?? false,
+      subscription:
+          subscriptionJson is Map<String, dynamic>
+              ? SubscriptionStatus.fromJson(subscriptionJson)
+              : null,
       token: token ?? data["token"] as String?,
     );
   }
