@@ -12,6 +12,7 @@ import '../models/pet_state.dart';
 import '../models/progression_snapshot.dart';
 import '../models/progression_redeem_result.dart';
 import '../models/daily_activity.dart';
+import '../models/rive_input_value.dart';
 import '../models/session_bootstrap.dart';
 import '../models/activity_type.dart';
 import '../models/user_interest.dart';
@@ -759,7 +760,7 @@ class ApiService {
     }
   }
 
-  Future<ApiResponse<List<String>>> fetchEquippedStyleTriggers() async {
+  Future<ApiResponse<List<RiveInputValue>>> fetchEquippedStyleTriggers() async {
     await _ensureTokenLoaded();
     try {
       final response = await _client.get(
@@ -770,13 +771,15 @@ class ApiService {
       final data = _data(payload);
       if (response.statusCode == 200) {
         final equipped = data["equipped"];
-        final triggers = <String>[];
+        final triggers = <RiveInputValue>[];
         if (equipped is Map<String, dynamic>) {
           for (final slot in const ["hat", "sunglasses", "color"]) {
             final entry = equipped[slot];
             if (entry is! Map<String, dynamic>) continue;
-            final trigger = entry["trigger"]?.toString().trim() ?? "";
-            if (trigger.isNotEmpty) triggers.add(trigger);
+            final trigger = entry["trigger"]?.toString();
+            final triggerValue = entry["trigger_value"] as num?;
+            final input = RiveInputValue.fromTriggerValue(trigger, triggerValue);
+            if (input != null) triggers.add(input);
           }
         }
         return ApiResponse.success(triggers, statusCode: response.statusCode);

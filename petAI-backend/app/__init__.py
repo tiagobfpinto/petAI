@@ -15,6 +15,7 @@ from .routes.pet_routes import pet_bp
 from .routes.styles_routes import style_bp
 from .routes.user_routes import interests_bp, user_bp
 from .routes.store_routes import store_bp
+from .routes.chest_routes import chest_bp
 
 migrate = Migrate()
 
@@ -48,6 +49,7 @@ def create_app(config_class: type[Config] = Config) -> Flask:
     app.register_blueprint(daily_bp)
     app.register_blueprint(store_bp)
     app.register_blueprint(style_bp)
+    app.register_blueprint(chest_bp)
 
     @app.after_request
     def apply_cors(response):

@@ -9,10 +9,13 @@ import '../models/daily_activity.dart';
 import '../models/interest.dart';
 import '../models/activity_type.dart';
 import '../models/pet_state.dart';
+import '../models/rive_input_value.dart';
 import '../models/user_interest.dart';
 import '../models/user_session.dart';
 import '../services/api_service.dart';
 import '../utils/number_rounding.dart';
+import '../widgets/item_asset_preview.dart';
+import '../widgets/pet_rive.dart';
 import '../widgets/xp_progress_bar.dart';
 import 'coin_store_screen.dart';
 import 'friends_screen.dart';
@@ -20,6 +23,23 @@ import 'progression_screen.dart';
 import 'shop_screen.dart';
 import 'styles_sheet.dart';
 import 'package:rive/rive.dart' as rive;
+
+const String _chestIconAssetPath = "assets/chests/chest_icon.png";
+const String _commonChestRiveAssetPath = "assets/chests/common_chest.riv";
+const String _rareChestRiveAssetPath = "assets/chests/rare_chest.riv";
+const String _epicChestRiveAssetPath = "assets/chests/epic_chest.riv";
+const String _chestOpenTriggerName = "open_chest";
+
+String _chestRiveAssetPath(String? tier) {
+  switch ((tier ?? "common").trim().toLowerCase()) {
+    case "epic":
+      return _epicChestRiveAssetPath;
+    case "rare":
+      return _rareChestRiveAssetPath;
+    default:
+      return _commonChestRiveAssetPath;
+  }
+}
 
 class PetHomeScreen extends StatefulWidget {
   const PetHomeScreen({
@@ -56,6 +76,7 @@ class PetHomeScreen extends StatefulWidget {
 
 class _PetHomeScreenState extends State<PetHomeScreen> {
   static const String _petRiveAssetPath = "assets/rive/pet_home.riv";
+  static const int _chestInterval = 5;
   late PetState _pet;
   late List<UserInterest> _interests;
   rive.RiveWidgetController? _petRiveController;
@@ -71,14 +92,17 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
   bool _loadingActivities = true;
   int _progressionBadgeCount = 0;
   bool _loadingProgressionBadge = false;
+  int? _nextChestIn;
+  final List<ChestReward> _pendingChests = [];
   Set<int> _completedToday = {};
   final Map<int, int> _celebrations = {};
   int? _streakCurrent;
   int? _streakBest;
   double? _xpMultiplier;
-  List<String> _equippedStyleTriggers = const [];
+  List<RiveInputValue> _equippedStyleTriggers = const [];
   bool _loadingEquippedStyleTriggers = false;
   rive.RiveWidgetController? _equippedStyleControllerAppliedTo;
+  ScaffoldMessengerState? _messenger;
 
   @override
   void initState() {
@@ -96,6 +120,12 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _messenger = ScaffoldMessenger.maybeOf(context);
+  }
+
+  @override
   void didUpdateWidget(covariant PetHomeScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.pet != widget.pet) {
@@ -109,6 +139,13 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
       _streakBest = widget.session.streakBest;
       _xpMultiplier = widget.session.streakMultiplier;
     }
+  }
+
+  void _showSnackBar(SnackBar snackBar) {
+    if (!mounted) return;
+    final messenger = _messenger;
+    if (messenger == null || !messenger.mounted) return;
+    messenger.showSnackBar(snackBar);
   }
 
   @override
@@ -480,7 +517,7 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
     final data = result.data;
     if (data == null) return;
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
+    _showSnackBar(
       const SnackBar(content: Text("Saving activity...")),
     );
     final response = await widget.apiService.createActivity(
@@ -496,7 +533,7 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
       final weeklyText = data.weeklyGoalValue != null
           ? "Weekly goal: ${data.weeklyGoalValue} ${data.weeklyGoalUnit} on ${data.days.isEmpty ? "flex days" : data.days.join(", ").toUpperCase()}"
           : "No weekly goal set";
-      ScaffoldMessenger.of(context).showSnackBar(
+      _showSnackBar(
         SnackBar(
           content: Text(
             "Created \"${data.name}\" for ${data.areaName}. $weeklyText",
@@ -507,7 +544,7 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
       await _loadActivities();
       await _loadActivityTypes();
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
+      _showSnackBar(
         SnackBar(
           content: Text(response.error ?? "Failed to create activity"),
         ),
@@ -563,7 +600,7 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
         plan != null && plan.weeklyGoalUnit.isNotEmpty ? plan.weeklyGoalUnit : null;
     final areaName = type.areaName.isNotEmpty ? type.areaName : type.name;
 
-    ScaffoldMessenger.of(context).showSnackBar(
+    _showSnackBar(
       SnackBar(content: Text("Adding ${type.name}...")),
     );
 
@@ -580,7 +617,7 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
       final goalText = weeklyGoalValue != null
           ? " • weekly ${weeklyGoalValue.toString()} ${weeklyGoalUnit ?? ""}".trim()
           : "";
-      ScaffoldMessenger.of(context).showSnackBar(
+      _showSnackBar(
         SnackBar(
           content: Text(
             "Added \"${type.name}\"${areaName != type.name ? " in $areaName" : ""}$goalText",
@@ -595,7 +632,7 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
   }
 
   Future<void> _updateActivityType(int activityTypeId, _NewActivityData data) async {
-    ScaffoldMessenger.of(context).showSnackBar(
+    _showSnackBar(
       const SnackBar(content: Text("Updating activity...")),
     );
     final response = await widget.apiService.updateActivityType(
@@ -609,7 +646,7 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
     );
     if (!mounted) return;
     if (response.isSuccess) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      _showSnackBar(
         SnackBar(content: Text("Updated \"${data.name}\"")),
       );
       await _loadDailyActivities();
@@ -624,7 +661,7 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
     final response = await widget.apiService.deleteActivityType(activityTypeId);
     if (!mounted) return;
     if (response.isSuccess) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      _showSnackBar(
         const SnackBar(content: Text("Activity deleted")),
       );
       await _loadDailyActivities();
@@ -691,6 +728,8 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
           nextXp: _pet.nextEvolutionXp,
         ),
         const SizedBox(height: 12),
+        _buildChestProgressCard(context),
+        const SizedBox(height: 12),
         OutlinedButton.icon(
           onPressed: _openStylesMenu,
           icon: const Icon(Icons.checkroom_rounded),
@@ -711,6 +750,198 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
     );
   }
 
+  Widget _buildChestProgressCard(BuildContext context) {
+    final theme = Theme.of(context);
+    final pendingCount = _pendingChests.length;
+    final progress = _chestProgressValue();
+    final status = _chestStatusText();
+    final displayTier =
+        _pendingChests.isNotEmpty ? _highestChestTier(_pendingChests) : null;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: _openChestMenu,
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              _ChestProgressIcon(
+                progress: progress,
+                pendingCount: pendingCount,
+                tier: displayTier,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Chests",
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      status,
+                      style: TextStyle(color: Colors.grey.shade700),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded, color: Colors.grey.shade500),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  double _chestProgressValue() {
+    final remaining = _nextChestIn;
+    if (remaining == null || _chestInterval <= 0) return 0.0;
+    final clamped = remaining.clamp(0, _chestInterval);
+    final value = 1 - (clamped / _chestInterval);
+    return value.clamp(0.0, 1.0).toDouble();
+  }
+
+  String _chestStatusText() {
+    final pendingCount = _pendingChests.length;
+    if (pendingCount > 0) {
+      return pendingCount == 1
+          ? "1 chest ready to open"
+          : "$pendingCount chests ready to open";
+    }
+    final remaining = _nextChestIn;
+    if (remaining == null) {
+      return "Log a win to start chest progress";
+    }
+    if (remaining <= 0) {
+      return "Chest ready to open";
+    }
+    return "$remaining win${remaining == 1 ? "" : "s"} to next chest";
+  }
+
+  String _chestMenuStatusText() {
+    final pendingCount = _pendingChests.length;
+    final remaining = _nextChestIn;
+    if (pendingCount > 0 && remaining != null && remaining > 0) {
+      final chestText =
+          pendingCount == 1 ? "1 chest ready" : "$pendingCount chests ready";
+      final winText = remaining == 1 ? "win" : "wins";
+      return "$chestText, next chest in $remaining $winText";
+    }
+    if (pendingCount > 0) {
+      return pendingCount == 1
+          ? "1 chest ready to open"
+          : "$pendingCount chests ready to open";
+    }
+    if (remaining == null) {
+      return "Log a win to start chest progress";
+    }
+    if (remaining <= 0) {
+      return "Chest ready to open";
+    }
+    return "Next chest in $remaining win${remaining == 1 ? "" : "s"}";
+  }
+
+  String _highestChestTier(List<ChestReward> chests) {
+    int tierScore(String tier) {
+      switch (tier.trim().toLowerCase()) {
+        case "epic":
+          return 3;
+        case "rare":
+          return 2;
+        default:
+          return 1;
+      }
+    }
+
+    String bestTier = "common";
+    int bestScore = 0;
+    for (final chest in chests) {
+      final score = tierScore(chest.chestTier);
+      if (score > bestScore) {
+        bestScore = score;
+        bestTier = chest.chestTier;
+      }
+    }
+    return bestTier;
+  }
+
+  Future<void> _openChestMenu() async {
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return _ChestMenuSheet(
+          pendingChests: List<ChestReward>.from(_pendingChests),
+          progress: _chestProgressValue(),
+          statusText: _chestMenuStatusText(),
+          displayTier:
+              _pendingChests.isNotEmpty ? _highestChestTier(_pendingChests) : null,
+          onOpenChest: (reward) {
+            Navigator.of(sheetContext).pop();
+            _openPendingChest(reward);
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _openPendingChest(ChestReward reward) async {
+    final index = _pendingChests.indexOf(reward);
+    if (index == -1) return;
+    setState(() {
+      _pendingChests.removeAt(index);
+    });
+    await _showChestOpenAnimation(reward.chestTier);
+    await _showChestReward(reward);
+    if (!mounted) return;
+    if (_pendingChests.isEmpty && (_nextChestIn ?? 0) == 0) {
+      setState(() => _nextChestIn = _chestInterval);
+    }
+  }
+
+  Future<void> _showChestOpenAnimation(String tier) async {
+    if (!mounted) return;
+    await showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: "Opening chest",
+      barrierColor: Colors.black.withValues(alpha: 0.55),
+      transitionDuration: const Duration(milliseconds: 360),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return _ChestOpenDialog(tier: tier);
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        final scale = CurvedAnimation(parent: animation, curve: Curves.easeOutBack);
+        return FadeTransition(
+          opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
+          child: ScaleTransition(
+            scale: scale,
+            child: child,
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _openStylesMenu() async {
     if (!mounted) return;
     await showModalBottomSheet<void>(
@@ -720,8 +951,8 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
       builder: (context) => StylesSheet(
         apiService: widget.apiService,
         onError: widget.onError,
-        onTrigger: (trigger) {
-          _firePetTrigger(trigger);
+        onTrigger: (input) {
+          _firePetTrigger(input);
         },
         onEquipped: () {
           _loadEquippedStyleTriggers();
@@ -756,8 +987,8 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
     if (_equippedStyleTriggers.isEmpty) return;
     if (_equippedStyleControllerAppliedTo == controller) return;
 
-    for (final trigger in _equippedStyleTriggers) {
-      _firePetTrigger(trigger, showErrors: false);
+    for (final input in _equippedStyleTriggers) {
+      _firePetTrigger(input, showErrors: false);
     }
     _equippedStyleControllerAppliedTo = controller;
   }
@@ -839,9 +1070,9 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
     return parts.isEmpty ? "inputs=[]" : parts.join(" ");
   }
 
-  void _firePetTrigger(String triggerName, {bool showErrors = true}) {
+  void _firePetTrigger(RiveInputValue triggerInput, {bool showErrors = true}) {
     final controller = _petRiveController;
-    final originalName = triggerName.trim();
+    final originalName = triggerInput.name.trim();
     if (originalName.isEmpty) return;
     if (controller == null) {
       if (showErrors) {
@@ -853,14 +1084,17 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
     }
 
     final stateMachine = controller.stateMachine;
+    final value = triggerInput.value;
 
     bool tryFire(String name) {
-      // 1) Try state machine trigger input (legacy inputs).
-      // ignore: deprecated_member_use
-      final direct = stateMachine.trigger(name);
-      if (direct != null) {
-        direct.fire();
-        return true;
+      if (value == null) {
+        // 1) Try state machine trigger input (legacy inputs).
+        // ignore: deprecated_member_use
+        final direct = stateMachine.trigger(name);
+        if (direct != null) {
+          direct.fire();
+          return true;
+        }
       }
 
       // 2) Try normalized match across inputs (handles case/underscore differences).
@@ -872,6 +1106,28 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
           matched = input;
           break;
         }
+      }
+
+      if (value != null) {
+        if (matched is rive.NumberInput) {
+          matched.value = value;
+          return true;
+        }
+        if (matched is rive.BooleanInput) {
+          matched.value = value != 0;
+          return true;
+        }
+        if (matched is rive.TriggerInput) {
+          matched.fire();
+          return true;
+        }
+        // ignore: deprecated_member_use
+        final direct = stateMachine.trigger(name);
+        if (direct != null) {
+          direct.fire();
+          return true;
+        }
+        return false;
       }
 
       if (matched is rive.TriggerInput) {
@@ -1348,21 +1604,29 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
         if (response.isSuccess && response.data != null) {
           final completion = response.data!;
           final xpEarned = completion.xpAwarded ?? _expectedDailyXp(activity, interest);
-          widget.onPetChanged(completion.pet);
-          setState(() {
-            _pet = completion.pet;
-            _streakCurrent = completion.streakCurrent ?? _streakCurrent;
-            _streakBest = completion.streakBest ?? _streakBest;
-            _xpMultiplier = completion.xpMultiplier ?? _xpMultiplier;
-            _dailyActivities =
-                _dailyActivities.where((a) => a.id != activity.id).toList();
-            _hadDailyToday = true;
-            _completedToday.add(activity.interestId);
-          });
+        widget.onPetChanged(completion.pet);
+        setState(() {
+          _pet = completion.pet;
+          _streakCurrent = completion.streakCurrent ?? _streakCurrent;
+          _streakBest = completion.streakBest ?? _streakBest;
+          _xpMultiplier = completion.xpMultiplier ?? _xpMultiplier;
+          final nextChestIn = completion.nextChestIn;
+          if (nextChestIn != null) {
+            _nextChestIn = nextChestIn;
+          }
+          final chest = completion.chest;
+          if (chest != null) {
+            _pendingChests.add(chest);
+          }
+          _dailyActivities =
+              _dailyActivities.where((a) => a.id != activity.id).toList();
+          _hadDailyToday = true;
+          _completedToday.add(activity.interestId);
+        });
         if (xpEarned != null) {
           _startCelebration(activity.interestId, xpEarned);
         }
-        ScaffoldMessenger.of(context).showSnackBar(
+        _showSnackBar(
           SnackBar(
             content: Text(
               "Great job! ${activity.title} logged +${xpEarned ?? 0} XP.",
@@ -1371,10 +1635,6 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
         );
         _loadActivities();
         _loadProgressionBadge();
-        final chest = completion.chest;
-        if (chest != null) {
-          await _showChestReward(chest);
-        }
       } else {
         widget.onError(response.error ?? "Failed to complete activity");
       }
@@ -1427,23 +1687,27 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
           _streakCurrent = completion.streakCurrent ?? _streakCurrent;
           _streakBest = completion.streakBest ?? _streakBest;
           _xpMultiplier = completion.xpMultiplier ?? _xpMultiplier;
+          final nextChestIn = completion.nextChestIn;
+          if (nextChestIn != null) {
+            _nextChestIn = nextChestIn;
+          }
+          final chest = completion.chest;
+          if (chest != null) {
+            _pendingChests.add(chest);
+          }
         });
         _startCelebration(completion.interestId, completion.xpAwarded);
         _loadActivities();
         _loadProgressionBadge();
         final coins = completion.coinsAwarded ?? 0;
         final coinsText = coins > 0 ? " and +$coins coins" : "";
-        ScaffoldMessenger.of(context).showSnackBar(
+        _showSnackBar(
           SnackBar(
             content: Text(
               "Great job! ${interest.name} earned +${completion.xpAwarded} XP$coinsText.",
             ),
           ),
         );
-        final chest = completion.chest;
-        if (chest != null) {
-          await _showChestReward(chest);
-        }
       } else {
         if (response.statusCode == 403) {
           _showUpgradeDialog();
@@ -1485,59 +1749,36 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
 
   Future<void> _showChestReward(ChestReward reward) async {
     if (!mounted) return;
-    final theme = Theme.of(context);
-    String title = "Chest opened!";
-    String message = "You received a reward.";
-    IconData icon = Icons.redeem_rounded;
-    Color accent = theme.colorScheme.primary;
-
+    final tierStyle = _chestTierStyle(context, reward.chestTier);
+    final title = "${tierStyle.label} chest opened!";
+    String message = "You earned";
     if (reward.type == "item") {
-      final itemName = reward.item?.name ?? "New item";
-      message = "You found: $itemName";
-      icon = Icons.card_giftcard_rounded;
-      accent = Colors.deepPurple;
-    } else if (reward.type == "xp") {
-      final amount = reward.xp ?? 0;
-      message = "+$amount XP";
-      icon = Icons.bolt_rounded;
-      accent = Colors.deepOrange;
-    } else if (reward.type == "coins") {
-      final amount = reward.coins ?? 0;
-      message = "+$amount coins";
-      icon = Icons.monetization_on_rounded;
-      accent = Colors.amber.shade700;
+      message = "You found a new item";
     }
 
-    await showDialog<void>(
+    await showGeneralDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: accent.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: accent),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                message,
-                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text("Nice!"),
+      barrierDismissible: true,
+      barrierLabel: "Chest reward",
+      barrierColor: Colors.black.withValues(alpha: 0.55),
+      transitionDuration: const Duration(milliseconds: 420),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return _ChestRewardDialog(
+          reward: reward,
+          title: title,
+          message: message,
+        );
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        final scale = CurvedAnimation(parent: animation, curve: Curves.easeOutBack);
+        return FadeTransition(
+          opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
+          child: ScaleTransition(
+            scale: scale,
+            child: child,
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -1787,6 +2028,732 @@ class _XpCelebration extends StatelessWidget {
             Text(
               "Great job!",
               style: theme.textTheme.bodySmall,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ChestTierStyle {
+  const _ChestTierStyle({
+    required this.label,
+    required this.accent,
+    required this.background,
+  });
+
+  final String label;
+  final Color accent;
+  final Color background;
+}
+
+_ChestTierStyle _chestTierStyle(BuildContext context, String? tier) {
+  final theme = Theme.of(context);
+  switch ((tier ?? "common").trim().toLowerCase()) {
+    case "epic":
+      return _ChestTierStyle(
+        label: "Epic",
+        accent: Colors.deepOrange.shade600,
+        background: Colors.deepOrange.withValues(alpha: 0.12),
+      );
+    case "rare":
+      return _ChestTierStyle(
+        label: "Rare",
+        accent: Colors.teal.shade600,
+        background: Colors.teal.withValues(alpha: 0.12),
+      );
+    default:
+      return _ChestTierStyle(
+        label: "Common",
+        accent: theme.colorScheme.primary,
+        background: theme.colorScheme.primary.withValues(alpha: 0.12),
+      );
+  }
+}
+
+class _ChestProgressIcon extends StatelessWidget {
+  const _ChestProgressIcon({
+    required this.progress,
+    required this.pendingCount,
+    this.size = 54,
+    this.tier,
+  });
+
+  final double progress;
+  final int pendingCount;
+  final double size;
+  final String? tier;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final style = _chestTierStyle(context, tier);
+    final clamped = progress.clamp(0.0, 1.0).toDouble();
+    final label = pendingCount > 9 ? "9+" : "$pendingCount";
+    final iconSize = size * 0.34;
+    final innerPadding = size * 0.18;
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        SizedBox(
+          width: size,
+          height: size,
+          child: CircularProgressIndicator(
+            value: clamped,
+            strokeWidth: 6,
+            backgroundColor: theme.colorScheme.surfaceContainerHighest,
+            valueColor: AlwaysStoppedAnimation(style.accent),
+          ),
+        ),
+        Positioned.fill(
+          child: Center(
+            child: Container(
+              padding: EdgeInsets.all(innerPadding),
+              decoration: BoxDecoration(
+                color: style.background,
+                shape: BoxShape.circle,
+              ),
+              child: Image.asset(
+                _chestIconAssetPath,
+                width: iconSize,
+                height: iconSize,
+                fit: BoxFit.contain,
+              ),
+            ),
+          ),
+        ),
+        if (pendingCount > 0)
+          Positioned(
+            right: -4,
+            top: -4,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+              constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+              decoration: BoxDecoration(
+                color: Colors.redAccent,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _ChestMenuSheet extends StatelessWidget {
+  const _ChestMenuSheet({
+    required this.pendingChests,
+    required this.progress,
+    required this.statusText,
+    required this.displayTier,
+    required this.onOpenChest,
+  });
+
+  final List<ChestReward> pendingChests;
+  final double progress;
+  final String statusText;
+  final String? displayTier;
+  final ValueChanged<ChestReward> onOpenChest;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final screenHeight = MediaQuery.sizeOf(context).height;
+    final sheetHeight = pendingChests.isEmpty
+        ? min(screenHeight * 0.45, 320.0)
+        : screenHeight * 0.72;
+
+    return SafeArea(
+      top: false,
+      child: Container(
+        height: sheetHeight,
+        padding: EdgeInsets.fromLTRB(
+          20,
+          12,
+          20,
+          16 + MediaQuery.viewInsetsOf(context).bottom,
+        ),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          children: [
+            Container(
+              width: 48,
+              height: 5,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                _ChestProgressIcon(
+                  progress: progress,
+                  pendingCount: pendingChests.length,
+                  size: 48,
+                  tier: displayTier,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Chest menu",
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        statusText,
+                        style: TextStyle(color: Colors.grey.shade700),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            if (pendingChests.isEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "No chests waiting",
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      "Log wins to earn a chest and open it here.",
+                      style: TextStyle(color: Colors.grey.shade700),
+                    ),
+                  ],
+                ),
+              )
+            else
+              Expanded(
+                child: ListView.separated(
+                  itemCount: pendingChests.length,
+                  padding: EdgeInsets.zero,
+                  separatorBuilder: (context, index) => const SizedBox(height: 10),
+                  itemBuilder: (context, index) {
+                    final reward = pendingChests[index];
+                    return _ChestMenuItem(
+                      index: index,
+                      tier: reward.chestTier,
+                      onOpen: () => onOpenChest(reward),
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ChestMenuItem extends StatelessWidget {
+  const _ChestMenuItem({
+    required this.index,
+    required this.tier,
+    required this.onOpen,
+  });
+
+  final int index;
+  final String tier;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = _chestTierStyle(context, tier);
+    final chestAsset = _chestRiveAssetPath(tier);
+    return InkWell(
+      onTap: onOpen,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: style.background,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: PetRive(
+                assetPath: chestAsset,
+                fit: rive.Fit.contain,
+                fallback: Image.asset(
+                  _chestIconAssetPath,
+                  fit: BoxFit.contain,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "${style.label} chest ${index + 1}",
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    "Tap to open and reveal the reward",
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, color: Colors.grey.shade500),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ChestOpenDialog extends StatefulWidget {
+  const _ChestOpenDialog({
+    required this.tier,
+  });
+
+  final String tier;
+
+  @override
+  State<_ChestOpenDialog> createState() => _ChestOpenDialogState();
+}
+
+class _ChestOpenDialogState extends State<_ChestOpenDialog> {
+  static const Duration _autoCloseDelay = Duration(milliseconds: 1500);
+
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(_autoCloseDelay, () {
+      if (!mounted) return;
+      Navigator.of(context).pop();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final style = _chestTierStyle(context, widget.tier);
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final size = min(screenWidth * 0.72, 280.0);
+    return Material(
+      type: MaterialType.transparency,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: GestureDetector(
+            onTap: () => Navigator.of(context).pop(),
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(18, 20, 18, 16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.16),
+                    blurRadius: 24,
+                    offset: const Offset(0, 14),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: size,
+                    height: size,
+                    child: PetRive(
+                      assetPath: _chestRiveAssetPath(widget.tier),
+                      fit: rive.Fit.contain,
+                      triggers: const [RiveInputValue.trigger(_chestOpenTriggerName)],
+                      fallback: Center(
+                        child: Image.asset(
+                          _chestIconAssetPath,
+                          width: size * 0.42,
+                          height: size * 0.42,
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    "${style.label} chest",
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    "Opening...",
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ChestRewardDialog extends StatelessWidget {
+  const _ChestRewardDialog({
+    required this.reward,
+    required this.title,
+    required this.message,
+  });
+
+  final ChestReward reward;
+  final String title;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tierStyle = _chestTierStyle(context, reward.chestTier);
+    final tiles = <Widget>[];
+
+    final item = reward.item;
+    if (item != null) {
+      tiles.add(
+        _RewardItemTile(
+          name: item.name.isNotEmpty ? item.name : "New item",
+          assetPath: item.assetPath,
+          assetType: item.type,
+        ),
+      );
+    }
+
+    final xp = reward.xp ?? 0;
+    if (reward.type == "xp" || xp > 0) {
+      tiles.add(
+        _RewardAmountTile(
+          label: "XP",
+          amount: xp,
+          icon: Icons.bolt_rounded,
+          color: Colors.deepOrange,
+        ),
+      );
+    }
+
+    final coins = reward.coins ?? 0;
+    if (reward.type == "coins" || coins > 0) {
+      tiles.add(
+        _RewardAmountTile(
+          label: "Coins",
+          amount: coins,
+          icon: Icons.monetization_on_rounded,
+          color: Colors.amber.shade700,
+        ),
+      );
+    }
+
+    if (tiles.isEmpty) {
+      tiles.add(
+        _RewardAmountTile(
+          label: "Loot",
+          amount: 0,
+          icon: Icons.redeem_rounded,
+          color: tierStyle.accent,
+        ),
+      );
+    }
+
+    Widget tileRow;
+    if (tiles.length == 1) {
+      tileRow = Align(
+        alignment: Alignment.center,
+        child: SizedBox(width: 180, child: tiles.first),
+      );
+    } else if (tiles.length == 2) {
+      tileRow = Row(
+        children: [
+          Expanded(child: tiles[0]),
+          const SizedBox(width: 12),
+          Expanded(child: tiles[1]),
+        ],
+      );
+    } else {
+      tileRow = Wrap(
+        spacing: 12,
+        runSpacing: 12,
+        alignment: WrapAlignment.center,
+        children: tiles.map((tile) => SizedBox(width: 160, child: tile)).toList(),
+      );
+    }
+
+    return Material(
+      type: MaterialType.transparency,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: GestureDetector(
+            onTap: () => Navigator.of(context).pop(),
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.16),
+                    blurRadius: 24,
+                    offset: const Offset(0, 14),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: tierStyle.background,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Image.asset(
+                      _chestIconAssetPath,
+                      width: 26,
+                      height: 26,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    title,
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    message,
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  tileRow,
+                  const SizedBox(height: 14),
+                  Text(
+                    "Tap anywhere to continue",
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AnimatedRewardTile extends StatelessWidget {
+  const _AnimatedRewardTile({
+    required this.child,
+  });
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: const Duration(milliseconds: 520),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, child) {
+        final offset = 12 * (1 - value);
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, offset),
+            child: Transform.scale(
+              scale: 0.94 + (0.06 * value),
+              child: child,
+            ),
+          ),
+        );
+      },
+      child: child,
+    );
+  }
+}
+
+class _RewardAmountTile extends StatelessWidget {
+  const _RewardAmountTile({
+    required this.label,
+    required this.amount,
+    required this.icon,
+    required this.color,
+  });
+
+  final String label;
+  final int amount;
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isEmpty = amount <= 0;
+    final accent = isEmpty ? Colors.grey.shade400 : color;
+    final border = accent.withValues(alpha: 0.35);
+
+    return _AnimatedRewardTile(
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: accent.withValues(alpha: 0.14),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: border, width: 1.2),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: accent, size: 24),
+            const SizedBox(height: 8),
+            Text(
+              "+$amount",
+              style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: accent,
+                  ) ??
+                  TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 22,
+                    color: accent,
+                  ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: Colors.grey.shade700,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RewardItemTile extends StatelessWidget {
+  const _RewardItemTile({
+    required this.name,
+    required this.assetPath,
+    required this.assetType,
+  });
+
+  final String name;
+  final String? assetPath;
+  final String? assetType;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = Colors.deepPurple;
+    final border = accent.withValues(alpha: 0.35);
+    final theme = Theme.of(context);
+
+    return _AnimatedRewardTile(
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: accent.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: border, width: 1.2),
+        ),
+        child: Column(
+          children: [
+            SizedBox(
+              width: 64,
+              height: 64,
+              child: ItemAssetPreview(
+                assetPath: assetPath,
+                assetType: assetType,
+                placeholderIcon: Icons.card_giftcard_rounded,
+                borderRadius: 12,
+                placeholderIconSize: 28,
+                imageFit: BoxFit.contain,
+                riveFit: rive.Fit.contain,
+                backgroundColor: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              name,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: accent,
+                  ) ??
+                  TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: accent,
+                  ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              "Item",
+              style: TextStyle(
+                color: Colors.grey.shade700,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
         ),
@@ -2133,6 +3100,13 @@ class _NewActivityScreenState extends State<_NewActivityScreen> {
     }
   }
 
+  void _showSnackBar(SnackBar snackBar) {
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger == null || !messenger.mounted) return;
+    messenger.showSnackBar(snackBar);
+  }
+
   @override
   void dispose() {
     _nameCtrl.dispose();
@@ -2371,7 +3345,7 @@ class _NewActivityScreenState extends State<_NewActivityScreen> {
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
     if (_recurrence == _RecurrenceOption.weekly && _selectedDays.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      _showSnackBar(
         const SnackBar(content: Text("Pick at least one day for weekly repeat")),
       );
       return;

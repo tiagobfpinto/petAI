@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:rive/rive.dart' as rive;
 
+import '../models/rive_input_value.dart';
+
 class PetRive extends StatefulWidget {
   const PetRive({
     super.key,
@@ -12,7 +14,7 @@ class PetRive extends StatefulWidget {
   });
 
   final String assetPath;
-  final List<String> triggers;
+  final List<RiveInputValue> triggers;
   final rive.Fit fit;
   final Widget? fallback;
 
@@ -146,13 +148,13 @@ class _PetRiveState extends State<PetRive> {
     }
   }
 
-  String _signatureForTriggers(List<String> triggers) {
+  String _signatureForTriggers(List<RiveInputValue> triggers) {
     final effective = <String>[];
     for (final trigger in triggers) {
-      final trimmed = trigger.trim();
-      if (trimmed.isEmpty) continue;
-      if (effective.contains(trimmed)) continue;
-      effective.add(trimmed);
+      final signature = trigger.signature;
+      if (signature.isEmpty) continue;
+      if (effective.contains(signature)) continue;
+      effective.add(signature);
     }
     return effective.join("|");
   }
@@ -170,19 +172,22 @@ class _PetRiveState extends State<PetRive> {
     _appliedSignature = signature;
   }
 
-  void _fireTrigger(rive.RiveWidgetController controller, String triggerName) {
-    final originalName = triggerName.trim();
+  void _fireTrigger(rive.RiveWidgetController controller, RiveInputValue triggerInput) {
+    final originalName = triggerInput.name.trim();
     if (originalName.isEmpty) return;
+    final value = triggerInput.value;
 
     final stateMachine = controller.stateMachine;
 
     bool tryFire(String name) {
-      // 1) Try state machine trigger input (legacy inputs).
-      // ignore: deprecated_member_use
-      final direct = stateMachine.trigger(name);
-      if (direct != null) {
-        direct.fire();
-        return true;
+      if (value == null) {
+        // 1) Try state machine trigger input (legacy inputs).
+        // ignore: deprecated_member_use
+        final direct = stateMachine.trigger(name);
+        if (direct != null) {
+          direct.fire();
+          return true;
+        }
       }
 
       // 2) Try normalized match across inputs (handles case/underscore differences).
@@ -194,6 +199,28 @@ class _PetRiveState extends State<PetRive> {
           matched = input;
           break;
         }
+      }
+
+      if (value != null) {
+        if (matched is rive.NumberInput) {
+          matched.value = value;
+          return true;
+        }
+        if (matched is rive.BooleanInput) {
+          matched.value = value != 0;
+          return true;
+        }
+        if (matched is rive.TriggerInput) {
+          matched.fire();
+          return true;
+        }
+        // ignore: deprecated_member_use
+        final direct = stateMachine.trigger(name);
+        if (direct != null) {
+          direct.fire();
+          return true;
+        }
+        return false;
       }
 
       if (matched is rive.TriggerInput) {

@@ -8,6 +8,7 @@ class ChestItem {
     this.rarity,
     this.assetPath,
     this.trigger,
+    this.triggerValue,
   });
 
   final int id;
@@ -16,6 +17,7 @@ class ChestItem {
   final String? rarity;
   final String? assetPath;
   final String? trigger;
+  final double? triggerValue;
 
   factory ChestItem.fromJson(Map<String, dynamic> json) {
     return ChestItem(
@@ -25,6 +27,7 @@ class ChestItem {
       rarity: json["rarity"] as String?,
       assetPath: json["asset_path"] as String?,
       trigger: json["trigger"] as String?,
+      triggerValue: (json["trigger_value"] as num?)?.toDouble(),
     );
   }
 }
@@ -35,20 +38,24 @@ class ChestReward {
     this.xp,
     this.coins,
     this.item,
+    this.chestTier = "common",
   });
 
   final String type;
   final int? xp;
   final int? coins;
   final ChestItem? item;
+  final String chestTier;
 
   factory ChestReward.fromJson(Map<String, dynamic> json) {
     final itemJson = json["item"];
+    final rawTier = json["chest_tier"] ?? json["chestTier"];
     return ChestReward(
       type: json["type"] as String? ?? "",
       xp: (json["xp"] as num?)?.toInt(),
       coins: (json["coins"] as num?)?.toInt(),
       item: itemJson is Map<String, dynamic> ? ChestItem.fromJson(itemJson) : null,
+      chestTier: rawTier is String ? rawTier : "common",
     );
   }
 }

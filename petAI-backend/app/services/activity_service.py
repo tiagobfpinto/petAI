@@ -134,34 +134,9 @@ class ActivityService:
         coins_awarded = max(5, xp_amount)
         UserService.add_coins(user, coins_awarded)
 
-        chest_reward = None
         chest_payload = None
-        chest_evolved = False
         if activity_count % ChestService.CHEST_INTERVAL == 0:
-            chest_reward = ChestService.open_chest(user=user, pet=pet)
-            if chest_reward:
-                chest_tier = chest_reward.get("chest_tier") or chest_reward.get("tier") or "common"
-                reward_type = chest_reward.get("type")
-                if reward_type == "xp":
-                    pet = chest_reward.get("pet") or pet
-                    chest_evolved = bool(chest_reward.get("evolved"))
-                    chest_payload = {
-                        "type": "xp",
-                        "xp": chest_reward.get("xp"),
-                        "chest_tier": chest_tier,
-                    }
-                elif reward_type == "coins":
-                    chest_payload = {
-                        "type": "coins",
-                        "coins": chest_reward.get("coins"),
-                        "chest_tier": chest_tier,
-                    }
-                elif reward_type == "item":
-                    chest_payload = {
-                        "type": "item",
-                        "item": chest_reward.get("item"),
-                        "chest_tier": chest_tier,
-                    }
+            chest_payload = ChestService.grant_chest(user_id=user.id)
 
         next_chest_in = ChestService.CHEST_INTERVAL - (activity_count % ChestService.CHEST_INTERVAL)
         if next_chest_in == ChestService.CHEST_INTERVAL:
@@ -175,7 +150,7 @@ class ActivityService:
             "xp_awarded": xp_amount,
             "coins_awarded": coins_awarded,
             "coins_balance": user.coins,
-            "evolved": evolution_result["evolved"] or chest_evolved,
+            "evolved": evolution_result["evolved"],
             "interest_id": area.id,
             "streak_current": user.streak_current,
             "streak_best": user.streak_best,

@@ -18,6 +18,7 @@ class TypeOfItem(enum.Enum):
     HAT = "hat"
     SUNGLASSES = "sunglasses"
     COLOR = "color"
+    BACKGROUND = "background"
     DEFAULT = "default"
 
 class Item(db.Model):
@@ -46,6 +47,7 @@ class Item(db.Model):
     value = db.Column(db.Integer, nullable=True) #value if user quick sells the item
     rarity = db.Column(db.String, nullable=True)
     trigger = db.Column(db.String, nullable=True) #for the machine state in the frontend
+    trigger_value = db.Column(db.Integer, nullable=True) #value for number inputs in the frontend
     max_quantity = db.Column(db.Integer, nullable=True) #max quantity a user can hold, null means unlimited
     def to_dict(self) -> dict:
         return {
@@ -59,4 +61,5 @@ class Item(db.Model):
             "value": self.value,
             "rarity": self.rarity,
             "trigger": self.trigger,
+            "trigger_value": self.trigger_value,
         }

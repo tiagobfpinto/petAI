@@ -3,6 +3,7 @@ from __future__ import annotations
 from flask import Blueprint, request
 
 from ..auth import get_current_user_id, token_required
+from ..dao.chestDAO import ChestDAO
 from ..dao.itemsDAO import ItemOwnershipDAO, ItemsDAO, StoreListingDAO
 from ..dao.userDAO import UserDAO
 from ..models import db
@@ -31,9 +32,12 @@ def get_store_listings():
         }
 
     listings = ItemsDAO.get_all_store_listings()
+    chest_item_ids = {chest.item_id for chest in ChestDAO.list_chests() if chest.item_id is not None}
 
     payload: list[dict] = []
     for listing in listings:
+        if listing.item_id in chest_item_ids:
+            continue
         item = ItemsDAO.get_item_by_id(listing.item_id)
         if not item:
             continue
@@ -58,6 +62,7 @@ def get_store_listings():
                     "layer_name": item.layer_name,
                     "rarity": item.rarity,
                     "trigger": item.trigger,
+                    "trigger_value": item.trigger_value,
                     "max_quantity": item.max_quantity,
                 },
             }
@@ -92,6 +97,8 @@ def buy_item(store_listing_id: int):
     item = ItemsDAO.get_item_by_id(store_listing.item_id)
     if not item:
         return error_response("Item not found", 404)
+    if ChestDAO.get_by_item_id(item.id):
+        return error_response("Item not available in this store", 400)
 
     user = UserDAO.get_by_id(user_id)
     if not user:

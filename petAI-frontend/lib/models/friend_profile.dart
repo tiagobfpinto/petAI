@@ -1,4 +1,5 @@
 import 'cosmetics.dart';
+import 'rive_input_value.dart';
 
 class FriendProfile {
   FriendProfile({
@@ -17,13 +18,7 @@ class FriendProfile {
   factory FriendProfile.fromJson(Map<String, dynamic> json) {
     final cosmeticsJson = json['pet_cosmetics'];
     final styleRaw = json['pet_style_triggers'];
-    final styleTriggers = (styleRaw is List)
-        ? styleRaw
-            .where((entry) => entry != null)
-            .map((entry) => entry.toString().trim())
-            .where((t) => t.isNotEmpty)
-            .toList()
-        : const <String>[];
+    final styleTriggers = RiveInputValue.listFromRaw(styleRaw);
     return FriendProfile(
       id: json['id'] as int? ?? 0,
       username: json['username'] as String? ?? 'Friend',
@@ -49,7 +44,7 @@ class FriendProfile {
   final String petType;
   final String? petCurrentSprite;
   final PetCosmeticLoadout petCosmetics;
-  final List<String> petStyleTriggers;
+  final List<RiveInputValue> petStyleTriggers;
 }
 
 class FriendRequestEntry {

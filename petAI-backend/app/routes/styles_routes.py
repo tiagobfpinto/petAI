@@ -46,6 +46,7 @@ def get_inventory_items():
                 "layer_name": item.layer_name,
                 "rarity": item.rarity,
                 "trigger": item.trigger,
+                "trigger_value": item.trigger_value,
             }
         )
 
@@ -73,12 +74,13 @@ def get_equipped_style():
             return None
         item = ItemsDAO.get_item_by_id(item_id)
         if not item:
-            return {"item_id": item_id, "trigger": None, "missing": True}
+            return {"item_id": item_id, "trigger": None, "trigger_value": None, "missing": True}
         return {
             "item_id": item.id,
             "name": item.name,
             "type": item.type.value if item.type else None,
             "trigger": item.trigger,
+            "trigger_value": item.trigger_value,
         }
 
     payload = {
@@ -155,6 +157,7 @@ def equip_item(item_id: int):
                 "slot": equipped_slot,
                 "item_id": item.id,
                 "trigger": item.trigger,
+                "trigger_value": item.trigger_value,
             },
         },
     )

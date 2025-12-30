@@ -9,6 +9,7 @@ class StoreItem {
     this.layerName,
     this.rarity,
     this.trigger,
+    this.triggerValue,
     this.maxQuantity,
   });
 
@@ -23,6 +24,7 @@ class StoreItem {
       layerName: json["layer_name"]?.toString(),
       rarity: json["rarity"]?.toString(),
       trigger: json["trigger"]?.toString(),
+      triggerValue: (json["trigger_value"] as num?)?.toDouble(),
       maxQuantity: (json["max_quantity"] as num?)?.toInt(),
     );
   }
@@ -36,6 +38,7 @@ class StoreItem {
   final String? layerName;
   final String? rarity;
   final String? trigger;
+  final double? triggerValue;
   final int? maxQuantity;
 
   bool get hasAssetPath => (assetPath ?? "").trim().isNotEmpty;

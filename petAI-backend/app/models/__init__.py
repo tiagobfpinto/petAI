@@ -22,6 +22,7 @@ from .storeListing import StoreListing  # noqa: E402,F401
 from .admin_user import Admin_Users  # noqa: E402,F401
 from .petStyle import PetStyle  # noqa: E402,F401
 from .milestone_redemption import MilestoneRedemption  # noqa: E402,F401
+from .chest import Chest  # noqa: E402,F401
 
 __all__ = [
     "db",
@@ -38,5 +39,6 @@ __all__ = [
     "FriendRequest",
     "Item","ItemOwnership",
     "ItemTransaction","StoreListing","Admin_Users","PetStyle",
+    "Chest",
     "MilestoneRedemption",
 ]

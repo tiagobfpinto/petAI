@@ -3,6 +3,7 @@ class StyleEquipResult {
     required this.itemId,
     this.slot,
     this.trigger,
+    this.triggerValue,
     this.style,
   });
 
@@ -12,6 +13,8 @@ class StyleEquipResult {
       itemId: (equipped['item_id'] as num?)?.toInt() ?? (json['item_id'] as num?)?.toInt() ?? 0,
       slot: equipped['slot']?.toString(),
       trigger: equipped['trigger']?.toString(),
+      triggerValue: (equipped['trigger_value'] as num?)?.toDouble()
+          ?? (json['trigger_value'] as num?)?.toDouble(),
       style: json['style'] as Map<String, dynamic>?,
     );
   }
@@ -19,6 +22,7 @@ class StyleEquipResult {
   final int itemId;
   final String? slot;
   final String? trigger;
+  final double? triggerValue;
   final Map<String, dynamic>? style;
 }
 

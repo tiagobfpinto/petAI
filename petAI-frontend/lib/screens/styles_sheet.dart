@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../models/rive_input_value.dart';
 import '../models/style_inventory_item.dart';
 import '../services/api_service.dart';
 import '../widgets/item_asset_preview.dart';
@@ -15,7 +16,7 @@ class StylesSheet extends StatefulWidget {
 
   final ApiService apiService;
   final void Function(String message) onError;
-  final void Function(String trigger)? onTrigger;
+  final void Function(RiveInputValue input)? onTrigger;
   final VoidCallback? onEquipped;
 
   @override
@@ -62,9 +63,13 @@ class _StylesSheetState extends State<StylesSheet> {
     setState(() => _equippingItemId = null);
 
     if (response.isSuccess) {
-      final trigger = (item.trigger ?? response.data?.trigger ?? "").trim();
-      if (trigger.isNotEmpty) {
-        widget.onTrigger?.call(trigger);
+      final triggerName = (item.trigger ?? "").trim().isNotEmpty
+          ? item.trigger
+          : response.data?.trigger;
+      final triggerValue = item.triggerValue ?? response.data?.triggerValue;
+      final triggerInput = RiveInputValue.fromTriggerValue(triggerName, triggerValue);
+      if (triggerInput != null) {
+        widget.onTrigger?.call(triggerInput);
       }
       widget.onEquipped?.call();
       ScaffoldMessenger.of(context).showSnackBar(
