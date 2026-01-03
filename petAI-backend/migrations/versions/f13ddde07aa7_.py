@@ -8,13 +8,18 @@ down_revision = 'c8c47ef112c5'
 
 def upgrade():
     enum_name = "type_of_item_enum"
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
 
     item_enum = postgresql.ENUM(
         'HAT', 'SUNGLASSES', 'COLOR', 'DEFAULT',
         name=enum_name
     )
 
-    item_enum.create(op.get_bind(), checkfirst=True)
+    item_enum.create(bind, checkfirst=True)
+
+    if "Item" not in inspector.get_table_names():
+        return
 
     # 🔧 NORMALIZA TODOS OS VALORES
     op.execute("""

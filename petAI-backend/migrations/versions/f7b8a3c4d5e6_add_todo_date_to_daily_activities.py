@@ -16,27 +16,51 @@ branch_labels = None
 depends_on = None
 
 
+def _table_exists(inspector, table_name: str) -> bool:
+    return table_name in inspector.get_table_names()
+
+
+def _column_exists(inspector, table_name: str, column_name: str) -> bool:
+    return any(col["name"] == column_name for col in inspector.get_columns(table_name))
+
+
+def _index_exists(inspector, table_name: str, index_name: str) -> bool:
+    return any(index["name"] == index_name for index in inspector.get_indexes(table_name))
+
+
 def upgrade():
-    op.add_column("daily_activities", sa.Column("todo_date", sa.Date(), nullable=True))
-    op.create_index(
-        op.f("ix_daily_activities_todo_date"),
-        "daily_activities",
-        ["todo_date"],
-        unique=False,
-    )
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    if not _table_exists(inspector, "daily_activities"):
+        return
 
-    conn = op.get_bind()
-    conn.execute(
-        sa.text(
-            "UPDATE daily_activities SET todo_date = scheduled_for WHERE todo_date IS NULL"
+    column_exists = _column_exists(inspector, "daily_activities", "todo_date")
+    if not column_exists:
+        op.add_column("daily_activities", sa.Column("todo_date", sa.Date(), nullable=True))
+        column_exists = True
+
+    todo_index = op.f("ix_daily_activities_todo_date")
+    if not _index_exists(inspector, "daily_activities", todo_index):
+        op.create_index(
+            todo_index,
+            "daily_activities",
+            ["todo_date"],
+            unique=False,
         )
-    )
 
-    if conn.dialect.name == "sqlite":
-        with op.batch_alter_table("daily_activities") as batch_op:
-            batch_op.alter_column("todo_date", nullable=False)
-    else:
-        op.alter_column("daily_activities", "todo_date", nullable=False)
+    conn = bind
+    if column_exists:
+        conn.execute(
+            sa.text(
+                "UPDATE daily_activities SET todo_date = scheduled_for WHERE todo_date IS NULL"
+            )
+        )
+
+        if conn.dialect.name == "sqlite":
+            with op.batch_alter_table("daily_activities") as batch_op:
+                batch_op.alter_column("todo_date", nullable=False)
+        else:
+            op.alter_column("daily_activities", "todo_date", nullable=False)
 
 
 def downgrade():

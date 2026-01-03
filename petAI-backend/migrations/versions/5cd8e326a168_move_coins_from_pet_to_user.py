@@ -16,28 +16,57 @@ branch_labels = None
 depends_on = None
 
 
+def _table_exists(inspector, table_name: str) -> bool:
+    return table_name in inspector.get_table_names()
+
+
+def _column_exists(inspector, table_name: str, column_name: str) -> bool:
+    return any(col["name"] == column_name for col in inspector.get_columns(table_name))
+
+
+def _check_constraint_exists(inspector, table_name: str, constraint_name: str) -> bool:
+    return any(constraint["name"] == constraint_name for constraint in inspector.get_check_constraints(table_name))
+
+
 def upgrade():
-    with op.batch_alter_table('users', schema=None) as batch_op:
-        batch_op.add_column(sa.Column('coins', sa.Integer(), nullable=False, server_default="0"))
-        batch_op.create_check_constraint("ck_user_coins_non_negative", "coins >= 0")
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
 
-    # copy any existing balances from pets to users
-    op.execute(
-        """
-        UPDATE users
-        SET coins = pets.coins
-        FROM pets
-        WHERE pets.user_id = users.id
-        """
-    )
+    if not _table_exists(inspector, 'users'):
+        return
 
-    # drop the temporary server default
-    with op.batch_alter_table('users', schema=None) as batch_op:
-        batch_op.alter_column('coins', server_default=None)
+    users_has_coins = _column_exists(inspector, 'users', 'coins')
+    if not users_has_coins:
+        with op.batch_alter_table('users', schema=None) as batch_op:
+            batch_op.add_column(sa.Column('coins', sa.Integer(), nullable=False, server_default="0"))
+        users_has_coins = True
 
-    with op.batch_alter_table('pets', schema=None) as batch_op:
-        batch_op.drop_constraint("ck_pet_coins_non_negative", type_="check")
-        batch_op.drop_column('coins')
+    if users_has_coins and not _check_constraint_exists(inspector, 'users', 'ck_user_coins_non_negative'):
+        with op.batch_alter_table('users', schema=None) as batch_op:
+            batch_op.create_check_constraint("ck_user_coins_non_negative", "coins >= 0")
+
+    pets_has_coins = _table_exists(inspector, 'pets') and _column_exists(inspector, 'pets', 'coins')
+    if users_has_coins and pets_has_coins:
+        # copy any existing balances from pets to users
+        op.execute(
+            """
+            UPDATE users
+            SET coins = pets.coins
+            FROM pets
+            WHERE pets.user_id = users.id
+            """
+        )
+
+    if users_has_coins:
+        # drop the temporary server default
+        with op.batch_alter_table('users', schema=None) as batch_op:
+            batch_op.alter_column('coins', server_default=None)
+
+    if pets_has_coins:
+        with op.batch_alter_table('pets', schema=None) as batch_op:
+            if _check_constraint_exists(inspector, 'pets', 'ck_pet_coins_non_negative'):
+                batch_op.drop_constraint("ck_pet_coins_non_negative", type_="check")
+            batch_op.drop_column('coins')
 
 
 def downgrade():

@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 from ..models import db
+from ..services.access_code_service import AccessCodeService
 from ..models.subscription import Subscription
 
 
@@ -18,24 +19,44 @@ class SubscriptionService:
     @staticmethod
     def subscription_payload(user_id: int) -> dict:
         sub = SubscriptionService.latest_for_user(user_id)
-        if not sub:
-            return {"active": False, "status": "none"}
+        sub_payload: dict | None = None
+        if sub:
+            now = datetime.now(timezone.utc)
+            expires_at = sub.expires_at
+            active = sub.status in ("active", "trialing") and (
+                expires_at is None or expires_at > now
+            )
+            sub_payload = {
+                "active": active,
+                "status": sub.status,
+                "product_id": sub.product_id,
+                "provider": sub.provider,
+                "is_trial": sub.is_trial,
+                "expires_at": expires_at.isoformat() if expires_at else None,
+                "started_at": sub.started_at.isoformat() if sub.started_at else None,
+            }
+            if active:
+                return sub_payload
 
-        now = datetime.now(timezone.utc)
-        expires_at = sub.expires_at
-        active = sub.status in ("active", "trialing") and (
-            expires_at is None or expires_at > now
-        )
-        payload = {
-            "active": active,
-            "status": sub.status,
-            "product_id": sub.product_id,
-            "provider": sub.provider,
-            "is_trial": sub.is_trial,
-            "expires_at": expires_at.isoformat() if expires_at else None,
-            "started_at": sub.started_at.isoformat() if sub.started_at else None,
-        }
-        return payload
+        access_redemption = AccessCodeService.active_access_for_user(user_id)
+        if access_redemption:
+            code = access_redemption.access_code
+            return {
+                "active": True,
+                "status": "active",
+                "product_id": code.code if code else None,
+                "provider": "access_code",
+                "is_trial": False,
+                "expires_at": code.expires_at.isoformat() if code and code.expires_at else None,
+                "started_at": access_redemption.redeemed_at.isoformat()
+                if access_redemption.redeemed_at
+                else None,
+            }
+
+        if sub_payload is not None:
+            return sub_payload
+
+        return {"active": False, "status": "none"}
 
     @staticmethod
     def set_mock_subscription(user_id: int, active: bool) -> Subscription:

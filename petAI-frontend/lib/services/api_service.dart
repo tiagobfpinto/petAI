@@ -317,6 +317,27 @@ class ApiService {
     }
   }
 
+  Future<ApiResponse<void>> redeemAccessCode(String code) async {
+    await _ensureTokenLoaded();
+    try {
+      final response = await _client.post(
+        _uri("/access-codes/redeem"),
+        headers: _headers,
+        body: jsonEncode({"code": code}),
+      );
+      if (response.statusCode == 200) {
+        return ApiResponse.success(null, statusCode: response.statusCode);
+      }
+      final payload = _decode(response.body);
+      return ApiResponse.failure(
+        payload["error"] as String? ?? "Code not working",
+        statusCode: response.statusCode,
+      );
+    } catch (err) {
+      return ApiResponse.failure("Network error: $err");
+    }
+  }
+
   Future<ApiResponse<List<String>>> fetchDefaultInterests() async {
     try {
       final response = await _client.get(_uri("/interests"), headers: _headers);

@@ -100,6 +100,7 @@ class _PetAiAppState extends State<PetAiApp> {
       return PaywallScreen(
         session: _session!,
         subscription: _subscription,
+        apiService: _apiService,
         onManageAccount: () => _openAccountManager(
           initialMode:
               (_session?.isGuest ?? true) ? AuthMode.convert : AuthMode.login,

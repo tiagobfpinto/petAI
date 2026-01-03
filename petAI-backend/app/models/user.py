@@ -48,6 +48,11 @@ class User(db.Model):
     activities = db.relationship("ActivityLog", back_populates="user", cascade="all, delete-orphan")
     tokens = db.relationship("AuthToken", back_populates="user", cascade="all, delete-orphan")
     subscriptions = db.relationship("Subscription", back_populates="user", cascade="all, delete-orphan")
+    access_code_redemptions = db.relationship(
+        "AccessCodeRedemption",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
     push_tokens = db.relationship("PushToken", back_populates="user", cascade="all, delete-orphan")
     event_logs = db.relationship("EventLog", back_populates="user", cascade="all, delete-orphan")
 

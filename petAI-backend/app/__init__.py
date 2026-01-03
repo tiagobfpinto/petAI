@@ -7,6 +7,7 @@ from .models import bcrypt, db
 from .routes.activity_routes import activity_bp
 from .routes.admin_routes import admin_bp
 from .routes.auth_routes import auth_bp
+from .routes.access_code_routes import access_codes_bp
 from .routes.hub_routes import hub_bp
 from .routes.friend_routes import friends_bp
 from .routes.goal_routes import goal_bp
@@ -41,6 +42,7 @@ def create_app(config_class: type[Config] = Config) -> Flask:
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(access_codes_bp)
     app.register_blueprint(user_bp)
     app.register_blueprint(interests_bp)
     app.register_blueprint(pet_bp)

@@ -16,28 +16,63 @@ branch_labels = None
 depends_on = None
 
 
-def upgrade():
-    op.add_column("goals", sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True))
-    op.add_column("goals", sa.Column("redeemed_at", sa.DateTime(timezone=True), nullable=True))
-    op.create_index(op.f("ix_goals_completed_at"), "goals", ["completed_at"], unique=False)
-    op.create_index(op.f("ix_goals_redeemed_at"), "goals", ["redeemed_at"], unique=False)
+def _column_exists(inspector, table_name: str, column_name: str) -> bool:
+    return any(col["name"] == column_name for col in inspector.get_columns(table_name))
 
-    op.create_table(
-        "milestone_redemptions",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("user_id", sa.Integer(), nullable=False),
-        sa.Column("milestone_id", sa.String(length=64), nullable=False),
-        sa.Column("redeemed_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
-        sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("user_id", "milestone_id", name="uq_user_milestone_redemption"),
-    )
-    op.create_index(
-        op.f("ix_milestone_redemptions_user_id"),
-        "milestone_redemptions",
-        ["user_id"],
-        unique=False,
-    )
+
+def _index_exists(inspector, table_name: str, index_name: str) -> bool:
+    return any(index["name"] == index_name for index in inspector.get_indexes(table_name))
+
+
+def _table_exists(inspector, table_name: str) -> bool:
+    return table_name in inspector.get_table_names()
+
+
+def upgrade():
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+
+    if not _table_exists(inspector, "goals"):
+        return
+
+    if not _column_exists(inspector, "goals", "completed_at"):
+        op.add_column("goals", sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True))
+    if not _column_exists(inspector, "goals", "redeemed_at"):
+        op.add_column("goals", sa.Column("redeemed_at", sa.DateTime(timezone=True), nullable=True))
+
+    completed_index = op.f("ix_goals_completed_at")
+    redeemed_index = op.f("ix_goals_redeemed_at")
+    if not _index_exists(inspector, "goals", completed_index):
+        op.create_index(completed_index, "goals", ["completed_at"], unique=False)
+    if not _index_exists(inspector, "goals", redeemed_index):
+        op.create_index(redeemed_index, "goals", ["redeemed_at"], unique=False)
+
+    milestone_user_index = op.f("ix_milestone_redemptions_user_id")
+    table_exists = "milestone_redemptions" in inspector.get_table_names()
+    if not table_exists:
+        op.create_table(
+            "milestone_redemptions",
+            sa.Column("id", sa.Integer(), nullable=False),
+            sa.Column("user_id", sa.Integer(), nullable=False),
+            sa.Column("milestone_id", sa.String(length=64), nullable=False),
+            sa.Column("redeemed_at", sa.DateTime(timezone=True), nullable=False),
+            sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
+            sa.PrimaryKeyConstraint("id"),
+            sa.UniqueConstraint("user_id", "milestone_id", name="uq_user_milestone_redemption"),
+        )
+        op.create_index(
+            milestone_user_index,
+            "milestone_redemptions",
+            ["user_id"],
+            unique=False,
+        )
+    elif not _index_exists(inspector, "milestone_redemptions", milestone_user_index):
+        op.create_index(
+            milestone_user_index,
+            "milestone_redemptions",
+            ["user_id"],
+            unique=False,
+        )
 
 
 def downgrade():
