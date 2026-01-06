@@ -4,6 +4,8 @@ import 'package:http/http.dart' as http;
 
 import '../config/api_config.dart';
 import '../models/activity_completion.dart';
+import '../models/chest_inventory_item.dart';
+import '../models/chest_open_result.dart';
 import '../models/activity_log.dart';
 import '../models/friend_profile.dart';
 import '../models/friend_search_result.dart';
@@ -657,6 +659,60 @@ class ApiService {
       }
       return ApiResponse.failure(
         payload["error"] as String? ?? "Failed to complete activity",
+        statusCode: response.statusCode,
+      );
+    } catch (err) {
+      return ApiResponse.failure("Network error: $err");
+    }
+  }
+
+  Future<ApiResponse<List<ChestInventoryItem>>> fetchUserChests() async {
+    await _ensureTokenLoaded();
+    try {
+      final response = await _client.get(_uri("/chests"), headers: _headers);
+      final payload = _decode(response.body);
+      final data = _data(payload);
+      if (response.statusCode == 200) {
+        final rawList = (data["chests"] as List<dynamic>? ?? [])
+            .whereType<Map<String, dynamic>>()
+            .map(ChestInventoryItem.fromListEntry)
+            .where((chest) => chest.itemId > 0)
+            .toList();
+        final expanded = <ChestInventoryItem>[];
+        for (final chest in rawList) {
+          final count = chest.quantity > 0 ? chest.quantity : 0;
+          for (var i = 0; i < count; i++) {
+            expanded.add(chest.copyWith(quantity: 1));
+          }
+        }
+        return ApiResponse.success(expanded, statusCode: response.statusCode);
+      }
+      return ApiResponse.failure(
+        payload["error"] as String? ?? "Failed to load chests",
+        statusCode: response.statusCode,
+      );
+    } catch (err) {
+      return ApiResponse.failure("Network error: $err");
+    }
+  }
+
+  Future<ApiResponse<ChestOpenResult>> openChest(int itemId) async {
+    await _ensureTokenLoaded();
+    try {
+      final response = await _client.post(
+        _uri("/chests/open/$itemId"),
+        headers: _headers,
+      );
+      final payload = _decode(response.body);
+      final data = _data(payload);
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return ApiResponse.success(
+          ChestOpenResult.fromJson(data),
+          statusCode: response.statusCode,
+        );
+      }
+      return ApiResponse.failure(
+        payload["error"] as String? ?? "Failed to open chest",
         statusCode: response.statusCode,
       );
     } catch (err) {

@@ -1,3 +1,4 @@
+import 'chest_inventory_item.dart';
 import 'pet_state.dart';
 
 class ChestItem {
@@ -82,7 +83,7 @@ class ActivityCompletionResult {
   final int? streakBest;
   final double? xpMultiplier;
   final int? coinsAwarded;
-  final ChestReward? chest;
+  final ChestInventoryItem? chest;
   final int? nextChestIn;
 
   factory ActivityCompletionResult.fromJson(Map<String, dynamic> json) {
@@ -97,7 +98,7 @@ class ActivityCompletionResult {
       streakBest: json["streak_best"] as int?,
       xpMultiplier: (json["xp_multiplier"] as num?)?.toDouble(),
       coinsAwarded: json["coins_awarded"] as int?,
-      chest: chestJson is Map<String, dynamic> ? ChestReward.fromJson(chestJson) : null,
+      chest: chestJson is Map<String, dynamic> ? ChestInventoryItem.fromGrantJson(chestJson) : null,
       nextChestIn: (json["next_chest_in"] as num?)?.toInt(),
     );
   }

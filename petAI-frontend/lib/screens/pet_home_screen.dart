@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../models/activity_log.dart';
 import '../models/activity_completion.dart';
+import '../models/chest_inventory_item.dart';
 import '../models/daily_activity.dart';
 import '../models/interest.dart';
 import '../models/activity_type.dart';
@@ -92,8 +93,9 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
   bool _loadingActivities = true;
   int _progressionBadgeCount = 0;
   bool _loadingProgressionBadge = false;
+  bool _loadingChests = false;
   int? _nextChestIn;
-  final List<ChestReward> _pendingChests = [];
+  final List<ChestInventoryItem> _pendingChests = [];
   Set<int> _completedToday = {};
   final Map<int, int> _celebrations = {};
   int? _streakCurrent;
@@ -114,6 +116,7 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
     _xpMultiplier = widget.session.streakMultiplier;
     _loadDailyActivities();
     _loadActivities();
+    _loadPendingChests();
     _loadActivityTypes();
     _loadEquippedStyleTriggers();
     _loadProgressionBadge();
@@ -478,6 +481,23 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
       });
     } else {
       setState(() => _loadingProgressionBadge = false);
+    }
+  }
+
+  Future<void> _loadPendingChests() async {
+    if (_loadingChests) return;
+    _loadingChests = true;
+    final response = await widget.apiService.fetchUserChests();
+    _loadingChests = false;
+    if (!mounted) return;
+    if (response.isSuccess && response.data != null) {
+      setState(() {
+        _pendingChests
+          ..clear()
+          ..addAll(response.data!);
+      });
+    } else if (response.error != null) {
+      widget.onError(response.error ?? "Failed to load chests");
     }
   }
 
@@ -858,7 +878,7 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
     return "Next chest in $remaining win${remaining == 1 ? "" : "s"}";
   }
 
-  String _highestChestTier(List<ChestReward> chests) {
+  String _highestChestTier(List<ChestInventoryItem> chests) {
     int tierScore(String tier) {
       switch (tier.trim().toLowerCase()) {
         case "epic":
@@ -873,10 +893,10 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
     String bestTier = "common";
     int bestScore = 0;
     for (final chest in chests) {
-      final score = tierScore(chest.chestTier);
+      final score = tierScore(chest.tier);
       if (score > bestScore) {
         bestScore = score;
-        bestTier = chest.chestTier;
+        bestTier = chest.tier;
       }
     }
     return bestTier;
@@ -890,26 +910,43 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
         return _ChestMenuSheet(
-          pendingChests: List<ChestReward>.from(_pendingChests),
+          pendingChests: List<ChestInventoryItem>.from(_pendingChests),
           progress: _chestProgressValue(),
           statusText: _chestMenuStatusText(),
           displayTier:
               _pendingChests.isNotEmpty ? _highestChestTier(_pendingChests) : null,
-          onOpenChest: (reward) {
+          onOpenChest: (chest) {
             Navigator.of(sheetContext).pop();
-            _openPendingChest(reward);
+            _openPendingChest(chest);
           },
         );
       },
     );
   }
 
-  Future<void> _openPendingChest(ChestReward reward) async {
-    final index = _pendingChests.indexOf(reward);
+  Future<void> _openPendingChest(ChestInventoryItem chest) async {
+    final index = _pendingChests.indexOf(chest);
     if (index == -1) return;
+    if (chest.itemId <= 0) {
+      widget.onError("Invalid chest item.");
+      return;
+    }
+
+    final response = await widget.apiService.openChest(chest.itemId);
+    if (!mounted) return;
+    if (!response.isSuccess || response.data == null) {
+      widget.onError(response.error ?? "Failed to open chest");
+      return;
+    }
+
+    final result = response.data!;
+    final reward = result.reward;
+    widget.onPetChanged(result.pet);
     setState(() {
+      _pet = result.pet;
       _pendingChests.removeAt(index);
     });
+
     await _showChestOpenAnimation(reward.chestTier);
     await _showChestReward(reward);
     if (!mounted) return;
@@ -1551,6 +1588,7 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
     await Future.wait([
       _loadDailyActivities(),
       _loadActivities(),
+      _loadPendingChests(),
       _loadActivityTypes(),
       _loadProgressionBadge(),
       widget.onRefreshInterests(),
@@ -2159,11 +2197,11 @@ class _ChestMenuSheet extends StatelessWidget {
     required this.onOpenChest,
   });
 
-  final List<ChestReward> pendingChests;
+  final List<ChestInventoryItem> pendingChests;
   final double progress;
   final String statusText;
   final String? displayTier;
-  final ValueChanged<ChestReward> onOpenChest;
+  final ValueChanged<ChestInventoryItem> onOpenChest;
 
   @override
   Widget build(BuildContext context) {
@@ -2254,19 +2292,19 @@ class _ChestMenuSheet extends StatelessWidget {
               )
             else
               Expanded(
-                child: ListView.separated(
-                  itemCount: pendingChests.length,
-                  padding: EdgeInsets.zero,
-                  separatorBuilder: (context, index) => const SizedBox(height: 10),
-                  itemBuilder: (context, index) {
-                    final reward = pendingChests[index];
-                    return _ChestMenuItem(
-                      index: index,
-                      tier: reward.chestTier,
-                      onOpen: () => onOpenChest(reward),
-                    );
-                  },
-                ),
+                  child: ListView.separated(
+                    itemCount: pendingChests.length,
+                    padding: EdgeInsets.zero,
+                    separatorBuilder: (context, index) => const SizedBox(height: 10),
+                    itemBuilder: (context, index) {
+                      final chest = pendingChests[index];
+                      return _ChestMenuItem(
+                        index: index,
+                        tier: chest.tier,
+                        onOpen: () => onOpenChest(chest),
+                      );
+                    },
+                  ),
               ),
           ],
         ),

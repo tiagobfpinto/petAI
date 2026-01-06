@@ -12,6 +12,7 @@ from ..dao.userDAO import UserDAO
 
 class ChestService:
     CHEST_INTERVAL = 5
+    BONUS_CHEST_CHANCE = 0.10
     CHEST_TIERS = ("common", "rare", "epic")
     CHEST_TIER_WEIGHTS = {
         "common": 0.7,
@@ -59,6 +60,10 @@ class ChestService:
             "legendary": 3.0,
         },
     }
+
+    @classmethod
+    def should_grant_bonus_chest(cls) -> bool:
+        return random.random() < cls.BONUS_CHEST_CHANCE
 
     @classmethod
     def grant_chest(cls, *, user_id: int, tier: str | None = None) -> dict | None:
@@ -162,9 +167,7 @@ class ChestService:
     @classmethod
     def _resolve_chest_config(cls, chest, tier: str) -> dict:
         fallback = cls.TIER_CONFIG.get(tier, cls.TIER_CONFIG["common"])
-        item_chance = chest.item_drop_rate
-        if item_chance is None or item_chance < 0:
-            item_chance = fallback["item_chance"]
+        item_chance = cls._normalize_drop_rate(chest.item_drop_rate, fallback["item_chance"])
         xp_range = cls._range_or_default(chest.xp_min, chest.xp_max, fallback["xp_range"])
         coin_range = cls._range_or_default(chest.coin_min, chest.coin_max, fallback["coin_range"])
         return {
@@ -181,6 +184,22 @@ class ChestService:
         if low > high:
             return fallback
         return (int(low), int(high))
+
+    @staticmethod
+    def _normalize_drop_rate(value: float | None, fallback: float) -> float:
+        if value is None:
+            return fallback
+        try:
+            normalized = float(value)
+        except (TypeError, ValueError):
+            return fallback
+        if normalized < 0:
+            return fallback
+        if normalized > 1:
+            normalized = normalized / 100.0
+        if normalized < 0:
+            return fallback
+        return min(max(normalized, 0.0), 1.0)
 
     @classmethod
     def _rarity_rank(cls, rarity: str | None) -> int:
@@ -199,7 +218,7 @@ class ChestService:
             return {
                 "type": "xp",
                 "xp": xp,
-                "pet": evolution["pet"],
+                "pet": PetService.pet_payload(evolution["pet"]),
                 "evolved": evolution["evolved"],
             }
         coins = random.randint(coin_range[0], coin_range[1])

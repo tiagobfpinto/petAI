@@ -135,7 +135,9 @@ class ActivityService:
         UserService.add_coins(user, coins_awarded)
 
         chest_payload = None
-        if activity_count % ChestService.CHEST_INTERVAL == 0:
+        grant_due = activity_count % ChestService.CHEST_INTERVAL == 0
+        bonus_chance = ChestService.should_grant_bonus_chest()
+        if grant_due or bonus_chance:
             chest_payload = ChestService.grant_chest(user_id=user.id)
 
         next_chest_in = ChestService.CHEST_INTERVAL - (activity_count % ChestService.CHEST_INTERVAL)
