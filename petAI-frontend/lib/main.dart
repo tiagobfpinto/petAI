@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 
 import 'models/pet_state.dart';
 import 'models/session_bootstrap.dart';
+import 'models/subscription_status.dart';
 import 'models/user_interest.dart';
 import 'models/user_session.dart';
 import 'screens/interest_selection_screen.dart';
+import 'screens/paywall_screen.dart';
 import 'screens/pet_home_screen.dart';
 import 'screens/splash_screen.dart';
 import 'screens/welcome_screen.dart';
@@ -41,6 +43,7 @@ class _PetAiAppState extends State<PetAiApp> {
   bool _isSyncing = false;
   bool _isBooting = true;
   String? _bootError;
+  SubscriptionStatus? _subscription;
   bool? _cookieConsent;
   bool _cookieConsentLoaded = false;
 
@@ -89,6 +92,19 @@ class _PetAiAppState extends State<PetAiApp> {
       return SplashScreen(
         message: "Reconnecting...",
         error: _bootError ?? "No active session found",
+        onRetry: _startBootstrap,
+      );
+    }
+
+    if (_isAccessLocked()) {
+      return PaywallScreen(
+        session: _session!,
+        subscription: _subscription,
+        apiService: _apiService,
+        onManageAccount: () => _openAccountManager(
+          initialMode:
+              (_session?.isGuest ?? true) ? AuthMode.convert : AuthMode.login,
+        ),
         onRetry: _startBootstrap,
       );
     }
@@ -205,7 +221,18 @@ class _PetAiAppState extends State<PetAiApp> {
       _needsInterestSetup = bootstrap.needInterestsSetup;
       _interests = [];
       _bootError = null;
+      _subscription = bootstrap.subscription;
     });
+  }
+
+  bool _isAccessLocked() {
+    final session = _session;
+    if (session == null) return false;
+    if (!session.isActive) return true;
+    final daysLeft = session.trialDaysLeft ?? 0;
+    if (daysLeft > 0) return false;
+    final sub = _subscription;
+    return sub == null || !sub.active;
   }
 
   Future<void> _bootstrapSync() async {

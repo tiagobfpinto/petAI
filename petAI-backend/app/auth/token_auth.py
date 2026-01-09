@@ -21,14 +21,18 @@ def token_required(fn):
             return error_response("Invalid or expired token", 401)
         user = token.user
         inactive = False
-        if user.is_guest:
-            # Lazy-import to avoid circular dependency.
-            from ..services.user_service import UserService
+        # Lazy-import to avoid circular dependency.
+        from ..services.user_service import UserService
+        from ..services.subscription_service import SubscriptionService
 
-            remaining = UserService._trial_days_left(user)
-            if remaining <= 0:
-                UserService.mark_trial_expired(user)
-                inactive = True
+        remaining = UserService._trial_days_left(user)
+        sub_payload = SubscriptionService.subscription_payload(user.id)
+        sub_active = sub_payload.get("active", False)
+        if remaining <= 0 and not sub_active:
+            UserService.mark_trial_expired(user)
+            inactive = True
+        elif sub_active and not user.is_active:
+            UserService.reactivate_user(user.id)
         if not user.is_active:
             inactive = True
 
@@ -54,6 +58,26 @@ def active_user_required(fn):
         user = getattr(request, "current_user", None)
         if user is not None and not getattr(user, "is_active", True):
             return error_response("Account inactive. Upgrade to continue.", 403)
+        return fn(*args, **kwargs)
+
+    return wrapper
+
+
+def premium_required(fn):
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        user = getattr(request, "current_user", None)
+        if user is None:
+            return error_response("Invalid token", 401)
+
+        from ..services.user_service import UserService
+        from ..services.subscription_service import SubscriptionService
+
+        remaining = UserService._trial_days_left(user)
+        sub_payload = SubscriptionService.subscription_payload(user.id)
+        sub_active = sub_payload.get("active", False)
+        if remaining <= 0 and not sub_active:
+            return error_response("Subscription required", 403)
         return fn(*args, **kwargs)
 
     return wrapper

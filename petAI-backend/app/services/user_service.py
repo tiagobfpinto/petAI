@@ -10,6 +10,7 @@ from ..models.user import PlanType, User
 from ..services.auth_token_service import AuthTokenService
 from ..services.interest_service import InterestService
 from ..services.pet_service import PetService
+from ..services.subscription_service import SubscriptionService
 
 
 class UserService:
@@ -65,6 +66,7 @@ class UserService:
             "need_interests_setup": user.needs_interest_setup(),
             "trial_days_left": trial_left,
             "streak_multiplier": streak_multiplier,
+            "subscription": SubscriptionService.subscription_payload(user.id),
         }
         payload["user"]["trial_days_left"] = trial_left
         payload["user"]["streak_multiplier"] = streak_multiplier
@@ -104,8 +106,8 @@ class UserService:
 
     @staticmethod
     def _trial_days_left(user: User, trial_length_days: int = 3) -> int:
-        """Return remaining trial days from guest creation."""
-        if not user.is_guest or not user.created_at:
+        """Return remaining trial days from account creation."""
+        if not user.created_at:
             return 0
         now = datetime.now(timezone.utc)
         created_at = user.created_at

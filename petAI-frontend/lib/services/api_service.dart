@@ -17,6 +17,7 @@ import '../models/progression_redeem_result.dart';
 import '../models/daily_activity.dart';
 import '../models/rive_input_value.dart';
 import '../models/session_bootstrap.dart';
+import '../models/subscription_status.dart';
 import '../models/activity_type.dart';
 import '../models/user_interest.dart';
 import '../models/user_session.dart';
@@ -313,6 +314,27 @@ class ApiService {
       final payload = _decode(response.body);
       return ApiResponse.failure(
         payload["error"] as String? ?? "Failed to logout",
+        statusCode: response.statusCode,
+      );
+    } catch (err) {
+      return ApiResponse.failure("Network error: $err");
+    }
+  }
+
+  Future<ApiResponse<void>> redeemAccessCode(String code) async {
+    await _ensureTokenLoaded();
+    try {
+      final response = await _client.post(
+        _uri("/access-codes/redeem"),
+        headers: _headers,
+        body: jsonEncode({"code": code}),
+      );
+      if (response.statusCode == 200) {
+        return ApiResponse.success(null, statusCode: response.statusCode);
+      }
+      final payload = _decode(response.body);
+      return ApiResponse.failure(
+        payload["error"] as String? ?? "Code not working",
         statusCode: response.statusCode,
       );
     } catch (err) {
@@ -794,6 +816,82 @@ class ApiService {
     }
   }
 
+  Future<ApiResponse<void>> registerPushToken({
+    required String token,
+    required String platform,
+    String? deviceId,
+  }) async {
+    await _ensureTokenLoaded();
+    try {
+      final response = await _client.post(
+        _uri("/push/register"),
+        headers: _headers,
+        body: jsonEncode({
+          "token": token,
+          "platform": platform,
+          "device_id": deviceId,
+        }),
+      );
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        return ApiResponse.success(null, statusCode: response.statusCode);
+      }
+      final payload = _decode(response.body);
+      return ApiResponse.failure(
+        payload["error"] as String? ?? "Failed to register push token",
+        statusCode: response.statusCode,
+      );
+    } catch (err) {
+      return ApiResponse.failure("Network error: $err");
+    }
+  }
+
+  Future<ApiResponse<void>> unregisterPushToken({
+    required String token,
+  }) async {
+    await _ensureTokenLoaded();
+    try {
+      final response = await _client.post(
+        _uri("/push/unregister"),
+        headers: _headers,
+        body: jsonEncode({"token": token}),
+      );
+      if (response.statusCode == 200) {
+        return ApiResponse.success(null, statusCode: response.statusCode);
+      }
+      final payload = _decode(response.body);
+      return ApiResponse.failure(
+        payload["error"] as String? ?? "Failed to unregister push token",
+        statusCode: response.statusCode,
+      );
+    } catch (err) {
+      return ApiResponse.failure("Network error: $err");
+    }
+  }
+
+  Future<ApiResponse<void>> logEvent(
+    String event, {
+    Map<String, dynamic>? payload,
+  }) async {
+    await _ensureTokenLoaded();
+    try {
+      final response = await _client.post(
+        _uri("/events/log"),
+        headers: _headers,
+        body: jsonEncode({"event": event, "payload": payload}),
+      );
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        return ApiResponse.success(null, statusCode: response.statusCode);
+      }
+      final decoded = _decode(response.body);
+      return ApiResponse.failure(
+        decoded["error"] as String? ?? "Failed to log event",
+        statusCode: response.statusCode,
+      );
+    } catch (err) {
+      return ApiResponse.failure("Network error: $err");
+    }
+  }
+
   Future<ApiResponse<List<StyleInventoryItem>>> fetchStyleInventory() async {
     await _ensureTokenLoaded();
     try {
@@ -1172,11 +1270,16 @@ class ApiService {
     if (trial != null) {
       userJson["trial_days_left"] = trial;
     }
+    final subscriptionJson = data["subscription"];
     final petJson = data["pet"] as Map<String, dynamic>? ?? {};
     return SessionBootstrap(
       user: UserSession.fromJson(userJson),
       pet: PetState.fromJson(petJson),
       needInterestsSetup: data["need_interests_setup"] as bool? ?? false,
+      subscription:
+          subscriptionJson is Map<String, dynamic>
+              ? SubscriptionStatus.fromJson(subscriptionJson)
+              : null,
       token: token ?? data["token"] as String?,
     );
   }

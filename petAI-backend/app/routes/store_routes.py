@@ -2,8 +2,12 @@ from __future__ import annotations
 
 from flask import Blueprint, request
 
+<<<<<<< HEAD
 from ..auth import get_current_user_id, token_required
 from ..dao.chestDAO import ChestDAO
+=======
+from ..auth import get_current_user_id, premium_required, token_required
+>>>>>>> fdc624a8d75430061f33a30682831793f9809366
 from ..dao.itemsDAO import ItemOwnershipDAO, ItemsDAO, StoreListingDAO
 from ..dao.userDAO import UserDAO
 from ..models import db
@@ -22,6 +26,7 @@ def _resolve_user_id() -> int | None:
 
 @store_bp.route("", methods=["GET"])
 @token_required
+@premium_required
 def get_store_listings():
     user_id = _resolve_user_id()
     owned_by_item_id: dict[int, int] = {}
@@ -72,6 +77,7 @@ def get_store_listings():
 
 @store_bp.route("/buy/<int:store_listing_id>", methods=["POST"])
 @token_required
+@premium_required
 def buy_item(store_listing_id: int):
     data = request.get_json(silent=True) or {}
 

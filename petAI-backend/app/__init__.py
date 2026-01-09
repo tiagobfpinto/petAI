@@ -7,10 +7,14 @@ from .models import bcrypt, db
 from .routes.activity_routes import activity_bp
 from .routes.admin_routes import admin_bp
 from .routes.auth_routes import auth_bp
+from .routes.access_code_routes import access_codes_bp
 from .routes.hub_routes import hub_bp
 from .routes.friend_routes import friends_bp
 from .routes.goal_routes import goal_bp
+from .routes.iap_routes import iap_bp
+from .routes.push_routes import push_bp
 from .routes.daily_routes import daily_bp
+from .routes.event_routes import events_bp
 from .routes.pet_routes import pet_bp
 from .routes.styles_routes import style_bp
 from .routes.user_routes import interests_bp, user_bp
@@ -39,6 +43,7 @@ def create_app(config_class: type[Config] = Config) -> Flask:
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(access_codes_bp)
     app.register_blueprint(user_bp)
     app.register_blueprint(interests_bp)
     app.register_blueprint(pet_bp)
@@ -47,9 +52,12 @@ def create_app(config_class: type[Config] = Config) -> Flask:
     app.register_blueprint(hub_bp)
     app.register_blueprint(goal_bp)
     app.register_blueprint(daily_bp)
+    app.register_blueprint(events_bp)
     app.register_blueprint(store_bp)
     app.register_blueprint(style_bp)
     app.register_blueprint(chest_bp)
+    app.register_blueprint(iap_bp)
+    app.register_blueprint(push_bp)
 
     @app.after_request
     def apply_cors(response):

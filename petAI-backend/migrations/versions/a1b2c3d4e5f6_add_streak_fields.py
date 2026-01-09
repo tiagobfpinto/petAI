@@ -15,15 +15,32 @@ branch_labels = None
 depends_on = None
 
 
+def _column_exists(inspector, table_name: str, column_name: str) -> bool:
+    return any(col["name"] == column_name for col in inspector.get_columns(table_name))
+
+
 def upgrade():
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    if "users" not in inspector.get_table_names():
+        return
+    streak_current_exists = _column_exists(inspector, "users", "streak_current")
+    streak_best_exists = _column_exists(inspector, "users", "streak_best")
     with op.batch_alter_table("users", schema=None) as batch_op:
-        batch_op.add_column(sa.Column("streak_current", sa.Integer(), nullable=False, server_default="0"))
-        batch_op.add_column(sa.Column("streak_best", sa.Integer(), nullable=False, server_default="0"))
-        batch_op.add_column(sa.Column("last_activity_at", sa.DateTime(timezone=True), nullable=True))
+        if not streak_current_exists:
+            batch_op.add_column(sa.Column("streak_current", sa.Integer(), nullable=False, server_default="0"))
+            streak_current_exists = True
+        if not streak_best_exists:
+            batch_op.add_column(sa.Column("streak_best", sa.Integer(), nullable=False, server_default="0"))
+            streak_best_exists = True
+        if not _column_exists(inspector, "users", "last_activity_at"):
+            batch_op.add_column(sa.Column("last_activity_at", sa.DateTime(timezone=True), nullable=True))
     # Clear server_default after creation to avoid future default changes
     with op.batch_alter_table("users", schema=None) as batch_op:
-        batch_op.alter_column("streak_current", server_default=None)
-        batch_op.alter_column("streak_best", server_default=None)
+        if streak_current_exists:
+            batch_op.alter_column("streak_current", server_default=None)
+        if streak_best_exists:
+            batch_op.alter_column("streak_best", server_default=None)
 
 
 def downgrade():

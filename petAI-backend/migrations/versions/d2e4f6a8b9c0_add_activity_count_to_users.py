@@ -15,13 +15,25 @@ branch_labels = None
 depends_on = None
 
 
+def _column_exists(inspector, table_name: str, column_name: str) -> bool:
+    return any(col["name"] == column_name for col in inspector.get_columns(table_name))
+
+
 def upgrade():
-    with op.batch_alter_table("users", schema=None) as batch_op:
-        batch_op.add_column(
-            sa.Column("activity_count", sa.Integer(), nullable=False, server_default="0")
-        )
-    with op.batch_alter_table("users", schema=None) as batch_op:
-        batch_op.alter_column("activity_count", server_default=None)
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    if "users" not in inspector.get_table_names():
+        return
+    column_exists = _column_exists(inspector, "users", "activity_count")
+    if not column_exists:
+        with op.batch_alter_table("users", schema=None) as batch_op:
+            batch_op.add_column(
+                sa.Column("activity_count", sa.Integer(), nullable=False, server_default="0")
+            )
+        column_exists = True
+    if column_exists:
+        with op.batch_alter_table("users", schema=None) as batch_op:
+            batch_op.alter_column("activity_count", server_default=None)
 
 
 def downgrade():

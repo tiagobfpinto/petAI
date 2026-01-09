@@ -780,10 +780,7 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
   Widget _buildChestProgressCard(BuildContext context) {
     final theme = Theme.of(context);
     final pendingCount = _pendingChests.length;
-    final progress = _chestProgressValue();
     final status = _chestStatusText();
-    final displayTier =
-        _pendingChests.isNotEmpty ? _highestChestTier(_pendingChests) : null;
 
     return Material(
       color: Colors.transparent,
@@ -806,9 +803,7 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
           child: Row(
             children: [
               _ChestProgressIcon(
-                progress: progress,
                 pendingCount: pendingCount,
-                tier: displayTier,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -835,14 +830,6 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
         ),
       ),
     );
-  }
-
-  double _chestProgressValue() {
-    final remaining = _nextChestIn;
-    if (remaining == null || _chestInterval <= 0) return 0.0;
-    final clamped = remaining.clamp(0, _chestInterval);
-    final value = 1 - (clamped / _chestInterval);
-    return value.clamp(0.0, 1.0).toDouble();
   }
 
   String _chestStatusText() {
@@ -885,30 +872,6 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
     return "Next chest in $remaining win${remaining == 1 ? "" : "s"}";
   }
 
-  String _highestChestTier(List<ChestInventoryItem> chests) {
-    int tierScore(String tier) {
-      switch (tier.trim().toLowerCase()) {
-        case "epic":
-          return 3;
-        case "rare":
-          return 2;
-        default:
-          return 1;
-      }
-    }
-
-    String bestTier = "common";
-    int bestScore = 0;
-    for (final chest in chests) {
-      final score = tierScore(chest.tier);
-      if (score > bestScore) {
-        bestScore = score;
-        bestTier = chest.tier;
-      }
-    }
-    return bestTier;
-  }
-
   Future<void> _openChestMenu() async {
     if (!mounted) return;
     await showModalBottomSheet<void>(
@@ -918,10 +881,7 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
       builder: (sheetContext) {
         return _ChestMenuSheet(
           pendingChests: List<ChestInventoryItem>.from(_pendingChests),
-          progress: _chestProgressValue(),
           statusText: _chestMenuStatusText(),
-          displayTier:
-              _pendingChests.isNotEmpty ? _highestChestTier(_pendingChests) : null,
           onOpenChest: (chest) {
             Navigator.of(sheetContext).pop();
             _openPendingChest(chest);
@@ -2145,25 +2105,90 @@ _ChestTierStyle _chestTierStyle(BuildContext context, String? tier) {
   }
 }
 
-class _ChestButtonIcon extends StatelessWidget {
+class _ChestButtonIcon extends StatefulWidget {
   const _ChestButtonIcon({required this.size});
 
   final double size;
 
   @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: size,
-      height: size,
-      child: PetRive(
-        assetPath: _chestButtonRiveAssetPath,
+  State<_ChestButtonIcon> createState() => _ChestButtonIconState();
+}
+
+class _ChestButtonIconState extends State<_ChestButtonIcon> {
+  static final rive.FileLoader _fileLoader = rive.FileLoader.fromAsset(
+    _chestButtonRiveAssetPath,
+    riveFactory: rive.Factory.rive,
+  );
+
+  rive.File? _file;
+  rive.ArtboardPainter? _painter;
+  Object? _loadError;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFile();
+  }
+
+  @override
+  void dispose() {
+    _painter?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadFile() async {
+    try {
+      final file = await _fileLoader.file();
+      if (!mounted) return;
+      final painter = _buildPainter(file);
+      setState(() {
+        _file = file;
+        _painter = painter;
+      });
+    } catch (err) {
+      if (!mounted) return;
+      setState(() => _loadError = err);
+    }
+  }
+
+  rive.ArtboardPainter _buildPainter(rive.File file) {
+    String? animationName;
+    final artboard = file.defaultArtboard();
+    if (artboard != null && artboard.animationCount() > 0) {
+      animationName = artboard.animationAt(0).name;
+    }
+    artboard?.dispose();
+    if (animationName != null && animationName.trim().isNotEmpty) {
+      return rive.RivePainter.animation(
+        animationName,
         fit: rive.Fit.contain,
-        fallback: Image.asset(
-          _chestIconAssetPath,
-          width: size,
-          height: size,
-          fit: BoxFit.contain,
-        ),
+        alignment: Alignment.center,
+      );
+    }
+    return rive.BasicArtboardPainter(
+      fit: rive.Fit.contain,
+      alignment: Alignment.center,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final fallback = Image.asset(
+      _chestIconAssetPath,
+      width: widget.size,
+      height: widget.size,
+      fit: BoxFit.contain,
+    );
+    if (_loadError != null) return fallback;
+    final file = _file;
+    final painter = _painter;
+    if (file == null || painter == null) return fallback;
+    return SizedBox(
+      width: widget.size,
+      height: widget.size,
+      child: rive.RiveFileWidget(
+        file: file,
+        painter: painter,
       ),
     );
   }
@@ -2171,51 +2196,20 @@ class _ChestButtonIcon extends StatelessWidget {
 
 class _ChestProgressIcon extends StatelessWidget {
   const _ChestProgressIcon({
-    required this.progress,
     required this.pendingCount,
     this.size = 54,
-    this.tier,
   });
 
-  final double progress;
   final int pendingCount;
   final double size;
-  final String? tier;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final style = _chestTierStyle(context, tier);
-    final clamped = progress.clamp(0.0, 1.0).toDouble();
     final label = pendingCount > 9 ? "9+" : "$pendingCount";
-    final iconSize = size * 0.34;
-    final innerPadding = size * 0.18;
-
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        SizedBox(
-          width: size,
-          height: size,
-          child: CircularProgressIndicator(
-            value: clamped,
-            strokeWidth: 6,
-            backgroundColor: theme.colorScheme.surfaceContainerHighest,
-            valueColor: AlwaysStoppedAnimation(style.accent),
-          ),
-        ),
-        Positioned.fill(
-          child: Center(
-            child: Container(
-              padding: EdgeInsets.all(innerPadding),
-              decoration: BoxDecoration(
-                color: style.background,
-                shape: BoxShape.circle,
-              ),
-              child: _ChestButtonIcon(size: iconSize),
-            ),
-          ),
-        ),
+        _ChestButtonIcon(size: size),
         if (pendingCount > 0)
           Positioned(
             right: -4,
@@ -2245,16 +2239,12 @@ class _ChestProgressIcon extends StatelessWidget {
 class _ChestMenuSheet extends StatelessWidget {
   const _ChestMenuSheet({
     required this.pendingChests,
-    required this.progress,
     required this.statusText,
-    required this.displayTier,
     required this.onOpenChest,
   });
 
   final List<ChestInventoryItem> pendingChests;
-  final double progress;
   final String statusText;
-  final String? displayTier;
   final ValueChanged<ChestInventoryItem> onOpenChest;
 
   @override
@@ -2294,10 +2284,8 @@ class _ChestMenuSheet extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 _ChestProgressIcon(
-                  progress: progress,
                   pendingCount: pendingChests.length,
                   size: 48,
-                  tier: displayTier,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -2640,14 +2628,7 @@ class _ChestRewardDialog extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: tierStyle.background,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const _ChestButtonIcon(size: 26),
-                  ),
+                  const _ChestButtonIcon(size: 26),
                   const SizedBox(height: 10),
                   Text(
                     title,

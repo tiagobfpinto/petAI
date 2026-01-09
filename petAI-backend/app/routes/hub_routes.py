@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from flask import Blueprint, request
 
-from ..auth import get_current_user_id, token_required
+from ..auth import get_current_user_id, premium_required, token_required
 from ..models import db
 from ..routes import error_response, success_response
 from ..services.hub_service import HubService
@@ -14,6 +14,7 @@ hub_bp = Blueprint("hub", __name__, url_prefix="/hub")
 
 @hub_bp.route("/shop", methods=["GET"])
 @token_required
+@premium_required
 def get_shop_state():
     user_id = get_current_user_id()
     if not user_id:
@@ -25,6 +26,7 @@ def get_shop_state():
 
 @hub_bp.route("/shop/purchase", methods=["POST"])
 @token_required
+@premium_required
 def purchase_item():
     user_id = get_current_user_id()
     if not user_id:
@@ -49,6 +51,7 @@ def purchase_item():
 
 @hub_bp.route("/coins/purchase", methods=["POST"])
 @token_required
+@premium_required
 def purchase_coins():
     user_id = get_current_user_id()
     if not user_id:
@@ -73,6 +76,7 @@ def purchase_coins():
 
 @hub_bp.route("/friends", methods=["GET"])
 @token_required
+@premium_required
 def friends_feed():
     user_id = get_current_user_id()
     if not user_id:
@@ -84,6 +88,7 @@ def friends_feed():
 
 @hub_bp.route("/progression", methods=["GET"])
 @token_required
+@premium_required
 def progression():
     user_id = get_current_user_id()
     if not user_id:

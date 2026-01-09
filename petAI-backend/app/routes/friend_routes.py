@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from flask import Blueprint, request
 
-from ..auth import get_current_user_id, token_required
+from ..auth import get_current_user_id, premium_required, token_required
 from ..models import db
 from ..routes import error_response, success_response
 from ..services.friend_service import FriendService
@@ -13,6 +13,7 @@ friends_bp = Blueprint("friends", __name__, url_prefix="/friends")
 
 @friends_bp.route("", methods=["GET"])
 @token_required
+@premium_required
 def list_friends():
     user_id = get_current_user_id()
     if not user_id:
@@ -24,6 +25,7 @@ def list_friends():
 
 @friends_bp.route("/request", methods=["POST"])
 @token_required
+@premium_required
 def send_request():
     user_id = get_current_user_id()
     if not user_id:
@@ -50,6 +52,7 @@ def send_request():
 
 @friends_bp.route("/accept", methods=["POST"])
 @token_required
+@premium_required
 def accept_request():
     user_id = get_current_user_id()
     if not user_id:
@@ -76,6 +79,7 @@ def accept_request():
 
 @friends_bp.route("/search", methods=["GET"])
 @token_required
+@premium_required
 def search_users():
     user_id = get_current_user_id()
     if not user_id:
@@ -89,6 +93,7 @@ def search_users():
 
 @friends_bp.route("/remove", methods=["POST"])
 @token_required
+@premium_required
 def remove_friend():
     user_id = get_current_user_id()
     if not user_id:

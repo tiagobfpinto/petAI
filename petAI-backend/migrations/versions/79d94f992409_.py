@@ -20,23 +20,25 @@ def upgrade():
     bind = op.get_bind()
     inspector = sa.inspect(bind)
 
-    existing_activity_columns = {col["name"] for col in inspector.get_columns("activity_logs")}
-    if "amount" in existing_activity_columns:
-        with op.batch_alter_table('activity_logs', schema=None) as batch_op:
-            batch_op.drop_column('amount')
+    if "activity_logs" in inspector.get_table_names():
+        existing_activity_columns = {col["name"] for col in inspector.get_columns("activity_logs")}
+        if "amount" in existing_activity_columns:
+            with op.batch_alter_table('activity_logs', schema=None) as batch_op:
+                batch_op.drop_column('amount')
 
-    existing_interest_columns = {col["name"] for col in inspector.get_columns("interests")}
-    interest_columns_to_drop = [
-        'month_progress',
-        'monthly_goal',
-        'last_suggestions_generated_at',
-        'target_unit',
-    ]
-    if any(col in existing_interest_columns for col in interest_columns_to_drop):
-        with op.batch_alter_table('interests', schema=None) as batch_op:
-            for column_name in interest_columns_to_drop:
-                if column_name in existing_interest_columns:
-                    batch_op.drop_column(column_name)
+    if "interests" in inspector.get_table_names():
+        existing_interest_columns = {col["name"] for col in inspector.get_columns("interests")}
+        interest_columns_to_drop = [
+            'month_progress',
+            'monthly_goal',
+            'last_suggestions_generated_at',
+            'target_unit',
+        ]
+        if any(col in existing_interest_columns for col in interest_columns_to_drop):
+            with op.batch_alter_table('interests', schema=None) as batch_op:
+                for column_name in interest_columns_to_drop:
+                    if column_name in existing_interest_columns:
+                        batch_op.drop_column(column_name)
 
 
 def downgrade():
