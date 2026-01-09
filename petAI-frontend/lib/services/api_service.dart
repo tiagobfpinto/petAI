@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../config/api_config.dart';
@@ -827,9 +828,29 @@ class ApiService {
       final data = _data(payload);
       if (response.statusCode == 200) {
         final equipped = data["equipped"];
+        if (kDebugMode) {
+          if (equipped is Map<String, dynamic>) {
+            final slots = equipped.keys.map((key) => key.toString()).join(", ");
+            debugPrint("[style] equipped slots: $slots");
+            for (final entry in equipped.entries) {
+              final slot = entry.key.toString();
+              if (entry.value is! Map<String, dynamic>) continue;
+              final slotData = entry.value as Map<String, dynamic>;
+              final trigger = slotData["trigger"]?.toString() ?? "";
+              final value = slotData["trigger_value"]?.toString() ?? "null";
+              debugPrint(
+                "[style] equipped slot=$slot trigger=\"$trigger\" value=$value",
+              );
+            }
+          } else {
+            debugPrint(
+              "[style] equipped payload is not a map (type=${equipped.runtimeType})",
+            );
+          }
+        }
         final triggers = <RiveInputValue>[];
         if (equipped is Map<String, dynamic>) {
-          for (final slot in const ["hat", "sunglasses", "color"]) {
+          for (final slot in const ["hat", "sunglasses", "color", "background"]) {
             final entry = equipped[slot];
             if (entry is! Map<String, dynamic>) continue;
             final trigger = entry["trigger"]?.toString();

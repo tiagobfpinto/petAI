@@ -24,7 +24,7 @@ class FriendService:
             db.session.flush()
 
         triggers: list[dict] = []
-        for item_id in (pet_style.hat_id, pet_style.sunglasses_id, pet_style.color_id):
+        for item_id in (pet_style.hat_id, pet_style.sunglasses_id, pet_style.color_id, pet_style.background_id):
             if not item_id:
                 continue
             item = ItemsDAO.get_item_by_id(item_id)

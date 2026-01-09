@@ -717,6 +717,12 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
                         onControllerReady: (controller) {
                           _petRiveController = controller;
                           _maybeBindPetViewModel(controller);
+                          if (kDebugMode) {
+                            debugPrint(
+                              "[pet_rive] state machine ready: ${controller.stateMachine.name} "
+                              "(${_describeRiveInputs(controller.stateMachine)})",
+                            );
+                          }
                           _applyEquippedStyleTriggersIfReady();
                         },
                       ),
@@ -1007,6 +1013,17 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
 
     if (response.isSuccess && response.data != null) {
       _equippedStyleTriggers = response.data!;
+      if (kDebugMode) {
+        final summary = _equippedStyleTriggers
+            .map(
+              (input) =>
+                  "${input.name}:${input.value?.toString() ?? "null"}",
+            )
+            .join(", ");
+        debugPrint(
+          "[style] loaded equipped triggers (${_equippedStyleTriggers.length}): $summary",
+        );
+      }
       _applyEquippedStyleTriggersIfReady();
       return;
     }
@@ -1024,6 +1041,17 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
     if (_equippedStyleTriggers.isEmpty) return;
     if (_equippedStyleControllerAppliedTo == controller) return;
 
+    if (kDebugMode) {
+      final summary = _equippedStyleTriggers
+          .map(
+            (input) =>
+                "${input.name}:${input.value?.toString() ?? "null"}",
+          )
+          .join(", ");
+      debugPrint(
+        "[style] applying equipped triggers to sm=${controller.stateMachine.name}: $summary",
+      );
+    }
     for (final input in _equippedStyleTriggers) {
       _firePetTrigger(input, showErrors: false);
     }
@@ -1122,6 +1150,12 @@ class _PetHomeScreenState extends State<PetHomeScreen> {
 
     final stateMachine = controller.stateMachine;
     final value = triggerInput.value;
+    if (kDebugMode) {
+      debugPrint(
+        "[pet_rive] fire trigger name=\"$originalName\" value=${value?.toString() ?? "null"} "
+        "(sm=${stateMachine.name})",
+      );
+    }
 
     bool tryFire(String name) {
       if (value == null) {
