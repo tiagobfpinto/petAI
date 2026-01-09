@@ -26,6 +26,7 @@ import 'styles_sheet.dart';
 import 'package:rive/rive.dart' as rive;
 
 const String _chestIconAssetPath = "assets/chests/chest_icon.png";
+const String _chestButtonRiveAssetPath = "assets/rive/chest_button.riv";
 const String _commonChestRiveAssetPath = "assets/chests/common_chest.riv";
 const String _rareChestRiveAssetPath = "assets/chests/rare_chest.riv";
 const String _epicChestRiveAssetPath = "assets/chests/epic_chest.riv";
@@ -2144,6 +2145,30 @@ _ChestTierStyle _chestTierStyle(BuildContext context, String? tier) {
   }
 }
 
+class _ChestButtonIcon extends StatelessWidget {
+  const _ChestButtonIcon({required this.size});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: PetRive(
+        assetPath: _chestButtonRiveAssetPath,
+        fit: rive.Fit.contain,
+        fallback: Image.asset(
+          _chestIconAssetPath,
+          width: size,
+          height: size,
+          fit: BoxFit.contain,
+        ),
+      ),
+    );
+  }
+}
+
 class _ChestProgressIcon extends StatelessWidget {
   const _ChestProgressIcon({
     required this.progress,
@@ -2187,12 +2212,7 @@ class _ChestProgressIcon extends StatelessWidget {
                 color: style.background,
                 shape: BoxShape.circle,
               ),
-              child: Image.asset(
-                _chestIconAssetPath,
-                width: iconSize,
-                height: iconSize,
-                fit: BoxFit.contain,
-              ),
+              child: _ChestButtonIcon(size: iconSize),
             ),
           ),
         ),
@@ -2362,6 +2382,9 @@ class _ChestMenuItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final style = _chestTierStyle(context, tier);
     final chestAsset = _chestRiveAssetPath(tier);
+    const double iconBoxSize = 56;
+    const double iconPadding = 6;
+    const double iconSize = iconBoxSize - (iconPadding * 2);
     return InkWell(
       onTap: onOpen,
       borderRadius: BorderRadius.circular(16),
@@ -2381,9 +2404,9 @@ class _ChestMenuItem extends StatelessWidget {
         child: Row(
           children: [
             Container(
-              width: 56,
-              height: 56,
-              padding: const EdgeInsets.all(6),
+              width: iconBoxSize,
+              height: iconBoxSize,
+              padding: const EdgeInsets.all(iconPadding),
               decoration: BoxDecoration(
                 color: style.background,
                 borderRadius: BorderRadius.circular(12),
@@ -2391,10 +2414,7 @@ class _ChestMenuItem extends StatelessWidget {
               child: PetRive(
                 assetPath: chestAsset,
                 fit: rive.Fit.contain,
-                fallback: Image.asset(
-                  _chestIconAssetPath,
-                  fit: BoxFit.contain,
-                ),
+                fallback: const _ChestButtonIcon(size: iconSize),
               ),
             ),
             const SizedBox(width: 12),
@@ -2482,12 +2502,7 @@ class _ChestOpenDialogState extends State<_ChestOpenDialog> {
                       fit: rive.Fit.contain,
                       triggers: const [RiveInputValue.trigger(_chestOpenTriggerName)],
                       fallback: Center(
-                        child: Image.asset(
-                          _chestIconAssetPath,
-                          width: size * 0.42,
-                          height: size * 0.42,
-                          fit: BoxFit.contain,
-                        ),
+                        child: _ChestButtonIcon(size: size * 0.42),
                       ),
                     ),
                   ),
@@ -2631,12 +2646,7 @@ class _ChestRewardDialog extends StatelessWidget {
                       color: tierStyle.background,
                       shape: BoxShape.circle,
                     ),
-                    child: Image.asset(
-                      _chestIconAssetPath,
-                      width: 26,
-                      height: 26,
-                      fit: BoxFit.contain,
-                    ),
+                    child: const _ChestButtonIcon(size: 26),
                   ),
                   const SizedBox(height: 10),
                   Text(
