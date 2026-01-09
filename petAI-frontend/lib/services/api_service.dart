@@ -1,9 +1,12 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../config/api_config.dart';
 import '../models/activity_completion.dart';
+import '../models/chest_inventory_item.dart';
+import '../models/chest_open_result.dart';
 import '../models/activity_log.dart';
 import '../models/friend_profile.dart';
 import '../models/friend_search_result.dart';
@@ -12,6 +15,7 @@ import '../models/pet_state.dart';
 import '../models/progression_snapshot.dart';
 import '../models/progression_redeem_result.dart';
 import '../models/daily_activity.dart';
+import '../models/rive_input_value.dart';
 import '../models/session_bootstrap.dart';
 import '../models/subscription_status.dart';
 import '../models/activity_type.dart';
@@ -685,6 +689,60 @@ class ApiService {
     }
   }
 
+  Future<ApiResponse<List<ChestInventoryItem>>> fetchUserChests() async {
+    await _ensureTokenLoaded();
+    try {
+      final response = await _client.get(_uri("/chests"), headers: _headers);
+      final payload = _decode(response.body);
+      final data = _data(payload);
+      if (response.statusCode == 200) {
+        final rawList = (data["chests"] as List<dynamic>? ?? [])
+            .whereType<Map<String, dynamic>>()
+            .map(ChestInventoryItem.fromListEntry)
+            .where((chest) => chest.itemId > 0)
+            .toList();
+        final expanded = <ChestInventoryItem>[];
+        for (final chest in rawList) {
+          final count = chest.quantity > 0 ? chest.quantity : 0;
+          for (var i = 0; i < count; i++) {
+            expanded.add(chest.copyWith(quantity: 1));
+          }
+        }
+        return ApiResponse.success(expanded, statusCode: response.statusCode);
+      }
+      return ApiResponse.failure(
+        payload["error"] as String? ?? "Failed to load chests",
+        statusCode: response.statusCode,
+      );
+    } catch (err) {
+      return ApiResponse.failure("Network error: $err");
+    }
+  }
+
+  Future<ApiResponse<ChestOpenResult>> openChest(int itemId) async {
+    await _ensureTokenLoaded();
+    try {
+      final response = await _client.post(
+        _uri("/chests/open/$itemId"),
+        headers: _headers,
+      );
+      final payload = _decode(response.body);
+      final data = _data(payload);
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return ApiResponse.success(
+          ChestOpenResult.fromJson(data),
+          statusCode: response.statusCode,
+        );
+      }
+      return ApiResponse.failure(
+        payload["error"] as String? ?? "Failed to open chest",
+        statusCode: response.statusCode,
+      );
+    } catch (err) {
+      return ApiResponse.failure("Network error: $err");
+    }
+  }
+
   Future<ApiResponse<ShopState>> fetchShop() async {
     try {
       final response = await _client.get(_uri("/hub/shop"), headers: _headers);
@@ -857,7 +915,7 @@ class ApiService {
     }
   }
 
-  Future<ApiResponse<List<String>>> fetchEquippedStyleTriggers() async {
+  Future<ApiResponse<List<RiveInputValue>>> fetchEquippedStyleTriggers() async {
     await _ensureTokenLoaded();
     try {
       final response = await _client.get(
@@ -868,13 +926,35 @@ class ApiService {
       final data = _data(payload);
       if (response.statusCode == 200) {
         final equipped = data["equipped"];
-        final triggers = <String>[];
+        if (kDebugMode) {
+          if (equipped is Map<String, dynamic>) {
+            final slots = equipped.keys.map((key) => key.toString()).join(", ");
+            debugPrint("[style] equipped slots: $slots");
+            for (final entry in equipped.entries) {
+              final slot = entry.key.toString();
+              if (entry.value is! Map<String, dynamic>) continue;
+              final slotData = entry.value as Map<String, dynamic>;
+              final trigger = slotData["trigger"]?.toString() ?? "";
+              final value = slotData["trigger_value"]?.toString() ?? "null";
+              debugPrint(
+                "[style] equipped slot=$slot trigger=\"$trigger\" value=$value",
+              );
+            }
+          } else {
+            debugPrint(
+              "[style] equipped payload is not a map (type=${equipped.runtimeType})",
+            );
+          }
+        }
+        final triggers = <RiveInputValue>[];
         if (equipped is Map<String, dynamic>) {
-          for (final slot in const ["hat", "sunglasses", "color"]) {
+          for (final slot in const ["hat", "sunglasses", "color", "background"]) {
             final entry = equipped[slot];
             if (entry is! Map<String, dynamic>) continue;
-            final trigger = entry["trigger"]?.toString().trim() ?? "";
-            if (trigger.isNotEmpty) triggers.add(trigger);
+            final trigger = entry["trigger"]?.toString();
+            final triggerValue = entry["trigger_value"] as num?;
+            final input = RiveInputValue.fromTriggerValue(trigger, triggerValue);
+            if (input != null) triggers.add(input);
           }
         }
         return ApiResponse.success(triggers, statusCode: response.statusCode);

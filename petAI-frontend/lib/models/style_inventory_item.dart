@@ -11,6 +11,7 @@ class StyleInventoryItem {
     this.layerName,
     this.rarity,
     this.trigger,
+    this.triggerValue,
   });
 
   factory StyleInventoryItem.fromJson(Map<String, dynamic> json) {
@@ -26,6 +27,7 @@ class StyleInventoryItem {
       layerName: json['layer_name']?.toString(),
       rarity: json['rarity']?.toString(),
       trigger: json['trigger']?.toString(),
+      triggerValue: (json['trigger_value'] as num?)?.toDouble(),
     );
   }
 
@@ -40,6 +42,7 @@ class StyleInventoryItem {
   final String? layerName;
   final String? rarity;
   final String? trigger;
+  final double? triggerValue;
 
   bool get hasAssetPath => (assetPath ?? '').trim().isNotEmpty;
 }

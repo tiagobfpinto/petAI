@@ -47,6 +47,7 @@ def get_inventory_items():
                 "layer_name": item.layer_name,
                 "rarity": item.rarity,
                 "trigger": item.trigger,
+                "trigger_value": item.trigger_value,
             }
         )
 
@@ -75,12 +76,13 @@ def get_equipped_style():
             return None
         item = ItemsDAO.get_item_by_id(item_id)
         if not item:
-            return {"item_id": item_id, "trigger": None, "missing": True}
+            return {"item_id": item_id, "trigger": None, "trigger_value": None, "missing": True}
         return {
             "item_id": item.id,
             "name": item.name,
             "type": item.type.value if item.type else None,
             "trigger": item.trigger,
+            "trigger_value": item.trigger_value,
         }
 
     payload = {
@@ -89,6 +91,7 @@ def get_equipped_style():
             "hat": _item_payload(pet_style.hat_id),
             "sunglasses": _item_payload(pet_style.sunglasses_id),
             "color": _item_payload(pet_style.color_id),
+            "background": _item_payload(pet_style.background_id),
         },
     }
 
@@ -133,6 +136,9 @@ def equip_item(item_id: int):
     elif item_type in ("color", "colour"):
         pet_style.color_id = item.id
         equipped_slot = "color"
+    elif item_type in ("background", "bg", "backdrop"):
+        pet_style.background_id = item.id
+        equipped_slot = "background"
     else:
         # Handle enum-ish values stored as strings (e.g. "HAT", "SUNGLASSES", "COLOR")
         enum_like = item_type_raw.upper()
@@ -145,6 +151,9 @@ def equip_item(item_id: int):
         elif enum_like == "COLOR":
             pet_style.color_id = item.id
             equipped_slot = "color"
+        elif enum_like == "BACKGROUND":
+            pet_style.background_id = item.id
+            equipped_slot = "background"
         else:
             return error_response("Item type cannot be equipped", 400)
 
@@ -158,6 +167,7 @@ def equip_item(item_id: int):
                 "slot": equipped_slot,
                 "item_id": item.id,
                 "trigger": item.trigger,
+                "trigger_value": item.trigger_value,
             },
         },
     )

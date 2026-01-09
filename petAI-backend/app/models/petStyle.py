@@ -21,6 +21,7 @@ class PetStyle(db.Model):
     hat_id = db.Column(db.Integer, db.ForeignKey("Item.id", ondelete="SET NULL"), nullable=True)
     sunglasses_id = db.Column(db.Integer, db.ForeignKey("Item.id", ondelete="SET NULL"), nullable=True)
     color_id = db.Column(db.Integer, db.ForeignKey("Item.id", ondelete="SET NULL"), nullable=True)
+    background_id = db.Column(db.Integer, db.ForeignKey("Item.id", ondelete="SET NULL"), nullable=True)
     
     def to_dict(self) -> dict:
         return {
@@ -30,6 +31,7 @@ class PetStyle(db.Model):
             "hat_id": self.hat_id,
             "sunglasses_id": self.sunglasses_id,
             "color_id": self.color_id,
+            "background_id": self.background_id,
         }
     
  

@@ -31,6 +31,7 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SECRET_KEY = os.getenv("SECRET_KEY", "supersecretkey")
     AUTH_TOKEN_EXPIRES_SECONDS = int(os.getenv("AUTH_TOKEN_EXPIRES_SECONDS", 30 * 24 * 60 * 60))
+    ADMIN_TOKEN_TTL_SECONDS = int(os.getenv("ADMIN_TOKEN_TTL_SECONDS", 12 * 60 * 60))
     ENABLE_MOCK_IAP = os.getenv("ENABLE_MOCK_IAP", "false").lower() == "true"
 
     

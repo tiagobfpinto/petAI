@@ -14,7 +14,7 @@ from ..services.pet_service import PetService
 
 class FriendService:
     @staticmethod
-    def _style_triggers_for_pet(pet_id: int | None) -> list[str]:
+    def _style_triggers_for_pet(pet_id: int | None) -> list[dict]:
         if not pet_id:
             return []
         pet_style = PetStyle.query.filter_by(pet_id=pet_id).first()
@@ -23,15 +23,20 @@ class FriendService:
             db.session.add(pet_style)
             db.session.flush()
 
-        triggers: list[str] = []
-        for item_id in (pet_style.hat_id, pet_style.sunglasses_id, pet_style.color_id):
+        triggers: list[dict] = []
+        for item_id in (pet_style.hat_id, pet_style.sunglasses_id, pet_style.color_id, pet_style.background_id):
             if not item_id:
                 continue
             item = ItemsDAO.get_item_by_id(item_id)
             trigger = (item.trigger if item else None) or ""
             trigger = str(trigger).strip()
             if trigger:
-                triggers.append(trigger)
+                triggers.append(
+                    {
+                        "trigger": trigger,
+                        "trigger_value": item.trigger_value if item else None,
+                    }
+                )
         return triggers
 
     @staticmethod

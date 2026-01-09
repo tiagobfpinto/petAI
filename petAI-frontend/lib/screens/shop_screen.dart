@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/pet_state.dart';
+import '../models/rive_input_value.dart';
 import '../models/store_listing.dart';
 import '../services/api_service.dart';
 import '../widgets/item_asset_preview.dart';
@@ -487,7 +488,8 @@ class _ItemPreviewSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final item = listing.item;
-    final trigger = (item.trigger ?? "").trim();
+    final styleInput = RiveInputValue.fromTriggerValue(item.trigger, item.triggerValue);
+    final hasStyleInput = styleInput != null;
     final accent = _rarityAccent(item.rarity);
     final maxHeight = MediaQuery.sizeOf(context).height * 0.72;
 
@@ -544,27 +546,27 @@ class _ItemPreviewSheet extends StatelessWidget {
                   ),
                   child: Padding(
                     padding: const EdgeInsets.all(14),
-                    child: trigger.isEmpty
-                        ? ItemAssetPreview(
-                            assetPath: item.assetPath,
-                            assetType: item.assetType,
-                            placeholderIcon: Icons.shopping_bag_rounded,
-                          )
-                        : PetAvatar(
-                            stage: pet.stage,
-                            level: pet.level,
-                            petType: pet.petType,
-                            currentSprite: pet.currentSprite,
-                            styleTriggers: [trigger],
-                            showCosmetics: false,
-                          ),
+                      child: !hasStyleInput
+                          ? ItemAssetPreview(
+                              assetPath: item.assetPath,
+                              assetType: item.assetType,
+                              placeholderIcon: Icons.shopping_bag_rounded,
+                            )
+                          : PetAvatar(
+                              stage: pet.stage,
+                              level: pet.level,
+                              petType: pet.petType,
+                              currentSprite: pet.currentSprite,
+                              styleTriggers: [styleInput!],
+                              showCosmetics: false,
+                            ),
                   ),
                 ),
               ),
             ),
             const SizedBox(height: 12),
             Text(
-              trigger.isEmpty
+                !hasStyleInput
                   ? "No pet preview available for this item."
                   : "This is just a preview — it won't equip the item.",
               style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.w600),

@@ -25,6 +25,7 @@ from .subscription import Subscription  # noqa: E402,F401
 from .access_code import AccessCode  # noqa: E402,F401
 from .access_code_redemption import AccessCodeRedemption  # noqa: E402,F401
 from .milestone_redemption import MilestoneRedemption  # noqa: E402,F401
+from .chest import Chest  # noqa: E402,F401
 from .push_token import PushToken  # noqa: E402,F401
 from .event_log import EventLog  # noqa: E402,F401
 
@@ -43,6 +44,7 @@ __all__ = [
     "FriendRequest",
     "Item","ItemOwnership",
     "ItemTransaction","StoreListing","Admin_Users","PetStyle",
+    "Chest",
     "Subscription",
     "AccessCode",
     "AccessCodeRedemption",

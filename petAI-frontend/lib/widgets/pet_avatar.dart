@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:rive/rive.dart' as rive;
 
 import '../models/cosmetics.dart';
+import '../models/rive_input_value.dart';
 import 'pet_rive.dart';
 import 'pet_sprite.dart';
 
@@ -25,31 +26,33 @@ class PetAvatar extends StatelessWidget {
   final int level;
   final String? petType;
   final String? currentSprite;
-  final List<String> styleTriggers;
+  final List<RiveInputValue> styleTriggers;
   final PetCosmeticLoadout? cosmetics;
   final rive.Fit fit;
   final bool showCosmetics;
   final Widget? fallback;
 
-  static List<String> _dedupePreserveOrder(Iterable<String> values) {
-    final unique = <String>[];
+  static List<RiveInputValue> _dedupePreserveOrder(Iterable<RiveInputValue> values) {
+    final unique = <RiveInputValue>[];
+    final signatures = <String>{};
     for (final value in values) {
-      final trimmed = value.trim();
-      if (trimmed.isEmpty) continue;
-      if (unique.contains(trimmed)) continue;
-      unique.add(trimmed);
+      final signature = value.signature;
+      if (signature.isEmpty) continue;
+      if (signatures.contains(signature)) continue;
+      signatures.add(signature);
+      unique.add(value);
     }
     return unique;
   }
 
-  List<String> _buildTriggers() {
+  List<RiveInputValue> _buildTriggers() {
     final resolvedStage = stage.trim().isEmpty ? "egg" : stage.trim();
     final resolvedType = (petType ?? "").trim();
     final resolvedSprite = (currentSprite ?? "").trim();
     return _dedupePreserveOrder([
-      resolvedStage,
-      if (resolvedType.isNotEmpty) resolvedType,
-      if (resolvedSprite.isNotEmpty) resolvedSprite,
+      RiveInputValue.trigger(resolvedStage),
+      if (resolvedType.isNotEmpty) RiveInputValue.trigger(resolvedType),
+      if (resolvedSprite.isNotEmpty) RiveInputValue.trigger(resolvedSprite),
       ...styleTriggers,
     ]);
   }
